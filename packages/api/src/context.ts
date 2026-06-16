@@ -1,14 +1,15 @@
 import type { Context as HonoContext } from "hono";
+import type { AgentServices } from "./services";
 
 export interface CreateContextOptions {
 	context: HonoContext;
+	services: AgentServices;
 }
 
 // biome-ignore lint/suspicious/useAwait: context 工厂按约定为异步，便于后续接入 session/auth 查询
-export async function createContext(_options: CreateContextOptions) {
+export async function createContext(options: CreateContextOptions) {
 	return {
-		auth: null,
-		session: null,
+		services: options.services,
 	};
 }
 

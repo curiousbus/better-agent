@@ -9,8 +9,11 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
+    "@better-agent/agent": "workspace:*",
     "@better-agent/db": "workspace:*",
     "@better-agent/env": "workspace:*",
     "@orpc/client": "catalog:",
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@better-agent/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "4.1.9"
   }
 }
