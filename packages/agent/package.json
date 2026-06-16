@@ -1,0 +1,31 @@
+{
+  "name": "@better-agent/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ports": "./src/ports.ts",
+    "./provider/*": "./src/provider/*.ts",
+    "./crypto/*": "./src/crypto/*.ts",
+    "./testing/*": "./src/testing/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.84",
+    "@ai-sdk/google": "3.0.82",
+    "@ai-sdk/openai": "3.0.71",
+    "@ai-sdk/openai-compatible": "2.0.50",
+    "@ai-sdk/xai": "3.0.95",
+    "ai": "6.0.205",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@better-agent/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "4.1.9"
+  }
+}
