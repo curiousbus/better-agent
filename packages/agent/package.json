@@ -18,6 +18,7 @@
     "@ai-sdk/google": "3.0.82",
     "@ai-sdk/openai": "3.0.71",
     "@ai-sdk/openai-compatible": "2.0.50",
+    "@ai-sdk/provider": "3.0.10",
     "@ai-sdk/xai": "3.0.95",
     "ai": "6.0.205",
     "zod": "catalog:"

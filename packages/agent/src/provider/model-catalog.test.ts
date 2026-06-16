@@ -23,8 +23,8 @@ describe("ModelCatalog.sync", () => {
 
 		await catalog.sync();
 
-		expect((await catalogStore.list())[0].providerId).toBe("openai");
-		expect((await modelStore.listByProvider("openai"))[0].modelId).toBe(
+		expect((await catalogStore.list())[0]?.providerId).toBe("openai");
+		expect((await modelStore.listByProvider("openai"))[0]?.modelId).toBe(
 			"gpt-x"
 		);
 	});
@@ -49,6 +49,6 @@ describe("ModelCatalog.sync", () => {
 		const result = await catalog.sync();
 
 		expect(result.ok).toBe(false);
-		expect((await catalogStore.list())[0].providerId).toBe("x");
+		expect((await catalogStore.list())[0]?.providerId).toBe("x");
 	});
 });
