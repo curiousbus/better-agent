@@ -1,0 +1,71 @@
+# Lefthook configuration
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: ultracite-format
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: pnpm dlx ultracite fix --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+    - name: ultracite-lint
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: pnpm dlx ultracite check --files-ignore-unknown=true {staged_files}
+
+    - name: file-rules
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx}"
+      run: node scripts/check-file-rules.js {staged_files}
+
+    - name: eslint-rules
+      glob: "*.{js,ts,cjs,mjs,jsx,tsx}"
+      run: pnpm eslint --no-cache {staged_files}
+
+    - name: package-json-rules
+      glob: "package.json"
+      run: node scripts/check-package-json.js {staged_files}
+
+    - name: tailwind-rules
+      glob: "*.{tsx,ts,jsx,js}"
+      run: node scripts/check-tailwind.js {staged_files}
+
+commit-msg:
+  piped: true
+  commands:
+    conventional-commits:
+      run: |
+        msg=$(cat {1})
+        # Conventional Commits pattern: type(scope): description
+        # Types: feat, fix, docs, style, refactor, perf, test, chore, revert, ci, build
+        pattern="^(feat|fix|docs|style|refactor|perf|test|chore|revert|ci|build)(\(.+\))?: .{1,72}"
+        if echo "$msg" | grep -qE "$pattern"; then
+          exit 0
+        fi
+        echo "❌ 提交信息格式不符合 Conventional Commits 规范"
+        echo ""
+        echo "正确格式: type(scope): description"
+        echo ""
+        echo "类型 (type):"
+        echo "  feat     - 新功能"
+        echo "  fix      - 修复 bug"
+        echo "  docs     - 文档变更"
+        echo "  style    - 代码格式调整"
+        echo "  refactor - 重构"
+        echo "  perf     - 性能优化"
+        echo "  test     - 测试"
+        echo "  chore    - 构建/工具"
+        echo "  revert   - 回退"
+        echo "  ci       - CI 配置"
+        echo "  build    - 构建"
+        echo ""
+        echo "示例:"
+        echo "  feat(auth): 添加用户登录功能"
+        echo "  fix: 修复导航栏样式问题"
+        echo "  docs(api): 更新 API 文档"
+        exit 1
+
+pre-push:
+  parallel: true
+  commands:
+    type-check:
+      run: pnpm check-types
