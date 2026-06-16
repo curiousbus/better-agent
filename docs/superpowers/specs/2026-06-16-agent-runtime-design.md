@@ -38,7 +38,8 @@ packages/
   client/     新增·对外 TS SDK（封装 oRPC client：baseURL + agentId → run()/stream()，支持挂载远程工具）
 apps/
   server/     复用·Hono 挂 oRPC（RPCHandler + OpenAPIHandler），组装运行时 + 仓储 + models.dev 拉取
-  web/        复用·管理后台：provider/key 管理、agent 创建向导、会话流式对话
+  admin/      新增·管理后台：provider/key 管理、agent 创建向导、会话流式对话
+  web/        复用·现有应用（消费方 / 演示用途，本期不改）
 ```
 
 要点：
@@ -209,7 +210,7 @@ await client.listMessages(sessionId);
 | agent CRUD（provider→model 向导） | P1 🔨 |
 | sessions + messages + message_parts + 流式 prompt/run + 历史回放 | P1 🔨 |
 | Client TS SDK + HTTP/OpenAPI 底层 | P1 🔨 |
-| web 管理后台（provider/key、agent 向导、会话流式对话） | P1 🔨 |
+| admin 管理后台 `apps/admin`（provider/key、agent 向导、会话流式对话） | P1 🔨 |
 | Permission **接口 + AllowAll 占位 + 契约** | P1 🔨/📐 |
 | message tool-* parts 结构、远程工具协议、压缩字段（结构/契约就位） | P1 📐 |
 | **工具系统**（ToolRegistry + 客户端远程工具实现 A + 内置服务端工具） | P2 |
