@@ -5,11 +5,12 @@ import type {
 	ProviderCredentialStore,
 } from "@better-agent/agent/ports";
 import { and, eq } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
 
-type Db = NodePgDatabase<typeof schema>;
+// Driver-agnostic db type: satisfied by node-postgres (production) and PGlite (tests).
+type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 const LAST4_SUFFIX = -4;
 
