@@ -16,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@better-agent/agent": "workspace:*",
     "@better-agent/env": "workspace:*",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",

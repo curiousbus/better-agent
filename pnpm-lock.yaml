@@ -339,6 +339,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@better-agent/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@better-agent/env':
         specifier: workspace:*
         version: link:../env
