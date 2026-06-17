@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { SessionMessageRow } from "@/utils/api-types";
 import { client, orpc } from "@/utils/orpc";
@@ -19,6 +19,9 @@ function partStatus(status: SessionMessageRow["message"]["status"]) {
 	}
 	if (status === "error") {
 		return "error" as const;
+	}
+	if (status === "aborted") {
+		return "complete" as const;
 	}
 	return "streaming" as const;
 }
@@ -119,8 +122,10 @@ async function sendMessage(text: string, args: SendArgs) {
 			setDraft: args.setDraft,
 		});
 	} catch {
-		assistant.status = "error";
-		args.setDraft([user, { ...assistant }]);
+		if (!controller.signal.aborted) {
+			assistant.status = "error";
+			args.setDraft([user, { ...assistant }]);
+		}
 	} finally {
 		await finalizeSend(args.sessionId, args);
 	}
@@ -137,6 +142,9 @@ export function useChat(sessionId: string) {
 	const [draft, setDraft] = useState<ChatMessage[]>([]);
 	const [streaming, setStreaming] = useState(false);
 	const abortRef = useRef<AbortController | null>(null);
+
+	// Abort an in-flight stream when the session switches or the page unmounts.
+	useEffect(() => () => abortRef.current?.abort(), []);
 
 	const messages: ChatMessage[] = [
 		...(history.data ?? []).map(toChatMessage),
