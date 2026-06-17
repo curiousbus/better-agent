@@ -3,15 +3,18 @@ import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
+import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { db } from "@better-agent/db";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
+import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import {
 	createModelCacheStore,
 	createProviderCatalogStore,
 	createProviderCredentialStore,
 } from "@better-agent/db/repositories/provider-stores";
+import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { env } from "@better-agent/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -37,18 +40,35 @@ function buildServices() {
 		credentialStore: providerCredential,
 		modelStore: modelCache,
 	});
+	const session = createSessionStore(db);
+	const message = createMessageStore(db);
+	const modelFactory = createModelFactory({
+		catalogStore: providerCatalog,
+		credentialStore: providerCredential,
+	});
+	const runtime = createSessionRuntime({
+		sessionStore: session,
+		messageStore: message,
+		agentStore: agent,
+		modelFactory,
+	});
 	return {
 		catalog: createModelCatalog({
 			catalogStore: providerCatalog,
 			modelStore: modelCache,
 			fetcher: () => fetchModelsDev(env.MODELS_DEV_URL),
 		}),
-		modelFactory: createModelFactory({
-			catalogStore: providerCatalog,
-			credentialStore: providerCredential,
-		}),
+		modelFactory,
 		agentValidator,
-		stores: { providerCatalog, modelCache, providerCredential, agent },
+		runtime,
+		stores: {
+			providerCatalog,
+			modelCache,
+			providerCredential,
+			agent,
+			session,
+			message,
+		},
 	};
 }
 
