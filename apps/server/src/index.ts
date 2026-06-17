@@ -1,3 +1,4 @@
+import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
@@ -5,6 +6,7 @@ import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { db } from "@better-agent/db";
+import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import {
 	createModelCacheStore,
 	createProviderCatalogStore,
@@ -30,6 +32,11 @@ function buildServices() {
 	const providerCatalog = createProviderCatalogStore(db);
 	const modelCache = createModelCacheStore(db);
 	const providerCredential = createProviderCredentialStore(db, secretBox);
+	const agent = createAgentStore(db);
+	const agentValidator = createAgentValidator({
+		credentialStore: providerCredential,
+		modelStore: modelCache,
+	});
 	return {
 		catalog: createModelCatalog({
 			catalogStore: providerCatalog,
@@ -40,7 +47,8 @@ function buildServices() {
 			catalogStore: providerCatalog,
 			credentialStore: providerCredential,
 		}),
-		stores: { providerCatalog, modelCache, providerCredential },
+		agentValidator,
+		stores: { providerCatalog, modelCache, providerCredential, agent },
 	};
 }
 
