@@ -1,144 +1,66 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Card } from "@better-agent/ui/components/card";
-import { Checkbox } from "@better-agent/ui/components/checkbox";
-import { Input } from "@better-agent/ui/components/input";
-import { Label } from "@better-agent/ui/components/label";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@better-agent/ui/components/popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { CredentialRow, ProviderCatalogRow } from "@/utils/api-types";
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
+import type { CredentialRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
-interface FormState {
-	apiKey: string;
-	baseURL: string;
-	enabled: boolean;
-	providerId: string;
+import {
+	CredentialDialog,
+	EMPTY_FORM,
+	type FormState,
+} from "./credential-dialog";
+
+function matchCredential(row: CredentialRow, query: string): boolean {
+	return row.providerId.toLowerCase().includes(query);
 }
 
-const EMPTY_FORM: FormState = {
-	providerId: "",
-	apiKey: "",
-	baseURL: "",
-	enabled: true,
-};
-
-function ProviderSelect({
-	providers,
-	value,
-	onChange,
-}: {
-	providers: ProviderCatalogRow[];
-	value: string;
-	onChange: (v: string) => void;
-}) {
+function DeleteConfirm({ onConfirm }: { onConfirm: () => void }) {
+	const [open, setOpen] = useState(false);
 	return (
-		<div className="flex flex-col gap-1">
-			<Label htmlFor="cred-provider">Provider</Label>
-			<select
-				className="h-8 border bg-transparent px-2 text-sm"
-				id="cred-provider"
-				onChange={(event) => onChange(event.target.value)}
-				required
-				value={value}
-			>
-				<option value="">Select…</option>
-				{providers.map((provider) => (
-					<option key={provider.providerId} value={provider.providerId}>
-						{provider.providerId}
-					</option>
-				))}
-			</select>
-		</div>
-	);
-}
-
-function CredentialFormFields({
-	form,
-	providers,
-	setForm,
-}: {
-	form: FormState;
-	providers: ProviderCatalogRow[];
-	setForm: (f: FormState) => void;
-}) {
-	return (
-		<>
-			<ProviderSelect
-				onChange={(v) => setForm({ ...form, providerId: v })}
-				providers={providers}
-				value={form.providerId}
-			/>
-			<div className="flex flex-col gap-1">
-				<Label htmlFor="cred-key">API key</Label>
-				<Input
-					id="cred-key"
-					onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
-					required
-					value={form.apiKey}
-				/>
-			</div>
-			<div className="flex flex-col gap-1">
-				<Label htmlFor="cred-base">Base URL (optional)</Label>
-				<Input
-					id="cred-base"
-					onChange={(event) =>
-						setForm({ ...form, baseURL: event.target.value })
-					}
-					value={form.baseURL}
-				/>
-			</div>
-			<label className="flex items-center gap-2 text-sm" htmlFor="cred-enabled">
-				<Checkbox
-					checked={form.enabled}
-					id="cred-enabled"
-					onCheckedChange={(checked) =>
-						setForm({ ...form, enabled: checked === true })
-					}
-				/>
-				Enabled
-			</label>
-		</>
-	);
-}
-
-function CredentialForm({
-	providers,
-	onSubmit,
-	pending,
-}: {
-	providers: ProviderCatalogRow[];
-	onSubmit: (form: FormState) => void;
-	pending: boolean;
-}) {
-	const [form, setForm] = useState<FormState>(EMPTY_FORM);
-	return (
-		<form
-			className="grid grid-cols-[1fr_1fr_1fr_auto_auto] items-end gap-2"
-			onSubmit={(event) => {
-				event.preventDefault();
-				onSubmit(form);
-				setForm(EMPTY_FORM);
-			}}
-		>
-			<CredentialFormFields
-				form={form}
-				providers={providers}
-				setForm={setForm}
-			/>
-			<Button disabled={pending} size="sm" type="submit">
-				Save
-			</Button>
-		</form>
+		<Popover onOpenChange={setOpen} open={open}>
+			<PopoverTrigger render={<Button size="xs" variant="destructive" />}>
+				Delete
+			</PopoverTrigger>
+			<PopoverContent>
+				<p className="text-sm">Delete this credential?</p>
+				<div className="mt-2 flex justify-end gap-2">
+					<Button onClick={() => setOpen(false)} size="xs" variant="outline">
+						Cancel
+					</Button>
+					<Button
+						onClick={() => {
+							setOpen(false);
+							onConfirm();
+						}}
+						size="xs"
+						variant="destructive"
+					>
+						Confirm
+					</Button>
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
 function CredentialRows({
 	rows,
+	onEdit,
 	onDelete,
 }: {
 	rows: CredentialRow[];
+	onEdit: (row: CredentialRow) => void;
 	onDelete: (providerId: string) => void;
 }) {
 	return (
@@ -148,23 +70,16 @@ function CredentialRows({
 					<td className="py-1 font-mono">{row.providerId}</td>
 					<td className="font-mono text-muted-foreground">…{row.last4}</td>
 					<td className="text-muted-foreground">{row.baseURL ?? "—"}</td>
-					<td>
-						<span
-							className={
-								row.enabled ? "text-green-500" : "text-muted-foreground"
-							}
-						>
-							{row.enabled ? "enabled" : "disabled"}
-						</span>
+					<td
+						className={row.enabled ? "text-green-500" : "text-muted-foreground"}
+					>
+						{row.enabled ? "enabled" : "disabled"}
 					</td>
-					<td className="text-right">
-						<Button
-							onClick={() => onDelete(row.providerId)}
-							size="xs"
-							variant="destructive"
-						>
-							Delete
+					<td className="flex justify-end gap-2 py-1">
+						<Button onClick={() => onEdit(row)} size="xs" variant="outline">
+							Edit
 						</Button>
+						<DeleteConfirm onConfirm={() => onDelete(row.providerId)} />
 					</td>
 				</tr>
 			))}
@@ -172,14 +87,40 @@ function CredentialRows({
 	);
 }
 
-function useCredentialsMutations(invalidate: () => void) {
+function useCredentialDialog() {
+	const [dialog, setDialog] = useState<{
+		open: boolean;
+		initial: FormState | null;
+	}>({ open: false, initial: null });
+	const openAdd = () => setDialog({ open: true, initial: EMPTY_FORM });
+	const openEdit = (row: CredentialRow) =>
+		setDialog({
+			open: true,
+			initial: {
+				providerId: row.providerId,
+				apiKey: "",
+				baseURL: row.baseURL ?? "",
+				enabled: row.enabled,
+			},
+		});
+	const close = (open: boolean) => setDialog({ open, initial: dialog.initial });
+	return { dialog, openAdd, openEdit, close };
+}
+
+function useCredentialsMutations(onSaved: () => void) {
+	const queryClient = useQueryClient();
+	const invalidate = () =>
+		queryClient.invalidateQueries({
+			queryKey: orpc.providers.credentialsList.key(),
+		});
 	const upsert = useMutation(
 		orpc.providers.credentialsUpsert.mutationOptions({
 			onSuccess: () => {
 				toast.success("Credential saved");
+				onSaved();
 				invalidate();
 			},
-			onError: (error) => toast.error(error.message),
+			onError: (e) => toast.error(e.message),
 		})
 	);
 	const remove = useMutation(
@@ -188,37 +129,23 @@ function useCredentialsMutations(invalidate: () => void) {
 				toast.success("Credential deleted");
 				invalidate();
 			},
-			onError: (error) => toast.error(error.message),
+			onError: (e) => toast.error(e.message),
 		})
 	);
 	return { upsert, remove };
 }
 
-export function CredentialsCard() {
-	const queryClient = useQueryClient();
-	const catalog = useQuery(orpc.providers.catalogList.queryOptions());
-	const credentials = useQuery(orpc.providers.credentialsList.queryOptions());
-	const invalidate = () =>
-		queryClient.invalidateQueries({
-			queryKey: orpc.providers.credentialsList.key(),
-		});
-	const { upsert, remove } = useCredentialsMutations(invalidate);
-
+function CredentialsTable({
+	view,
+	onEdit,
+	onDelete,
+}: {
+	view: ReturnType<typeof useListView<CredentialRow>>;
+	onEdit: (row: CredentialRow) => void;
+	onDelete: (providerId: string) => void;
+}) {
 	return (
-		<Card className="flex flex-col gap-4 p-4">
-			<h2 className="font-semibold text-lg">Credentials</h2>
-			<CredentialForm
-				onSubmit={(form) =>
-					upsert.mutate({
-						providerId: form.providerId,
-						apiKey: form.apiKey,
-						baseURL: form.baseURL.trim() === "" ? null : form.baseURL.trim(),
-						enabled: form.enabled,
-					})
-				}
-				pending={upsert.isPending}
-				providers={catalog.data ?? []}
-			/>
+		<>
 			<table className="w-full text-sm">
 				<thead>
 					<tr className="border-b text-left text-muted-foreground">
@@ -230,10 +157,63 @@ export function CredentialsCard() {
 					</tr>
 				</thead>
 				<CredentialRows
-					onDelete={(providerId) => remove.mutate({ providerId })}
-					rows={credentials.data ?? []}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					rows={view.pageRows}
 				/>
 			</table>
+			<Pagination
+				onPage={view.setPage}
+				page={view.page}
+				pageCount={view.pageCount}
+				total={view.total}
+			/>
+		</>
+	);
+}
+
+export function CredentialsCard() {
+	const catalog = useQuery(orpc.providers.catalogList.queryOptions());
+	const credentials = useQuery(orpc.providers.credentialsList.queryOptions());
+	const view = useListView(credentials.data ?? [], { filter: matchCredential });
+	const { dialog, openAdd, openEdit, close } = useCredentialDialog();
+	const { upsert, remove } = useCredentialsMutations(() => close(false));
+	const handleSubmit = (form: FormState) =>
+		upsert.mutate({
+			providerId: form.providerId,
+			apiKey: form.apiKey,
+			baseURL: form.baseURL.trim() === "" ? null : form.baseURL.trim(),
+			enabled: form.enabled,
+		});
+	return (
+		<Card className="flex flex-col gap-3 p-4">
+			<h2 className="font-semibold text-lg">Credentials</h2>
+			<ListToolbar
+				action={
+					<Button onClick={openAdd} size="sm">
+						Add credential
+					</Button>
+				}
+				onSearch={view.setSearch}
+				placeholder="Search credentials…"
+				search={view.search}
+			/>
+			<CredentialsTable
+				onDelete={(providerId) => remove.mutate({ providerId })}
+				onEdit={openEdit}
+				view={view}
+			/>
+			{dialog.open ? (
+				<CredentialDialog
+					initial={dialog.initial}
+					key={dialog.initial?.providerId ?? "new"}
+					onOpenChange={close}
+					onSubmit={handleSubmit}
+					open={dialog.open}
+					pending={upsert.isPending}
+					providers={catalog.data ?? []}
+				/>
+			) : null}
 		</Card>
 	);
 }
