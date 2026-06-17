@@ -85,34 +85,33 @@ function makeAppendPart(db: Db): MessageStore["appendPart"] {
 		});
 }
 
-async function makeListWithParts(
-	db: Db,
-	sessionId: string
-): Promise<Awaited<ReturnType<MessageStore["listWithParts"]>>> {
-	const messageRows = await db
-		.select()
-		.from(schema.messages)
-		.where(eq(schema.messages.sessionId, sessionId))
-		.orderBy(schema.messages.seq);
-	if (messageRows.length === 0) {
-		return [];
-	}
-	const partRows = await db
-		.select()
-		.from(schema.messageParts)
-		.where(
-			inArray(
-				schema.messageParts.messageId,
-				messageRows.map((m) => m.id)
+function makeListWithParts(db: Db): MessageStore["listWithParts"] {
+	return async (sessionId) => {
+		const messageRows = await db
+			.select()
+			.from(schema.messages)
+			.where(eq(schema.messages.sessionId, sessionId))
+			.orderBy(schema.messages.seq);
+		if (messageRows.length === 0) {
+			return [];
+		}
+		const partRows = await db
+			.select()
+			.from(schema.messageParts)
+			.where(
+				inArray(
+					schema.messageParts.messageId,
+					messageRows.map((m) => m.id)
+				)
 			)
-		)
-		.orderBy(schema.messageParts.seq);
-	return messageRows.map((message) => ({
-		message: toMessage(message),
-		parts: partRows
-			.filter((part) => part.messageId === message.id)
-			.map(toMessagePart),
-	}));
+			.orderBy(schema.messageParts.messageId, schema.messageParts.seq);
+		return messageRows.map((message) => ({
+			message: toMessage(message),
+			parts: partRows
+				.filter((part) => part.messageId === message.id)
+				.map(toMessagePart),
+		}));
+	};
 }
 
 export function createMessageStore(db: Db): MessageStore {
@@ -137,6 +136,6 @@ export function createMessageStore(db: Db): MessageStore {
 			const row = rows[0];
 			return row ? toMessagePart(row) : null;
 		},
-		listWithParts: (sessionId) => makeListWithParts(db, sessionId),
+		listWithParts: makeListWithParts(db),
 	};
 }
