@@ -3,6 +3,7 @@ import { Card } from "@better-agent/ui/components/card";
 import {
 	Popover,
 	PopoverContent,
+	PopoverTitle,
 	PopoverTrigger,
 } from "@better-agent/ui/components/popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
-import { useListView } from "@/components/list/use-list-view";
+import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { CredentialRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -33,7 +34,7 @@ function DeleteConfirm({ onConfirm }: { onConfirm: () => void }) {
 				Delete
 			</PopoverTrigger>
 			<PopoverContent>
-				<p className="text-sm">Delete this credential?</p>
+				<PopoverTitle className="text-sm">Delete this credential?</PopoverTitle>
 				<div className="mt-2 flex justify-end gap-2">
 					<Button onClick={() => setOpen(false)} size="xs" variant="outline">
 						Cancel
@@ -66,7 +67,7 @@ function CredentialRows({
 	return (
 		<tbody>
 			{rows.map((row) => (
-				<tr className="border-b/40" key={row.providerId}>
+				<tr className="border-border/40 border-b" key={row.providerId}>
 					<td className="py-1 font-mono">{row.providerId}</td>
 					<td className="font-mono text-muted-foreground">…{row.last4}</td>
 					<td className="text-muted-foreground">{row.baseURL ?? "—"}</td>
@@ -140,7 +141,7 @@ function CredentialsTable({
 	onEdit,
 	onDelete,
 }: {
-	view: ReturnType<typeof useListView<CredentialRow>>;
+	view: ListView<CredentialRow>;
 	onEdit: (row: CredentialRow) => void;
 	onDelete: (providerId: string) => void;
 }) {

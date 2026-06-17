@@ -58,7 +58,7 @@ function ModelsTable({ rows }: { rows: ModelRow[] }) {
 			</thead>
 			<tbody>
 				{rows.map((row) => (
-					<tr className="border-b/40" key={row.modelId}>
+					<tr className="border-border/40 border-b" key={row.modelId}>
 						<td className="py-1 font-mono">{row.modelId}</td>
 						<td>{row.name}</td>
 						<td className="text-muted-foreground">{row.contextLimit ?? "—"}</td>

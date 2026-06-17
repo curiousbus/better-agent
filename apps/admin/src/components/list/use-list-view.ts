@@ -14,6 +14,7 @@ export interface ListView<T> {
 
 export function useListView<T>(
 	rows: T[],
+	/** filter: pass a stable (module-scoped) predicate — it is a useMemo dependency. */
 	options: { filter: (row: T, query: string) => boolean; pageSize?: number }
 ): ListView<T> {
 	const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;

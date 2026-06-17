@@ -32,7 +32,7 @@ function CatalogTable({ rows }: { rows: ProviderCatalogRow[] }) {
 			</thead>
 			<tbody>
 				{rows.map((row) => (
-					<tr className="border-b/40" key={row.providerId}>
+					<tr className="border-border/40 border-b" key={row.providerId}>
 						<td className="py-1 font-mono">{row.providerId}</td>
 						<td>{row.name}</td>
 						<td className="text-muted-foreground">{row.npm ?? "—"}</td>
