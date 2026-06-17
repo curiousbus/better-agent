@@ -4,25 +4,22 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
 import type { ProviderCatalogRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
-function CatalogTable({
-	rows,
-	loading,
-}: {
-	rows: ProviderCatalogRow[];
-	loading: boolean;
-}) {
-	if (loading) {
-		return <Skeleton className="h-24 w-full" />;
-	}
+function matchProvider(row: ProviderCatalogRow, query: string): boolean {
+	return (
+		row.providerId.toLowerCase().includes(query) ||
+		row.name.toLowerCase().includes(query)
+	);
+}
+
+function CatalogTable({ rows }: { rows: ProviderCatalogRow[] }) {
 	if (rows.length === 0) {
-		return (
-			<p className="text-muted-foreground text-sm">
-				No providers yet. Click "Refresh catalog".
-			</p>
-		);
+		return <p className="text-muted-foreground text-sm">No providers.</p>;
 	}
 	return (
 		<table className="w-full text-sm">
@@ -49,6 +46,7 @@ function CatalogTable({
 export function CatalogCard() {
 	const queryClient = useQueryClient();
 	const catalog = useQuery(orpc.providers.catalogList.queryOptions());
+	const view = useListView(catalog.data ?? [], { filter: matchProvider });
 	const refresh = useMutation(
 		orpc.providers.catalogRefresh.mutationOptions({
 			onSuccess: () => {
@@ -62,18 +60,33 @@ export function CatalogCard() {
 	);
 
 	return (
-		<Card className="p-4">
-			<div className="mb-3 flex items-center justify-between">
-				<h2 className="font-semibold text-lg">Provider catalog</h2>
-				<Button
-					disabled={refresh.isPending}
-					onClick={() => refresh.mutate(undefined)}
-					size="sm"
-				>
-					{refresh.isPending ? "Refreshing…" : "Refresh catalog"}
-				</Button>
-			</div>
-			<CatalogTable loading={catalog.isLoading} rows={catalog.data ?? []} />
+		<Card className="flex flex-col gap-3 p-4">
+			<h2 className="font-semibold text-lg">Provider catalog</h2>
+			<ListToolbar
+				action={
+					<Button
+						disabled={refresh.isPending}
+						onClick={() => refresh.mutate(undefined)}
+						size="sm"
+					>
+						{refresh.isPending ? "Refreshing…" : "Refresh catalog"}
+					</Button>
+				}
+				onSearch={view.setSearch}
+				placeholder="Search providers…"
+				search={view.search}
+			/>
+			{catalog.isLoading ? (
+				<Skeleton className="h-24 w-full" />
+			) : (
+				<CatalogTable rows={view.pageRows} />
+			)}
+			<Pagination
+				onPage={view.setPage}
+				page={view.page}
+				pageCount={view.pageCount}
+				total={view.total}
+			/>
 		</Card>
 	);
 }
