@@ -72,19 +72,39 @@ const COMPACTION_HISTORY = [
 	entry("user", COMPACTED_SEQ + 1, "new"),
 ];
 
+const BASIC_HISTORY = [entry("user", 0, "hi"), entry("assistant", 1, "hello")];
+const BASIC_EXPECTED = [
+	{ role: "system", content: "You are helpful." },
+	{ role: "user", content: "hi" },
+	{ role: "assistant", content: "hello" },
+];
+
+const COMPACTION_EXPECTED = [
+	{ role: "system", content: "S" },
+	{ role: "system", content: "对话摘要：earlier talk" },
+	{ role: "user", content: "new" },
+];
+
+const SUMMARY_NO_COMPACTION_HISTORY = [
+	entry("user", 0, "a"),
+	entry("assistant", 1, "b"),
+];
+const SUMMARY_NO_COMPACTION_EXPECTED = [
+	{ role: "system", content: "S" },
+	{ role: "system", content: "对话摘要：all prior talk" },
+	{ role: "user", content: "a" },
+	{ role: "assistant", content: "b" },
+];
+
 describe("toModelMessages", () => {
 	it("prepends the system prompt then maps user/assistant turns", () => {
 		const result = toModelMessages({
 			systemPrompt: "You are helpful.",
 			summary: null,
 			compactedThroughSeq: null,
-			history: [entry("user", 0, "hi"), entry("assistant", 1, "hello")],
+			history: BASIC_HISTORY,
 		});
-		expect(result).toEqual([
-			{ role: "system", content: "You are helpful." },
-			{ role: "user", content: "hi" },
-			{ role: "assistant", content: "hello" },
-		]);
+		expect(result).toEqual(BASIC_EXPECTED);
 	});
 
 	it("joins textual parts (text + reasoning) with newlines", () => {
@@ -104,11 +124,7 @@ describe("toModelMessages", () => {
 			compactedThroughSeq: COMPACTED_SEQ,
 			history: COMPACTION_HISTORY,
 		});
-		expect(result).toEqual([
-			{ role: "system", content: "S" },
-			{ role: "system", content: "对话摘要：earlier talk" },
-			{ role: "user", content: "new" },
-		]);
+		expect(result).toEqual(COMPACTION_EXPECTED);
 	});
 
 	it("skips system messages found in history", () => {
@@ -122,5 +138,15 @@ describe("toModelMessages", () => {
 			{ role: "system", content: "S" },
 			{ role: "user", content: "hi" },
 		]);
+	});
+
+	it("with a summary and no compactedThroughSeq, keeps all history messages", () => {
+		const result = toModelMessages({
+			systemPrompt: "S",
+			summary: "all prior talk",
+			compactedThroughSeq: null,
+			history: SUMMARY_NO_COMPACTION_HISTORY,
+		});
+		expect(result).toEqual(SUMMARY_NO_COMPACTION_EXPECTED);
 	});
 });
