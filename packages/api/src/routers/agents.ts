@@ -1,3 +1,4 @@
+import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { publicProcedure } from "../index";
@@ -19,6 +20,16 @@ const agentInput = z.object({
 
 const idInput = z.object({ id: z.uuid() });
 
+async function assertValidAgent(
+	validator: AgentValidator,
+	input: { providerId: string; modelId: string }
+): Promise<void> {
+	const error = await validator.validate(input);
+	if (error) {
+		throw new ORPCError("BAD_REQUEST", { message: error });
+	}
+}
+
 export const agentsRouter = {
 	list: publicProcedure.handler(({ context }) =>
 		context.services.stores.agent.list()
@@ -33,10 +44,10 @@ export const agentsRouter = {
 	create: publicProcedure
 		.input(agentInput)
 		.handler(async ({ input, context }) => {
-			const error = await context.services.agentValidator.validate(input);
-			if (error) {
-				throw new ORPCError("BAD_REQUEST", { message: error });
-			}
+			await assertValidAgent(context.services.agentValidator, {
+				providerId: input.providerId,
+				modelId: input.modelId,
+			});
 			return context.services.stores.agent.create(input);
 		}),
 
@@ -44,10 +55,10 @@ export const agentsRouter = {
 		.input(idInput.extend(agentInput.shape))
 		.handler(async ({ input, context }) => {
 			const { id, ...rest } = input;
-			const error = await context.services.agentValidator.validate(rest);
-			if (error) {
-				throw new ORPCError("BAD_REQUEST", { message: error });
-			}
+			await assertValidAgent(context.services.agentValidator, {
+				providerId: rest.providerId,
+				modelId: rest.modelId,
+			});
 			const updated = await context.services.stores.agent.update(id, rest);
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", { message: `Agent ${id} not found` });
