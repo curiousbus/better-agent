@@ -88,7 +88,7 @@ function makeAppendPart(db: Db): MessageStore["appendPart"] {
 async function makeListWithParts(
 	db: Db,
 	sessionId: string
-): Promise<ReturnType<MessageStore["listWithParts"]>> {
+): Promise<Awaited<ReturnType<MessageStore["listWithParts"]>>> {
 	const messageRows = await db
 		.select()
 		.from(schema.messages)
