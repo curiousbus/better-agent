@@ -3,25 +3,48 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
 import type { ModelRow, ProviderCatalogRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
-function ModelsTable({
-	rows,
-	loading,
+function matchModel(row: ModelRow, query: string): boolean {
+	return (
+		row.modelId.toLowerCase().includes(query) ||
+		row.name.toLowerCase().includes(query)
+	);
+}
+
+function ProviderPicker({
+	providers,
+	value,
+	onChange,
 }: {
-	rows: ModelRow[];
-	loading: boolean;
+	providers: ProviderCatalogRow[];
+	value: string;
+	onChange: (providerId: string) => void;
 }) {
-	if (loading) {
-		return <Skeleton className="h-24 w-full" />;
-	}
+	return (
+		<select
+			aria-label="Provider"
+			className="h-8 border bg-transparent px-2 text-sm"
+			onChange={(event) => onChange(event.target.value)}
+			value={value}
+		>
+			<option value="">Select a provider…</option>
+			{providers.map((provider) => (
+				<option key={provider.providerId} value={provider.providerId}>
+					{provider.providerId}
+				</option>
+			))}
+		</select>
+	);
+}
+
+function ModelsTable({ rows }: { rows: ModelRow[] }) {
 	if (rows.length === 0) {
-		return (
-			<p className="text-muted-foreground text-sm">
-				No models for this provider.
-			</p>
-		);
+		return <p className="text-muted-foreground text-sm">No models.</p>;
 	}
 	return (
 		<table className="w-full text-sm">
@@ -49,31 +72,6 @@ function ModelsTable({
 	);
 }
 
-function ProviderPicker({
-	providers,
-	value,
-	onChange,
-}: {
-	providers: ProviderCatalogRow[];
-	value: string;
-	onChange: (providerId: string) => void;
-}) {
-	return (
-		<select
-			className="h-8 border bg-transparent px-2 text-sm"
-			onChange={(event) => onChange(event.target.value)}
-			value={value}
-		>
-			<option value="">Select a provider…</option>
-			{providers.map((provider) => (
-				<option key={provider.providerId} value={provider.providerId}>
-					{provider.providerId}
-				</option>
-			))}
-		</select>
-	);
-}
-
 export function ModelsCard() {
 	const [providerId, setProviderId] = useState("");
 	const catalog = useQuery(orpc.providers.catalogList.queryOptions());
@@ -83,23 +81,41 @@ export function ModelsCard() {
 			enabled: providerId !== "",
 		})
 	);
+	const view = useListView(models.data ?? [], { filter: matchModel });
 
 	return (
 		<Card className="flex flex-col gap-3 p-4">
-			<div className="flex items-center justify-between">
-				<h2 className="font-semibold text-lg">Models</h2>
-				<ProviderPicker
-					onChange={setProviderId}
-					providers={catalog.data ?? []}
-					value={providerId}
-				/>
-			</div>
+			<h2 className="font-semibold text-lg">Models</h2>
+			<ListToolbar
+				action={
+					<ProviderPicker
+						onChange={setProviderId}
+						providers={catalog.data ?? []}
+						value={providerId}
+					/>
+				}
+				onSearch={view.setSearch}
+				placeholder="Search models…"
+				search={view.search}
+			/>
 			{providerId === "" ? (
 				<p className="text-muted-foreground text-sm">
 					Pick a provider to list its models.
 				</p>
 			) : (
-				<ModelsTable loading={models.isLoading} rows={models.data ?? []} />
+				<>
+					{models.isLoading ? (
+						<Skeleton className="h-24 w-full" />
+					) : (
+						<ModelsTable rows={view.pageRows} />
+					)}
+					<Pagination
+						onPage={view.setPage}
+						page={view.page}
+						pageCount={view.pageCount}
+						total={view.total}
+					/>
+				</>
 			)}
 		</Card>
 	);
