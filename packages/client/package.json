@@ -1,0 +1,25 @@
+{
+  "name": "@better-agent/client",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-agent/api": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:"
+  },
+  "devDependencies": {
+    "@better-agent/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "4.1.9"
+  }
+}

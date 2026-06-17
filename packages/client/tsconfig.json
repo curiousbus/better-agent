@@ -1,0 +1,8 @@
+{
+  "extends": "@better-agent/config/tsconfig.base.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
