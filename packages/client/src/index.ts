@@ -1,4 +1,6 @@
 import type { AppRouter } from "@better-agent/api/routers/index";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 
 type Client = RouterClient<AppRouter>;
@@ -37,4 +39,40 @@ export interface AgentClient {
 	run(text: string, options?: RunOptions): Promise<Message>;
 	/** 跑一轮并流式返回运行事件（无 sessionId 则自动建会话）。 */
 	stream(text: string, options?: RunOptions): AsyncGenerator<RunEvent>;
+}
+
+/** 用已有 oRPC client 构造 SDK（便于注入测试）。 */
+export function createAgentClientFrom(
+	client: Client,
+	agentId: string
+): AgentClient {
+	const ensureSession = async (sessionId?: string): Promise<string> =>
+		sessionId ?? (await client.sessions.create({ agentId })).id;
+	return {
+		async createSession() {
+			const session = await client.sessions.create({ agentId });
+			return { sessionId: session.id };
+		},
+		async run(text, options) {
+			const sessionId = await ensureSession(options?.sessionId);
+			return client.sessions.run({ sessionId, text });
+		},
+		async *stream(text, options) {
+			const sessionId = await ensureSession(options?.sessionId);
+			const events = await client.sessions.prompt({ sessionId, text });
+			for await (const event of events) {
+				yield event;
+			}
+		},
+		listMessages(sessionId) {
+			return client.sessions.listMessages({ sessionId });
+		},
+	};
+}
+
+/** 创建一个绑定 baseURL + agentId 的 Agent SDK client。 */
+export function createAgentClient(config: AgentClientConfig): AgentClient {
+	const link = new RPCLink({ url: `${config.baseURL}/rpc` });
+	const client = createORPCClient(link) as Client;
+	return createAgentClientFrom(client, config.agentId);
 }
