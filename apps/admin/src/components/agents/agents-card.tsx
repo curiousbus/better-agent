@@ -19,12 +19,7 @@ import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
-import {
-	type AgentForm,
-	agentRowToForm,
-	EMPTY_AGENT_FORM,
-	toAgentInput,
-} from "./agent-form";
+import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentWizard } from "./agent-wizard";
 
 function matchAgent(row: AgentRow, query: string): boolean {
@@ -110,8 +105,7 @@ function useAgentWizard() {
 		id: string | null;
 		initial: AgentForm | null;
 	}>({ open: false, id: null, initial: null });
-	const openAdd = () =>
-		setState({ open: true, id: null, initial: EMPTY_AGENT_FORM });
+	const openAdd = () => setState({ open: true, id: null, initial: null });
 	const openEdit = (row: AgentRow) =>
 		setState({ open: true, id: row.id, initial: agentRowToForm(row) });
 	const close = (open: boolean) => setState((s) => ({ ...s, open }));
