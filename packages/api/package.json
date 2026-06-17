@@ -24,7 +24,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@ai-sdk/provider": "3.0.10",
     "@better-agent/config": "workspace:*",
+    "ai": "6.0.205",
     "hono": "catalog:",
     "typescript": "catalog:",
     "vitest": "4.1.9"

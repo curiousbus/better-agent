@@ -34,7 +34,9 @@ function buildClient() {
 		}),
 		stores: { providerCatalog, modelCache, providerCredential },
 	};
-	return createRouterClient(appRouter, { context: { services } });
+	return createRouterClient(appRouter, {
+		context: { services: services as never },
+	});
 }
 
 it("refresh populates catalog and models", async () => {

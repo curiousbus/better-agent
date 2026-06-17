@@ -83,13 +83,11 @@ export function createFakeCredentialStore(
 
 export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 	const map = new Map(seed.map((agent) => [agent.id, agent]));
-	let counter = 0;
 	return {
 		create(input: AgentInput) {
 			const now = new Date();
-			counter += 1;
 			const agent: AgentConfig = {
-				id: `agent-${counter}`,
+				id: crypto.randomUUID(),
 				...input,
 				createdAt: now,
 				updatedAt: now,
@@ -157,13 +155,11 @@ function makeSessionMutators(
 
 export function createFakeSessionStore(): SessionStore {
 	const map = new Map<string, Session>();
-	let counter = 0;
 	return {
 		create(input) {
 			const now = new Date();
-			counter += 1;
 			const session: Session = {
-				id: `session-${counter}`,
+				id: crypto.randomUUID(),
 				agentId: input.agentId,
 				title: null,
 				status: "active",
@@ -202,9 +198,7 @@ function groupMessagesWithParts(
 }
 
 interface MessageStoreState {
-	messageCounter: number;
 	messages: Message[];
-	partCounter: number;
 	parts: MessagePart[];
 }
 
@@ -214,12 +208,11 @@ function makeMessageOps(
 	return {
 		createMessage(input) {
 			const now = new Date();
-			state.messageCounter += 1;
 			const seq = state.messages.filter(
 				(m) => m.sessionId === input.sessionId
 			).length;
 			const message: Message = {
-				id: `message-${state.messageCounter}`,
+				id: crypto.randomUUID(),
 				sessionId: input.sessionId,
 				role: input.role,
 				seq,
@@ -237,13 +230,12 @@ function makeMessageOps(
 		},
 		appendPart(input) {
 			const now = new Date();
-			state.partCounter += 1;
 			const seq = state.parts.filter(
 				(p) => p.messageId === input.messageId
 			).length;
 			// type と content はドメインで対応するが入力は別フィールド；DB 境界と同様に一度だけアサート。
 			const part = {
-				id: `part-${state.partCounter}`,
+				id: crypto.randomUUID(),
 				messageId: input.messageId,
 				seq,
 				type: input.type,
@@ -262,8 +254,6 @@ export function createFakeMessageStore(): MessageStore {
 	const state: MessageStoreState = {
 		messages: [],
 		parts: [],
-		messageCounter: 0,
-		partCounter: 0,
 	};
 	return {
 		...makeMessageOps(state),
