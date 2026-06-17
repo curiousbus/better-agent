@@ -22,5 +22,5 @@ Set `VITE_SERVER_URL` in `apps/admin/.env` (default `http://localhost:3000`).
 ## Pages
 
 - **Providers** — refresh the models.dev catalog, manage encrypted credentials (modal add/edit, popover-confirm delete), browse models per provider.
-- **Agents** — _Plan 5b._
+- **Agents** — list, create/edit via a multi-step wizard (identity → model → params), delete with confirm. Provider options come from enabled credentials.
 - **Sessions** — _Plan 5c._
