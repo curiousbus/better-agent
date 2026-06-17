@@ -1,3 +1,4 @@
+import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { Card } from "@better-agent/ui/components/card";
 import {
@@ -6,6 +7,14 @@ import {
 	PopoverTitle,
 	PopoverTrigger,
 } from "@better-agent/ui/components/popover";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -65,26 +74,32 @@ function CredentialRows({
 	onDelete: (providerId: string) => void;
 }) {
 	return (
-		<tbody>
+		<TableBody>
 			{rows.map((row) => (
-				<tr className="border-border/40 border-b" key={row.providerId}>
-					<td className="py-1 font-mono">{row.providerId}</td>
-					<td className="font-mono text-muted-foreground">…{row.last4}</td>
-					<td className="text-muted-foreground">{row.baseURL ?? "—"}</td>
-					<td
-						className={row.enabled ? "text-green-500" : "text-muted-foreground"}
-					>
-						{row.enabled ? "enabled" : "disabled"}
-					</td>
-					<td className="flex justify-end gap-2 py-1">
-						<Button onClick={() => onEdit(row)} size="xs" variant="outline">
-							Edit
-						</Button>
-						<DeleteConfirm onConfirm={() => onDelete(row.providerId)} />
-					</td>
-				</tr>
+				<TableRow key={row.providerId}>
+					<TableCell className="font-mono">{row.providerId}</TableCell>
+					<TableCell className="font-mono text-muted-foreground">
+						…{row.last4}
+					</TableCell>
+					<TableCell className="text-muted-foreground">
+						{row.baseURL ?? "—"}
+					</TableCell>
+					<TableCell>
+						<Badge variant={row.enabled ? "default" : "secondary"}>
+							{row.enabled ? "enabled" : "disabled"}
+						</Badge>
+					</TableCell>
+					<TableCell className="text-right">
+						<div className="flex justify-end gap-2">
+							<Button onClick={() => onEdit(row)} size="xs" variant="outline">
+								Edit
+							</Button>
+							<DeleteConfirm onConfirm={() => onDelete(row.providerId)} />
+						</div>
+					</TableCell>
+				</TableRow>
 			))}
-		</tbody>
+		</TableBody>
 	);
 }
 
@@ -147,22 +162,22 @@ function CredentialsTable({
 }) {
 	return (
 		<>
-			<table className="w-full text-sm">
-				<thead>
-					<tr className="border-b text-left text-muted-foreground">
-						<th className="py-1 font-medium">Provider</th>
-						<th className="font-medium">Key</th>
-						<th className="font-medium">Base URL</th>
-						<th className="font-medium">Status</th>
-						<th />
-					</tr>
-				</thead>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Provider</TableHead>
+						<TableHead>Key</TableHead>
+						<TableHead>Base URL</TableHead>
+						<TableHead>Status</TableHead>
+						<TableHead className="text-right">Actions</TableHead>
+					</TableRow>
+				</TableHeader>
 				<CredentialRows
 					onDelete={onDelete}
 					onEdit={onEdit}
 					rows={view.pageRows}
 				/>
-			</table>
+			</Table>
 			<Pagination
 				onPage={view.setPage}
 				page={view.page}
@@ -188,7 +203,6 @@ export function CredentialsCard() {
 		});
 	return (
 		<Card className="flex flex-col gap-3 p-4">
-			<h2 className="font-semibold text-lg">Credentials</h2>
 			<ListToolbar
 				action={
 					<Button onClick={openAdd} size="sm">

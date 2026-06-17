@@ -1,13 +1,22 @@
 import { Card } from "@better-agent/ui/components/card";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@better-agent/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { useListView } from "@/components/list/use-list-view";
-import type { ModelRow, ProviderCatalogRow } from "@/utils/api-types";
+import type { ModelRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
+import { ProviderSelect } from "./provider-select";
 
 function matchModel(row: ModelRow, query: string): boolean {
 	return (
@@ -16,59 +25,35 @@ function matchModel(row: ModelRow, query: string): boolean {
 	);
 }
 
-function ProviderPicker({
-	providers,
-	value,
-	onChange,
-}: {
-	providers: ProviderCatalogRow[];
-	value: string;
-	onChange: (providerId: string) => void;
-}) {
-	return (
-		<select
-			aria-label="Provider"
-			className="h-8 border bg-transparent px-2 text-sm"
-			onChange={(event) => onChange(event.target.value)}
-			value={value}
-		>
-			<option value="">Select a provider…</option>
-			{providers.map((provider) => (
-				<option key={provider.providerId} value={provider.providerId}>
-					{provider.providerId}
-				</option>
-			))}
-		</select>
-	);
-}
-
 function ModelsTable({ rows }: { rows: ModelRow[] }) {
 	if (rows.length === 0) {
 		return <p className="text-muted-foreground text-sm">No models.</p>;
 	}
 	return (
-		<table className="w-full text-sm">
-			<thead>
-				<tr className="border-b text-left text-muted-foreground">
-					<th className="py-1 font-medium">Model</th>
-					<th className="font-medium">Name</th>
-					<th className="font-medium">Context</th>
-					<th className="font-medium">Tools</th>
-				</tr>
-			</thead>
-			<tbody>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead>Model</TableHead>
+					<TableHead>Name</TableHead>
+					<TableHead>Context</TableHead>
+					<TableHead>Tools</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
 				{rows.map((row) => (
-					<tr className="border-border/40 border-b" key={row.modelId}>
-						<td className="py-1 font-mono">{row.modelId}</td>
-						<td>{row.name}</td>
-						<td className="text-muted-foreground">{row.contextLimit ?? "—"}</td>
-						<td className="text-muted-foreground">
+					<TableRow key={row.modelId}>
+						<TableCell className="font-mono">{row.modelId}</TableCell>
+						<TableCell>{row.name}</TableCell>
+						<TableCell className="text-muted-foreground">
+							{row.contextLimit ?? "—"}
+						</TableCell>
+						<TableCell className="text-muted-foreground">
 							{row.capabilities.toolCall ? "yes" : "no"}
-						</td>
-					</tr>
+						</TableCell>
+					</TableRow>
 				))}
-			</tbody>
-		</table>
+			</TableBody>
+		</Table>
 	);
 }
 
@@ -85,11 +70,12 @@ export function ModelsCard() {
 
 	return (
 		<Card className="flex flex-col gap-3 p-4">
-			<h2 className="font-semibold text-lg">Models</h2>
 			<ListToolbar
 				action={
-					<ProviderPicker
+					<ProviderSelect
+						ariaLabel="Provider"
 						onChange={setProviderId}
+						placeholder="Select a provider…"
 						providers={catalog.data ?? []}
 						value={providerId}
 					/>

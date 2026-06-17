@@ -1,6 +1,14 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Card } from "@better-agent/ui/components/card";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -22,24 +30,26 @@ function CatalogTable({ rows }: { rows: ProviderCatalogRow[] }) {
 		return <p className="text-muted-foreground text-sm">No providers.</p>;
 	}
 	return (
-		<table className="w-full text-sm">
-			<thead>
-				<tr className="border-b text-left text-muted-foreground">
-					<th className="py-1 font-medium">Provider</th>
-					<th className="font-medium">Name</th>
-					<th className="font-medium">npm</th>
-				</tr>
-			</thead>
-			<tbody>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead>Provider</TableHead>
+					<TableHead>Name</TableHead>
+					<TableHead>npm</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
 				{rows.map((row) => (
-					<tr className="border-border/40 border-b" key={row.providerId}>
-						<td className="py-1 font-mono">{row.providerId}</td>
-						<td>{row.name}</td>
-						<td className="text-muted-foreground">{row.npm ?? "—"}</td>
-					</tr>
+					<TableRow key={row.providerId}>
+						<TableCell className="font-mono">{row.providerId}</TableCell>
+						<TableCell>{row.name}</TableCell>
+						<TableCell className="text-muted-foreground">
+							{row.npm ?? "—"}
+						</TableCell>
+					</TableRow>
 				))}
-			</tbody>
-		</table>
+			</TableBody>
+		</Table>
 	);
 }
 
@@ -61,7 +71,6 @@ export function CatalogCard() {
 
 	return (
 		<Card className="flex flex-col gap-3 p-4">
-			<h2 className="font-semibold text-lg">Provider catalog</h2>
 			<ListToolbar
 				action={
 					<Button

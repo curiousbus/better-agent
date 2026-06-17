@@ -11,6 +11,7 @@ import { Label } from "@better-agent/ui/components/label";
 import { useState } from "react";
 
 import type { ProviderCatalogRow } from "@/utils/api-types";
+import { ProviderSelect } from "./provider-select";
 
 export interface FormState {
 	apiKey: string;
@@ -26,35 +27,56 @@ export const EMPTY_FORM: FormState = {
 	enabled: true,
 };
 
-function ProviderSelect({
-	providers,
+function TextField({
+	id,
+	label,
 	value,
 	onChange,
-	disabled,
+	required,
 }: {
-	providers: ProviderCatalogRow[];
+	id: string;
+	label: string;
 	value: string;
-	onChange: (v: string) => void;
-	disabled: boolean;
+	onChange: (value: string) => void;
+	required?: boolean;
+}) {
+	return (
+		<div className="flex flex-col gap-1">
+			<Label htmlFor={id}>{label}</Label>
+			<Input
+				id={id}
+				onChange={(event) => onChange(event.target.value)}
+				required={required}
+				value={value}
+			/>
+		</div>
+	);
+}
+
+function ProviderField({
+	value,
+	providers,
+	editing,
+	onChange,
+}: {
+	value: string;
+	providers: ProviderCatalogRow[];
+	editing: boolean;
+	onChange: (providerId: string) => void;
 }) {
 	return (
 		<div className="flex flex-col gap-1">
 			<Label htmlFor="cred-provider">Provider</Label>
-			<select
-				className="h-8 border bg-transparent px-2 text-sm disabled:opacity-60"
-				disabled={disabled}
+			<ProviderSelect
+				ariaLabel="Provider"
+				className="w-full"
+				disabled={editing}
 				id="cred-provider"
-				onChange={(e) => onChange(e.target.value)}
-				required
+				onChange={onChange}
+				placeholder="Select…"
+				providers={providers}
 				value={value}
-			>
-				<option value="">Select…</option>
-				{providers.map((p) => (
-					<option key={p.providerId} value={p.providerId}>
-						{p.providerId}
-					</option>
-				))}
-			</select>
+			/>
 		</div>
 	);
 }
@@ -72,29 +94,25 @@ function CredentialFields({
 }) {
 	return (
 		<div className="flex flex-col gap-3">
-			<ProviderSelect
-				disabled={editing}
-				onChange={(v) => setForm({ ...form, providerId: v })}
+			<ProviderField
+				editing={editing}
+				onChange={(value) => setForm({ ...form, providerId: value })}
 				providers={providers}
 				value={form.providerId}
 			/>
-			<div className="flex flex-col gap-1">
-				<Label htmlFor="cred-key">API key</Label>
-				<Input
-					id="cred-key"
-					onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-					required
-					value={form.apiKey}
-				/>
-			</div>
-			<div className="flex flex-col gap-1">
-				<Label htmlFor="cred-base">Base URL (optional)</Label>
-				<Input
-					id="cred-base"
-					onChange={(e) => setForm({ ...form, baseURL: e.target.value })}
-					value={form.baseURL}
-				/>
-			</div>
+			<TextField
+				id="cred-key"
+				label="API key"
+				onChange={(value) => setForm({ ...form, apiKey: value })}
+				required
+				value={form.apiKey}
+			/>
+			<TextField
+				id="cred-base"
+				label="Base URL (optional)"
+				onChange={(value) => setForm({ ...form, baseURL: value })}
+				value={form.baseURL}
+			/>
 			<label className="flex items-center gap-2 text-sm" htmlFor="cred-enabled">
 				<Checkbox
 					checked={form.enabled}
