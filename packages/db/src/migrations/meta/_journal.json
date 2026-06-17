@@ -15,6 +15,13 @@
       "when": 1781665064204,
       "tag": "0001_yielding_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781671091843,
+      "tag": "0002_colorful_queen_noir",
+      "breakpoints": true
     }
   ]
 }
