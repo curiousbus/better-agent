@@ -1,3 +1,4 @@
+import type { AgentConfig, AgentInput } from "./agent/types";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
@@ -25,4 +26,12 @@ export interface ProviderCredentialStore {
 		Array<Omit<ProviderCredential, "apiKey"> & { last4: string }>
 	>;
 	upsert(input: ProviderCredential): Promise<void>;
+}
+
+export interface AgentStore {
+	create(input: AgentInput): Promise<AgentConfig>;
+	delete(id: string): Promise<void>;
+	get(id: string): Promise<AgentConfig | null>;
+	list(): Promise<AgentConfig[]>;
+	update(id: string, input: AgentInput): Promise<AgentConfig | null>;
 }
