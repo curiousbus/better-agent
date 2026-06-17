@@ -125,22 +125,21 @@ async function persistUserTurn(
 	});
 }
 
-async function drainStream(
+async function* drainStream(
 	result: ReturnType<typeof streamText>,
 	textBuf: PartBuf,
 	reasoningBuf: PartBuf,
-	emit: (event: RunEvent) => void,
 	state: StreamOutcome
-): Promise<void> {
+): AsyncGenerator<RunEvent, void> {
 	for await (const chunk of result.fullStream) {
 		if (chunk.type === "text-delta") {
 			textBuf.append(chunk.text);
-			emit({ type: "text-delta", delta: chunk.text });
+			yield { type: "text-delta", delta: chunk.text };
 		} else if (chunk.type === "reasoning-delta") {
 			reasoningBuf.append(chunk.text);
-			emit({ type: "reasoning-delta", delta: chunk.text });
+			yield { type: "reasoning-delta", delta: chunk.text };
 		} else if (chunk.type === "finish-step") {
-			emit({ type: "step-finish" });
+			yield { type: "step-finish" };
 		} else if (chunk.type === "finish") {
 			state.usage = mapUsage(chunk.totalUsage);
 			state.finishReason = mapFinishReason(chunk.finishReason);
@@ -151,42 +150,6 @@ async function drainStream(
 		} else if (chunk.type === "abort") {
 			state.status = "aborted";
 		}
-	}
-}
-
-async function runStream(
-	model: AiModel,
-	messages: ModelMessage[],
-	params: AgentParams | null,
-	textBuf: PartBuf,
-	reasoningBuf: PartBuf,
-	emit: (event: RunEvent) => void,
-	state: StreamOutcome,
-	abortSignal?: AbortSignal
-): Promise<void> {
-	try {
-		const result = streamText({
-			model,
-			messages,
-			stopWhen: stepCountIs(MAX_STEPS),
-			tools: {},
-			abortSignal,
-			...buildSettings(params),
-		});
-		await drainStream(result, textBuf, reasoningBuf, emit, state);
-	} catch (error) {
-		if (abortSignal?.aborted) {
-			state.status = "aborted";
-		} else {
-			state.status = "error";
-			state.finishReason = "error";
-			state.errorMessage = errorToMessage(error);
-		}
-	} finally {
-		const partStatus: PartStatus =
-			state.status === "error" ? "error" : "complete";
-		await reasoningBuf.flush(partStatus);
-		await textBuf.flush(partStatus);
 	}
 }
 
@@ -210,21 +173,29 @@ async function* streamAssistant(
 		status: "complete",
 		errorMessage: null,
 	};
-	const emitted: RunEvent[] = [];
-	await runStream(
-		model,
-		messages,
-		params,
-		textBuf,
-		reasoningBuf,
-		(e) => {
-			emitted.push(e);
-		},
-		state,
-		abortSignal
-	);
-	for (const event of emitted) {
-		yield event;
+	try {
+		const result = streamText({
+			model,
+			messages,
+			stopWhen: stepCountIs(MAX_STEPS),
+			tools: {},
+			abortSignal,
+			...buildSettings(params),
+		});
+		yield* drainStream(result, textBuf, reasoningBuf, state);
+	} catch (error) {
+		if (abortSignal?.aborted) {
+			state.status = "aborted";
+		} else {
+			state.status = "error";
+			state.finishReason = "error";
+			state.errorMessage = errorToMessage(error);
+		}
+	} finally {
+		const partStatus: PartStatus =
+			state.status === "error" ? "error" : "complete";
+		await reasoningBuf.flush(partStatus);
+		await textBuf.flush(partStatus);
 	}
 	return state;
 }

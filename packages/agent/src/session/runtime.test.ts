@@ -169,3 +169,37 @@ it("throws when the session does not exist", async () => {
 		runtime.runTurn({ sessionId: "missing", text: "hi" }).next()
 	).rejects.toThrow(NOT_FOUND_RE);
 });
+
+function hangingAfterTwoDeltas(): LanguageModelV3 {
+	return new MockLanguageModelV3({
+		doStream: () =>
+			Promise.resolve({
+				stream: new ReadableStream({
+					start(controller) {
+						controller.enqueue({ type: "text-start", id: "0" });
+						controller.enqueue({ type: "text-delta", id: "0", delta: "a" });
+						controller.enqueue({ type: "text-delta", id: "0", delta: "b" });
+						// never close → stream stays open
+					},
+				}),
+			}),
+	});
+}
+
+it("yields text deltas incrementally without waiting for the stream to finish", async () => {
+	const { runtime, session } = await setup(hangingAfterTwoDeltas());
+	const gen = runtime.runTurn({ sessionId: session.id, text: "hi" });
+	const events: RunEvent[] = [];
+	for (let i = 0; i < 3; i++) {
+		const next = await gen.next();
+		if (next.done) {
+			break;
+		}
+		events.push(next.value);
+	}
+	expect(events.some((e) => e.type === "message-start")).toBe(true);
+	const deltas = events.flatMap((e) =>
+		e.type === "text-delta" ? [e.delta] : []
+	);
+	expect(deltas).toEqual(["a", "b"]);
+}, 5000);
