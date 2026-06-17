@@ -14,3 +14,5 @@ export type CredentialRow = Awaited<
 export type ModelRow = Awaited<
 	ReturnType<Client["providers"]["modelsList"]>
 >[number];
+
+export type AgentRow = Awaited<ReturnType<Client["agents"]["list"]>>[number];
