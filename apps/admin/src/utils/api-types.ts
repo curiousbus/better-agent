@@ -16,3 +16,11 @@ export type ModelRow = Awaited<
 >[number];
 
 export type AgentRow = Awaited<ReturnType<Client["agents"]["list"]>>[number];
+
+export type SessionRow = Awaited<
+	ReturnType<Client["sessions"]["list"]>
+>[number];
+
+export type SessionMessageRow = Awaited<
+	ReturnType<Client["sessions"]["listMessages"]>
+>[number];
