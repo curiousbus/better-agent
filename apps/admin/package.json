@@ -1,0 +1,44 @@
+{
+  "name": "@better-agent/admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "serve": "vite preview",
+    "dev": "vite dev",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-agent/api": "workspace:*",
+    "@better-agent/env": "workspace:*",
+    "@better-agent/ui": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/tanstack-query": "^1.13.14",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-query": "^5.99.0",
+    "@tanstack/react-router": "^1.168.22",
+    "@tanstack/react-router-ssr-query": "^1.166.11",
+    "@tanstack/react-start": "^1.167.41",
+    "dotenv": "catalog:",
+    "evlog": "catalog:",
+    "lucide-react": "^1.8.0",
+    "next-themes": "catalog:",
+    "nitro": "^3.0.260429-beta",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sonner": "^2.0.7",
+    "tailwindcss": "^4.2.2",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@better-agent/config": "workspace:*",
+    "@tanstack/react-query-devtools": "^5.91.1",
+    "@tanstack/react-router-devtools": "^1.166.13",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "catalog:",
+    "vite": "^8.0.8"
+  }
+}

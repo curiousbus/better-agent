@@ -37,6 +37,7 @@ const EXCEPTIONS = [
 	"app",
 	"root",
 	"__root", // TanStack Router 根路由
+	"routeTree.gen", // TanStack Router 自动生成的路由树
 ];
 
 // kebab-case 正则（支持多段扩展名，如 .config.ts、.test.ts、.gen.ts）
