@@ -1,13 +1,18 @@
+import type { AgentConfig, AgentInput } from "../agent/types";
 import type {
+	AgentStore,
+	MessageStore,
 	ModelCacheStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
+	SessionStore,
 } from "../ports";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
 	ProviderCredential,
 } from "../provider/types";
+import type { Message, MessagePart, Session } from "../session/types";
 
 export function createFakeCatalogStore(): ProviderCatalogStore {
 	let entries: ProviderCatalogEntry[] = [];
@@ -72,6 +77,216 @@ export function createFakeCredentialStore(
 		},
 		get(providerId) {
 			return Promise.resolve(map.get(providerId) ?? null);
+		},
+	};
+}
+
+export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
+	const map = new Map(seed.map((agent) => [agent.id, agent]));
+	let counter = 0;
+	return {
+		create(input: AgentInput) {
+			const now = new Date();
+			counter += 1;
+			const agent: AgentConfig = {
+				id: `agent-${counter}`,
+				...input,
+				createdAt: now,
+				updatedAt: now,
+			};
+			map.set(agent.id, agent);
+			return Promise.resolve(agent);
+		},
+		get(id) {
+			return Promise.resolve(map.get(id) ?? null);
+		},
+		list() {
+			return Promise.resolve([...map.values()]);
+		},
+		update(id, input) {
+			const existing = map.get(id);
+			if (!existing) {
+				return Promise.resolve(null);
+			}
+			const updated: AgentConfig = {
+				...existing,
+				...input,
+				updatedAt: new Date(),
+			};
+			map.set(id, updated);
+			return Promise.resolve(updated);
+		},
+		delete(id) {
+			map.delete(id);
+			return Promise.resolve();
+		},
+	};
+}
+
+function makeSessionMutators(
+	map: Map<string, Session>
+): Pick<SessionStore, "setStatus" | "setTitle" | "setSummary"> {
+	return {
+		setStatus(id, status) {
+			const session = map.get(id);
+			if (session) {
+				session.status = status;
+				session.updatedAt = new Date();
+			}
+			return Promise.resolve();
+		},
+		setTitle(id, title) {
+			const session = map.get(id);
+			if (session) {
+				session.title = title;
+				session.updatedAt = new Date();
+			}
+			return Promise.resolve();
+		},
+		setSummary(id, summary, compactedThroughSeq) {
+			const session = map.get(id);
+			if (session) {
+				session.summary = summary;
+				session.compactedThroughSeq = compactedThroughSeq;
+				session.updatedAt = new Date();
+			}
+			return Promise.resolve();
+		},
+	};
+}
+
+export function createFakeSessionStore(): SessionStore {
+	const map = new Map<string, Session>();
+	let counter = 0;
+	return {
+		create(input) {
+			const now = new Date();
+			counter += 1;
+			const session: Session = {
+				id: `session-${counter}`,
+				agentId: input.agentId,
+				title: null,
+				status: "active",
+				summary: null,
+				compactedThroughSeq: null,
+				createdAt: now,
+				updatedAt: now,
+			};
+			map.set(session.id, session);
+			return Promise.resolve(session);
+		},
+		get(id) {
+			return Promise.resolve(map.get(id) ?? null);
+		},
+		list() {
+			return Promise.resolve([...map.values()]);
+		},
+		...makeSessionMutators(map),
+	};
+}
+
+function groupMessagesWithParts(
+	messages: Message[],
+	parts: MessagePart[],
+	sessionId: string
+) {
+	return messages
+		.filter((message) => message.sessionId === sessionId)
+		.sort((a, b) => a.seq - b.seq)
+		.map((message) => ({
+			message,
+			parts: parts
+				.filter((part) => part.messageId === message.id)
+				.sort((a, b) => a.seq - b.seq),
+		}));
+}
+
+interface MessageStoreState {
+	messageCounter: number;
+	messages: Message[];
+	partCounter: number;
+	parts: MessagePart[];
+}
+
+function makeMessageOps(
+	state: MessageStoreState
+): Pick<MessageStore, "createMessage" | "appendPart"> {
+	return {
+		createMessage(input) {
+			const now = new Date();
+			state.messageCounter += 1;
+			const seq = state.messages.filter(
+				(m) => m.sessionId === input.sessionId
+			).length;
+			const message: Message = {
+				id: `message-${state.messageCounter}`,
+				sessionId: input.sessionId,
+				role: input.role,
+				seq,
+				status: input.status,
+				providerId: input.providerId,
+				modelId: input.modelId,
+				usage: null,
+				finishReason: null,
+				error: null,
+				createdAt: now,
+				updatedAt: now,
+			};
+			state.messages.push(message);
+			return Promise.resolve(message);
+		},
+		appendPart(input) {
+			const now = new Date();
+			state.partCounter += 1;
+			const seq = state.parts.filter(
+				(p) => p.messageId === input.messageId
+			).length;
+			// type と content はドメインで対応するが入力は別フィールド；DB 境界と同様に一度だけアサート。
+			const part = {
+				id: `part-${state.partCounter}`,
+				messageId: input.messageId,
+				seq,
+				type: input.type,
+				content: input.content,
+				status: input.status,
+				createdAt: now,
+				updatedAt: now,
+			} as MessagePart;
+			state.parts.push(part);
+			return Promise.resolve(part);
+		},
+	};
+}
+
+export function createFakeMessageStore(): MessageStore {
+	const state: MessageStoreState = {
+		messages: [],
+		parts: [],
+		messageCounter: 0,
+		partCounter: 0,
+	};
+	return {
+		...makeMessageOps(state),
+		updateMessage(id, patch) {
+			const message = state.messages.find((m) => m.id === id);
+			if (!message) {
+				return Promise.resolve(null);
+			}
+			Object.assign(message, patch, { updatedAt: new Date() });
+			return Promise.resolve(message);
+		},
+		updatePart(id, patch) {
+			const part = state.parts.find((p) => p.id === id);
+			if (!part) {
+				return Promise.resolve(null);
+			}
+			Object.assign(part, patch, { updatedAt: new Date() });
+			return Promise.resolve(part);
+		},
+		listWithParts(sessionId) {
+			return Promise.resolve(
+				groupMessagesWithParts(state.messages, state.parts, sessionId)
+			);
 		},
 	};
 }
