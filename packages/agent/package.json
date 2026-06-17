@@ -6,6 +6,7 @@
   "exports": {
     "./ports": "./src/ports.ts",
     "./agent/*": "./src/agent/*.ts",
+    "./session/*": "./src/session/*.ts",
     "./provider/*": "./src/provider/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
     "./testing/*": "./src/testing/*.ts"

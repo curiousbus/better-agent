@@ -4,6 +4,18 @@ import type {
 	ProviderCatalogEntry,
 	ProviderCredential,
 } from "./provider/types";
+import type {
+	Message,
+	MessageInput,
+	MessagePart,
+	MessagePartInput,
+	MessagePartPatch,
+	MessagePatch,
+	MessageWithParts,
+	Session,
+	SessionInput,
+	SessionStatus,
+} from "./session/types";
 
 export interface ProviderCatalogStore {
 	get(providerId: string): Promise<ProviderCatalogEntry | null>;
@@ -34,4 +46,27 @@ export interface AgentStore {
 	get(id: string): Promise<AgentConfig | null>;
 	list(): Promise<AgentConfig[]>;
 	update(id: string, input: AgentInput): Promise<AgentConfig | null>;
+}
+
+export interface SessionStore {
+	create(input: SessionInput): Promise<Session>;
+	get(id: string): Promise<Session | null>;
+	list(): Promise<Session[]>;
+	setStatus(id: string, status: SessionStatus): Promise<void>;
+	/** 📐 P2 compaction 写入。 */
+	setSummary(
+		id: string,
+		summary: string,
+		compactedThroughSeq: number
+	): Promise<void>;
+	setTitle(id: string, title: string): Promise<void>;
+}
+
+export interface MessageStore {
+	appendPart(input: MessagePartInput): Promise<MessagePart>;
+	createMessage(input: MessageInput): Promise<Message>;
+	/** 按 message.seq 升序返回会话全部消息及其 parts（历史回放 + toModelMessages 用）。 */
+	listWithParts(sessionId: string): Promise<MessageWithParts[]>;
+	updateMessage(id: string, patch: MessagePatch): Promise<Message | null>;
+	updatePart(id: string, patch: MessagePartPatch): Promise<MessagePart | null>;
 }
