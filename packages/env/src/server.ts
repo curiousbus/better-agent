@@ -5,7 +5,12 @@ import { z } from "zod";
 export const env = createEnv({
 	server: {
 		DATABASE_URL: z.string().min(1),
-		CORS_ORIGIN: z.url(),
+		/** 逗号分隔的允许来源（支持 web 3001 + admin 3002 等多个 dev 前端）。 */
+		CORS_ORIGIN: z
+			.string()
+			.min(1)
+			.transform((value) => value.split(",").map((origin) => origin.trim()))
+			.pipe(z.array(z.url())),
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
