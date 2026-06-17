@@ -9,6 +9,8 @@ export const env = createEnv({
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
+		CREDENTIALS_SECRET: z.string().min(32),
+		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),
 	},
 	runtimeEnv: process.env,
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,

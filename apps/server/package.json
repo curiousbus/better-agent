@@ -10,6 +10,7 @@
     "start": "node dist/index.mjs"
   },
   "dependencies": {
+    "@better-agent/agent": "workspace:*",
     "@better-agent/api": "workspace:*",
     "@better-agent/db": "workspace:*",
     "@better-agent/env": "workspace:*",

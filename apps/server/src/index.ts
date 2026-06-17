@@ -1,5 +1,15 @@
+import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
+import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
+import { createModelFactory } from "@better-agent/agent/provider/model-factory";
+import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
+import { db } from "@better-agent/db";
+import {
+	createModelCacheStore,
+	createProviderCatalogStore,
+	createProviderCredentialStore,
+} from "@better-agent/db/repositories/provider-stores";
 import { env } from "@better-agent/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -14,6 +24,27 @@ import { cors } from "hono/cors";
 initLogger({
 	env: { service: "better-agent-server" },
 });
+
+function buildServices() {
+	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
+	const providerCatalog = createProviderCatalogStore(db);
+	const modelCache = createModelCacheStore(db);
+	const providerCredential = createProviderCredentialStore(db, secretBox);
+	return {
+		catalog: createModelCatalog({
+			catalogStore: providerCatalog,
+			modelStore: modelCache,
+			fetcher: () => fetchModelsDev(env.MODELS_DEV_URL),
+		}),
+		modelFactory: createModelFactory({
+			catalogStore: providerCatalog,
+			credentialStore: providerCredential,
+		}),
+		stores: { providerCatalog, modelCache, providerCredential },
+	};
+}
+
+const services = buildServices();
 
 const app = new Hono<EvlogVariables>();
 
@@ -49,7 +80,7 @@ export const rpcHandler = new RPCHandler(appRouter, {
 });
 
 app.use("/*", async (c, next) => {
-	const context = await createContext({ context: c });
+	const context = await createContext({ context: c, services });
 
 	const rpcResult = await rpcHandler.handle(c.req.raw, {
 		prefix: "/rpc",
