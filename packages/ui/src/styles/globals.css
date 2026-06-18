@@ -129,3 +129,16 @@
 		@apply font-sans;
 	}
 }
+
+/* shiki dual-theme (defaultColor: false): map the per-token CSS variables to
+   the active theme so code blocks are actually colored. */
+.shiki,
+.shiki span {
+	color: var(--shiki-light);
+	background-color: var(--shiki-light-bg);
+}
+.dark .shiki,
+.dark .shiki span {
+	color: var(--shiki-dark);
+	background-color: var(--shiki-dark-bg);
+}
