@@ -33,6 +33,37 @@ async function drain(gen: AsyncGenerator<RunEvent, Message>): Promise<Message> {
 	return next.value;
 }
 
+function errorMessage(error: unknown): string {
+	if (error instanceof ORPCError) {
+		return error.message;
+	}
+	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Run a turn as a stream of events. Any failure (missing session, model/
+ * provider error, etc.) is delivered as a terminal `error` event rather than
+ * thrown, so the HTTP stream always establishes (200) and the client can read
+ * the reason — a throw out of a streaming handler yields a 500 with no CORS
+ * header, which the browser masks as a CORS failure.
+ */
+async function* streamTurn(
+	context: Context,
+	input: { sessionId: string; text: string },
+	signal: AbortSignal | undefined
+): AsyncGenerator<RunEvent, void> {
+	try {
+		await requireSession(context, input.sessionId);
+		yield* context.services.runtime.runTurn({
+			sessionId: input.sessionId,
+			text: input.text,
+			abortSignal: signal,
+		});
+	} catch (error) {
+		yield { type: "error", message: errorMessage(error) };
+	}
+}
+
 export const sessionsRouter = {
 	create: publicProcedure
 		.input(createInput)
@@ -75,16 +106,9 @@ export const sessionsRouter = {
 			);
 		}),
 
-	prompt: publicProcedure.input(promptInput).handler(async function* ({
-		input,
-		context,
-		signal,
-	}) {
-		await requireSession(context, input.sessionId);
-		yield* context.services.runtime.runTurn({
-			sessionId: input.sessionId,
-			text: input.text,
-			abortSignal: signal,
-		});
-	}),
+	prompt: publicProcedure
+		.input(promptInput)
+		.handler(({ input, context, signal }) =>
+			streamTurn(context, input, signal)
+		),
 };

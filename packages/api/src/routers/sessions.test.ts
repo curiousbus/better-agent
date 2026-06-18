@@ -117,3 +117,16 @@ it("run rejects an unknown session", async () => {
 		})
 	).rejects.toThrow();
 });
+
+it("prompt yields an error event (not throw) for an unknown session", async () => {
+	const { client } = await buildClient();
+	const events: RunEvent[] = [];
+	for await (const event of await client.sessions.prompt({
+		sessionId: "00000000-0000-0000-0000-000000000000",
+		text: "hi",
+	})) {
+		events.push(event);
+	}
+	expect(events).toHaveLength(1);
+	expect(events[0]?.type).toBe("error");
+});

@@ -77,7 +77,14 @@ const services = buildServices();
 
 const app = new Hono<EvlogVariables>();
 
-app.use(evlog());
+// evlog's streaming-response observation re-reads the response body, which
+// conflicts with oRPC event-iterator streams and throws "ReadableStream is
+// locked". Skip it for the streaming prompt endpoint; log everything else.
+const evlogMiddleware = evlog();
+const STREAMING_PATHS = new Set(["/rpc/sessions/prompt"]);
+app.use("/*", (c, next) =>
+	STREAMING_PATHS.has(c.req.path) ? next() : evlogMiddleware(c, next)
+);
 
 app.use(
 	"/*",
@@ -86,6 +93,19 @@ app.use(
 		allowMethods: ["GET", "POST", "OPTIONS"],
 	})
 );
+
+// The cors() middleware sets the allow-origin header AFTER the handler runs, so
+// a thrown error (e.g. a streaming handler that throws before its first chunk)
+// skips it — the browser then masks the real 500 as a CORS failure. Re-apply
+// the header here so error responses stay readable cross-origin.
+app.onError((error, c) => {
+	const origin = c.req.header("origin");
+	if (origin && env.CORS_ORIGIN.includes(origin)) {
+		c.header("Access-Control-Allow-Origin", origin);
+	}
+	log.error({ error });
+	return c.text("Internal Server Error", 500);
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -116,8 +136,12 @@ app.use("/*", async (c, next) => {
 		context,
 	});
 
+	// Return the handler's Response directly. Re-wrapping it via
+	// c.newResponse(response.body, response) attaches a second reader to the
+	// same body stream, which throws "ReadableStream is locked" for streaming
+	// responses (e.g. sessions.prompt) — a 500 that also skips CORS.
 	if (rpcResult.matched) {
-		return c.newResponse(rpcResult.response.body, rpcResult.response);
+		return rpcResult.response;
 	}
 
 	const apiResult = await apiHandler.handle(c.req.raw, {
@@ -126,7 +150,7 @@ app.use("/*", async (c, next) => {
 	});
 
 	if (apiResult.matched) {
-		return c.newResponse(apiResult.response.body, apiResult.response);
+		return apiResult.response;
 	}
 
 	return await next();
