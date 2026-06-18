@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AgentsCard } from "@/components/agents/agents-card";
 
-export const Route = createFileRoute("/agents")({
+export const Route = createFileRoute("/agents/")({
 	component: AgentsPage,
 });
 

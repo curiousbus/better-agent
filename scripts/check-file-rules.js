@@ -50,6 +50,11 @@ function checkFileName(filePath) {
 	const fileName = filePath.split("/").pop();
 	const baseName = fileName.replace(EXTENSION, "");
 
+	// TanStack Router 路由文件用框架约定（$param、.index、__root 等），跳过命名检查
+	if (filePath.includes("/routes/")) {
+		return { valid: true };
+	}
+
 	// 检查例外文件名
 	if (EXCEPTIONS.includes(baseName)) {
 		return { valid: true };

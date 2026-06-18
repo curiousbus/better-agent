@@ -110,6 +110,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/src/routes/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": "off"
+          }
+        }
+      }
     }
   ],
   "extends": ["ultracite/biome/core", "ultracite/biome/react"]

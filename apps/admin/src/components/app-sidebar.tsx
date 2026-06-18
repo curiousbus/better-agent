@@ -1,10 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Boxes, MessagesSquare, Settings2 } from "lucide-react";
+import { Boxes, Settings2 } from "lucide-react";
 
 const NAV = [
 	{ to: "/providers", label: "Providers", icon: Settings2 },
 	{ to: "/agents", label: "Agents", icon: Boxes },
-	{ to: "/sessions", label: "Sessions", icon: MessagesSquare },
 ] as const;
 
 export function AppSidebar() {

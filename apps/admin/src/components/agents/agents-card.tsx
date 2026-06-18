@@ -9,6 +9,7 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -43,7 +44,15 @@ function AgentRows({
 		<TableBody>
 			{rows.map((row) => (
 				<TableRow key={row.id}>
-					<TableCell className="font-medium">{row.name}</TableCell>
+					<TableCell className="font-medium">
+						<Link
+							className="hover:underline"
+							params={{ agentId: row.id }}
+							to="/agents/$agentId"
+						>
+							{row.name}
+						</Link>
+					</TableCell>
 					<TableCell className="font-mono text-muted-foreground">
 						{row.providerId}/{row.modelId}
 					</TableCell>
