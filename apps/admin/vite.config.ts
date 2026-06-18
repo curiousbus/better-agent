@@ -11,5 +11,12 @@ export default defineConfig({
 	resolve: {
 		tsconfigPaths: true,
 	},
+	build: {
+		rolldownOptions: {
+			// shiki uses WASM which cannot be bundled for SSR; code-block is
+			// client-only, so exclude shiki from the server bundle.
+			external: ["shiki"],
+		},
+	},
 	plugins: [tailwindcss(), tanstackStart(), nitro(), viteReact()],
 });
