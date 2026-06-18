@@ -52,7 +52,7 @@ export function PromptInputTextarea({
 	return (
 		<textarea
 			aria-label="Message"
-			className="w-full resize-none bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
+			className="w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
 			disabled={disabled}
 			onChange={(event) => {
 				onChange(event.target.value);
