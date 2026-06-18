@@ -20,7 +20,7 @@ export const env = createEnv({
 		CATALOG_PROVIDERS: z
 			.string()
 			.default(
-				"anthropic,openai,google,xai,zai,minimax,deepseek,openrouter,moonshotai"
+				"anthropic,openai,google,xai,zai,zai-coding-plan,zhipuai,zhipuai-coding-plan,minimax,minimax-cn,minimax-cn-coding-plan,minimax-coding-plan,deepseek,openrouter,kimi-for-coding,moonshotai,moonshotai-cn"
 			)
 			.transform((value) =>
 				value
