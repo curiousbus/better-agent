@@ -38,9 +38,15 @@ function CopyButton({ code }: { code: string }) {
 			aria-label="Copy code"
 			className="absolute top-2 right-2 rounded-none border bg-background/70 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
 			onClick={() => {
-				navigator.clipboard.writeText(code);
-				setCopied(true);
-				setTimeout(() => setCopied(false), COPIED_RESET_MS);
+				navigator.clipboard.writeText(code).then(
+					() => {
+						setCopied(true);
+						setTimeout(() => setCopied(false), COPIED_RESET_MS);
+					},
+					() => {
+						// clipboard blocked (non-secure context / no permission): no-op
+					}
+				);
 			}}
 			type="button"
 		>
