@@ -16,6 +16,18 @@ export const env = createEnv({
 			.default("development"),
 		CREDENTIALS_SECRET: z.string().min(32),
 		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),
+		/** 逗号分隔的「只同步这些 provider」白名单（避免把 models.dev 全部 145 个 provider 同步进来）。 */
+		CATALOG_PROVIDERS: z
+			.string()
+			.default(
+				"anthropic,openai,google,xai,zai,minimax,deepseek,openrouter,moonshotai"
+			)
+			.transform((value) =>
+				value
+					.split(",")
+					.map((id) => id.trim())
+					.filter((id) => id !== "")
+			),
 	},
 	runtimeEnv: process.env,
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,

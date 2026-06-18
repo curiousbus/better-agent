@@ -57,6 +57,7 @@ function buildServices() {
 			catalogStore: providerCatalog,
 			modelStore: modelCache,
 			fetcher: () => fetchModelsDev(env.MODELS_DEV_URL),
+			allowedProviders: env.CATALOG_PROVIDERS,
 		}),
 		modelFactory,
 		agentValidator,
