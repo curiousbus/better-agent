@@ -54,7 +54,24 @@ export const agentsRouter = {
 				tokenHash: hash,
 			});
 			// Show-once: the plaintext token is returned only here, never persisted.
-			return { ...agent, token };
+			return { agent, token };
+		}),
+
+	rotateToken: publicProcedure
+		.input(idInput)
+		.handler(async ({ input, context }) => {
+			const { token, hash } = context.services.tokenService.generate();
+			const agent = await context.services.stores.agent.rotateToken(
+				input.id,
+				hash
+			);
+			if (!agent) {
+				throw new ORPCError("NOT_FOUND", {
+					message: `Agent ${input.id} not found`,
+				});
+			}
+			// Show-once: the plaintext token is returned only here, never persisted.
+			return { agent, token };
 		}),
 
 	update: publicProcedure
