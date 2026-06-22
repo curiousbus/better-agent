@@ -17,6 +17,7 @@ import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
+import { saveAgentToken } from "@/utils/agent-token";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -127,8 +128,13 @@ function useAgentMutations(onSaved: () => void) {
 		queryClient.invalidateQueries({ queryKey: orpc.agents.list.key() });
 	const create = useMutation(
 		orpc.agents.create.mutationOptions({
-			onSuccess: () => {
-				toast.success("Agent created");
+			onSuccess: (result) => {
+				// Show-once: cache the plaintext token locally and surface it for copy.
+				saveAgentToken(result.agent.id, result.token);
+				toast.success("Agent created — copy the token now (shown once)", {
+					description: result.token,
+					duration: 30_000,
+				});
 				onSaved();
 				invalidate();
 			},
