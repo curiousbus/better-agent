@@ -65,7 +65,7 @@ async function buildClient() {
 		stores: { agent: agentStore, session: sessionStore, message: messageStore },
 	};
 	const client = createRouterClient(appRouter, {
-		context: { services: services as never },
+		context: { services: services as never, authedAgent: null },
 	});
 	return { client, agentId: agent.id };
 }
