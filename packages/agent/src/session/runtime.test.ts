@@ -5,8 +5,8 @@ import type {
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { expect, it } from "vitest";
 import type { ModelFactory } from "../provider/model-factory";
+import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
-	createFakeAgentStore,
 	createFakeMessageStore,
 	createFakeSessionStore,
 } from "../testing/fakes";

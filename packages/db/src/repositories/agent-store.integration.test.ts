@@ -21,6 +21,7 @@ const INPUT = {
 	providerId: "anthropic",
 	modelId: "claude-opus-4-5",
 	params: null,
+	tokenHash: "hash-1",
 };
 
 it("create returns a row with generated id and timestamps", async () => {
@@ -42,7 +43,7 @@ it("get returns the created agent and null for missing id", async () => {
 it("list returns all agents", async () => {
 	const store = createAgentStore(db);
 	await store.create(INPUT);
-	await store.create({ ...INPUT, name: "Second" });
+	await store.create({ ...INPUT, name: "Second", tokenHash: "hash-2" });
 	expect((await store.list()).length).toBe(2);
 });
 
@@ -70,4 +71,27 @@ it("delete removes the agent", async () => {
 	const created = await store.create(INPUT);
 	await store.delete(created.id);
 	expect(await store.get(created.id)).toBeNull();
+});
+
+it("findByTokenHash returns the agent for a known hash and null otherwise", async () => {
+	const store = createAgentStore(db);
+	const created = await store.create(INPUT);
+	expect((await store.findByTokenHash("hash-1"))?.id).toBe(created.id);
+	expect(await store.findByTokenHash("nope")).toBeNull();
+});
+
+it("rotateToken swaps the hash so the old one stops resolving", async () => {
+	const store = createAgentStore(db);
+	const created = await store.create(INPUT);
+	await store.rotateToken(created.id, "hash-2");
+	expect(await store.findByTokenHash("hash-1")).toBeNull();
+	expect((await store.findByTokenHash("hash-2"))?.id).toBe(created.id);
+});
+
+it("create rejects a duplicate token hash", async () => {
+	const store = createAgentStore(db);
+	await store.create(INPUT);
+	await expect(
+		store.create({ ...INPUT, name: "Other", tokenHash: "hash-1" })
+	).rejects.toThrow();
 });

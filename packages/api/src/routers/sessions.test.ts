@@ -4,8 +4,8 @@ import type {
 } from "@ai-sdk/provider";
 import type { RunEvent } from "@better-agent/agent/session/events";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
+import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import {
-	createFakeAgentStore,
 	createFakeMessageStore,
 	createFakeSessionStore,
 } from "@better-agent/agent/testing/fakes";

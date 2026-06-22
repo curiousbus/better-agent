@@ -23,7 +23,9 @@ function toAgentConfig(row: AgentRow) {
 	};
 }
 
-export function createAgentStore(db: Db): AgentStore {
+function makeAgentTokenOps(
+	db: Db
+): Pick<AgentStore, "create" | "findByTokenHash" | "rotateToken"> {
 	return {
 		async create(input) {
 			const rows = await db.insert(schema.agents).values(input).returning();
@@ -33,6 +35,30 @@ export function createAgentStore(db: Db): AgentStore {
 			}
 			return toAgentConfig(row);
 		},
+		async findByTokenHash(tokenHash) {
+			const rows = await db
+				.select()
+				.from(schema.agents)
+				.where(eq(schema.agents.tokenHash, tokenHash))
+				.limit(1);
+			const row = rows[0];
+			return row ? toAgentConfig(row) : null;
+		},
+		async rotateToken(id, tokenHash) {
+			const rows = await db
+				.update(schema.agents)
+				.set({ tokenHash, updatedAt: new Date() })
+				.where(eq(schema.agents.id, id))
+				.returning();
+			const row = rows[0];
+			return row ? toAgentConfig(row) : null;
+		},
+	};
+}
+
+export function createAgentStore(db: Db): AgentStore {
+	return {
+		...makeAgentTokenOps(db),
 		async get(id) {
 			const rows = await db
 				.select()

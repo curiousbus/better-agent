@@ -1,6 +1,4 @@
-import type { AgentConfig, AgentInput } from "../agent/types";
 import type {
-	AgentStore,
 	MessageStore,
 	ModelCacheStore,
 	ProviderCatalogStore,
@@ -77,46 +75,6 @@ export function createFakeCredentialStore(
 		},
 		get(providerId) {
 			return Promise.resolve(map.get(providerId) ?? null);
-		},
-	};
-}
-
-export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
-	const map = new Map(seed.map((agent) => [agent.id, agent]));
-	return {
-		create(input: AgentInput) {
-			const now = new Date();
-			const agent: AgentConfig = {
-				id: crypto.randomUUID(),
-				...input,
-				createdAt: now,
-				updatedAt: now,
-			};
-			map.set(agent.id, agent);
-			return Promise.resolve(agent);
-		},
-		get(id) {
-			return Promise.resolve(map.get(id) ?? null);
-		},
-		list() {
-			return Promise.resolve([...map.values()]);
-		},
-		update(id, input) {
-			const existing = map.get(id);
-			if (!existing) {
-				return Promise.resolve(null);
-			}
-			const updated: AgentConfig = {
-				...existing,
-				...input,
-				updatedAt: new Date(),
-			};
-			map.set(id, updated);
-			return Promise.resolve(updated);
-		},
-		delete(id) {
-			map.delete(id);
-			return Promise.resolve();
 		},
 	};
 }

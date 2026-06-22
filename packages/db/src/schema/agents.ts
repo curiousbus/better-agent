@@ -9,6 +9,7 @@ export const agents = pgTable("agents", {
 	providerId: text("provider_id").notNull(),
 	modelId: text("model_id").notNull(),
 	params: jsonb("params").$type<AgentParams>(),
+	tokenHash: text("token_hash").notNull().unique(),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
