@@ -51,6 +51,7 @@ async function buildClient() {
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
+		tokenHash: "hash-sessions",
 	});
 	const runtime = createSessionRuntime({
 		sessionStore,

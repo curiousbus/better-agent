@@ -1,4 +1,5 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
+import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type {
 	AgentStore,
 	MessageStore,
@@ -24,4 +25,5 @@ export interface AgentServices {
 		session: SessionStore;
 		message: MessageStore;
 	};
+	tokenService: TokenService;
 }

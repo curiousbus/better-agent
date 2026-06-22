@@ -48,7 +48,13 @@ export const agentsRouter = {
 				providerId: input.providerId,
 				modelId: input.modelId,
 			});
-			return context.services.stores.agent.create(input);
+			const { token, hash } = context.services.tokenService.generate();
+			const agent = await context.services.stores.agent.create({
+				...input,
+				tokenHash: hash,
+			});
+			// Show-once: the plaintext token is returned only here, never persisted.
+			return { ...agent, token };
 		}),
 
 	update: publicProcedure
