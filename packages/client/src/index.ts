@@ -19,10 +19,10 @@ type PromptStream = Awaited<ReturnType<Client["sessions"]["prompt"]>>;
 export type RunEvent = PromptStream extends AsyncIterable<infer E> ? E : never;
 
 export interface AgentClientConfig {
-	/** 本 client 绑定的 agent（创建 session 时用）。 */
-	agentId: string;
 	/** server 根地址，如 "http://localhost:3000"；SDK 自动拼 "/rpc"。 */
 	baseURL: string;
+	/** agent token（创建 agent 时一次性返回）。SDK 以 Bearer 头携带。 */
+	token: string;
 }
 
 export interface RunOptions {
@@ -42,15 +42,12 @@ export interface AgentClient {
 }
 
 /** 用已有 oRPC client 构造 SDK（便于注入测试）。 */
-export function createAgentClientFrom(
-	client: Client,
-	agentId: string
-): AgentClient {
+export function createAgentClientFrom(client: Client): AgentClient {
 	const ensureSession = async (sessionId?: string): Promise<string> =>
-		sessionId ?? (await client.sessions.create({ agentId })).id;
+		sessionId ?? (await client.sessions.create({})).id;
 	return {
 		async createSession() {
-			const session = await client.sessions.create({ agentId });
+			const session = await client.sessions.create({});
 			return { sessionId: session.id };
 		},
 		async run(text, options) {
@@ -70,9 +67,12 @@ export function createAgentClientFrom(
 	};
 }
 
-/** 创建一个绑定 baseURL + agentId 的 Agent SDK client。 */
+/** 创建一个绑定 baseURL + token 的 Agent SDK client。 */
 export function createAgentClient(config: AgentClientConfig): AgentClient {
-	const link = new RPCLink({ url: `${config.baseURL}/rpc` });
+	const link = new RPCLink({
+		url: `${config.baseURL}/rpc`,
+		headers: { authorization: `Bearer ${config.token}` },
+	});
 	const client = createORPCClient(link) as Client;
-	return createAgentClientFrom(client, config.agentId);
+	return createAgentClientFrom(client);
 }
