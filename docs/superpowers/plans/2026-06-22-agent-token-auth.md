@@ -1151,6 +1151,51 @@ git commit -m "feat(admin): chat via Agent SDK with cached token + regenerate"
 
 ---
 
+### Task 9: smooth streaming chat output + typing animation (admin)
+
+> **Added later, separate concern from token-auth.** The admin chat streams replies but is choppy ("一卡一卡的") and has no reveal animation. This task makes the stream render smoothly and adds a typing/fade reveal, adopting the techniques [ai-elements](https://ai-sdk.dev/elements) uses (Streamdown, smoothStream-style buffering, use-stick-to-bottom) — wired into this app's custom oRPC event-iterator (it does **not** use the AI SDK `useChat`).
+
+**Decisions to confirm before implementing (open questions):**
+- [ ] **Reveal cadence & unit:** reveal by *character* (CJK-correct — content is Chinese) vs *word*. Recommend per-character. Confirm chars-per-frame "feel" (fast vs typewriter-slow).
+- [ ] **Markdown renderer:** adopt Streamdown's bundled shiki highlighter (deletes `code-block.tsx`, fixes per-token re-highlight) vs keep the current `code-block.tsx`. Recommend Streamdown; confirm theme parity (`github-light`/`github-dark`) and SSR safety.
+- [ ] **Server-side `smoothStream` too?** Optional — `runtime.ts:177` already calls `streamText`; could add `experimental_transform: smoothStream(...)`. Client buffering already solves it and is jitter-proof. Recommend client-only.
+- [ ] **Reasoning panel:** apply the same buffer to reasoning, or leave it instant? (Secondary/collapsible.)
+- [ ] **Auto-scroll:** replace the homemade `useStick` with `use-stick-to-bottom` (spring scroll). Recommend replace.
+
+**Root-cause diagnosis (current code):**
+- **A — setState per token → whole-tree re-render.** `apps/admin/src/components/sessions/use-chat.ts` `streamPrompt` calls `setDraft(...)` on every `text-delta`/`reasoning-delta`. The runtime yields one event per model token (`packages/agent/src/session/runtime.ts:~134`), so React re-renders the whole conversation per token, unbatched.
+- **B — full markdown re-parse per token.** `packages/ui/src/components/response.tsx` is `memo`'d but its `children` string changes every delta, so `ReactMarkdown` re-parses the entire message each token (O(n) per token → O(n²) total).
+- **C — shiki re-highlight per token.** `packages/ui/src/components/code-block.tsx` runs `codeToHtml` in an effect keyed on `[code, lang]`; while a fenced block streams, `code` changes every token. (`apps/admin/vite.config.ts:~14` already externalizes shiki for SSR.)
+- **D — abrupt auto-scroll.** `packages/ui/src/components/conversation.tsx` `useStick` snaps `scrollTop = scrollHeight` from a ResizeObserver per resize — instantaneous, jumpy.
+- **E — no buffer / no animation.** Nothing decouples network event rate from DOM updates; text appears in lumpy bursts, no fade/typing effect.
+
+Events are fine-grained deltas (good substrate); the problem is entirely on the consume/render side.
+
+**Files:**
+- Modify: `packages/ui/src/components/response.tsx` (Streamdown)
+- Modify: `apps/admin/src/components/sessions/use-chat.ts` (rAF reveal buffer)
+- Modify: `packages/ui/src/components/conversation.tsx` (use-stick-to-bottom)
+- Maybe delete: `packages/ui/src/components/code-block.tsx` (if Streamdown highlights)
+- Modify: `packages/ui/package.json` (deps), `apps/admin/vite.config.ts` (SSR/shiki re-check)
+
+**Dependencies:** `streamdown@^2.5.0`, `use-stick-to-bottom` (both into `packages/ui`). Possibly drop `react-markdown`/`remark-gfm`/`shiki` from `packages/ui` if Streamdown replaces all usages (verify no other consumers first). No new dep for smoothing — hand-rolled rAF in `use-chat.ts`.
+
+- [ ] **Step 1: Swap renderer to Streamdown (fixes B + C).** In `response.tsx`, replace `ReactMarkdown` + custom code renderer with `Streamdown` (keep the `Response` export + prose `className`; enable incomplete-markdown repair). Streamdown memoizes completed blocks independently so only the last streaming block re-renders. *Test:* render a partial fenced block (` ```ts\nconst a`) → no raw backticks leak / no crash; render a long message twice (one extra token) → prior blocks' DOM reused.
+
+- [ ] **Step 2: rAF reveal buffer in `use-chat.ts` (fixes A + E).** Between the `for await` and `setDraft`, accumulate deltas into a *target* buffer; a single `requestAnimationFrame` loop advances a *revealed* length toward the target by N chars/frame and calls `setDraft` once per frame. Reveal by character (CJK-safe). Flush to full on stream end/abort. Guard rAF for SSR; make it fake-timer-able. *Test:* feed 100 deltas synchronously → `setDraft` called ≪ 100×; final text === concatenation of all deltas; flush-on-finalize.
+
+- [ ] **Step 3: Smooth auto-scroll (fixes D).** In `conversation.tsx`, replace `useStick`/raw scroll with `use-stick-to-bottom`'s `StickToBottom` + context. Preserve the exported `Conversation`/`ConversationContent`/`ConversationScrollButton` API so admin `conversation.tsx` is untouched. *Test:* `ConversationScrollButton` hidden at bottom, shown when scrolled up.
+
+- [ ] **Step 4: Reveal/typing animation.** With Steps 1–2 in place, add a CSS-only fade-in on newly revealed text (Streamdown's animated block prop, or a `@keyframes` fade on the last block). Keep it CSS-only (no per-token JS).
+
+- [ ] **Step 5: SSR/shiki re-check.** Validate a server render of a code block under Nitro/rolldown with Streamdown's bundled shiki; adjust `apps/admin/vite.config.ts` `external` rule as needed. **Highest-risk item — validate early.**
+
+- [ ] **Step 6: Verify + commit.** `pnpm -F @better-agent/ui test && pnpm -F @better-agent/admin check-types`; manual: stream a long Chinese reply and confirm smooth char-by-char reveal + smooth scroll. Commit `feat(admin): smooth streaming chat output with typing animation`.
+
+**Sources:** [streamdown](https://github.com/vercel/streamdown) · [AI SDK smoothStream](https://ai-sdk.dev/docs/reference/ai-sdk-core/smooth-stream) · [smoothStream + CJK](https://ai-sdk.dev/v4/docs/ai-sdk-ui/smooth-stream-chinese) · [use-stick-to-bottom](https://github.com/stackblitz-labs/use-stick-to-bottom) · [AI Elements Conversation](https://ai-sdk.dev/elements/components/conversation)
+
+---
+
 ## Final verification
 
 - [ ] **Full typecheck:** `pnpm check-types` — all packages clean.
