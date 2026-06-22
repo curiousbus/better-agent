@@ -20,7 +20,7 @@ export function Reasoning({
 	}, [isStreaming]);
 	return (
 		<Collapsible.Root
-			className={cn("rounded-none border bg-muted/40 p-2", className)}
+			className={cn("rounded-md border bg-muted/40 p-2", className)}
 			onOpenChange={setOpen}
 			open={open}
 		>

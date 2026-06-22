@@ -36,7 +36,7 @@ function CopyButton({ code }: { code: string }) {
 	return (
 		<button
 			aria-label="Copy code"
-			className="absolute top-2 right-2 rounded-none border bg-background/70 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+			className="absolute top-2 right-2 rounded-md border bg-background/70 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
 			onClick={() => {
 				navigator.clipboard.writeText(code).then(
 					() => {
@@ -67,14 +67,14 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
 			{html ? (
 				<div
 					className={cn(
-						"overflow-x-auto rounded-none border text-sm [&_pre]:m-0 [&_pre]:bg-transparent [&_pre]:p-3",
+						"overflow-x-auto rounded-lg border text-sm [&_pre]:m-0 [&_pre]:bg-transparent [&_pre]:p-3",
 						"[&_code]:font-mono"
 					)}
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: shiki 输出的是已转义的高亮 HTML
 					dangerouslySetInnerHTML={{ __html: html }}
 				/>
 			) : (
-				<pre className="overflow-x-auto rounded-none border bg-muted p-3 font-mono text-sm">
+				<pre className="overflow-x-auto rounded-lg border bg-muted p-3 font-mono text-sm">
 					<code>{code}</code>
 				</pre>
 			)}

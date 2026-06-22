@@ -14,7 +14,7 @@ export function AppSidebar() {
 				{NAV.map((item) => (
 					<Link
 						activeProps={{ className: "bg-accent text-accent-foreground" }}
-						className="flex items-center gap-2 rounded-none px-2 py-1.5 text-muted-foreground text-sm hover:bg-accent/50"
+						className="flex items-center gap-2 rounded-md px-2 py-1.5 text-muted-foreground text-sm hover:bg-accent/50"
 						key={item.to}
 						to={item.to}
 					>

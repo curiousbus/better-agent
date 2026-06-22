@@ -15,7 +15,7 @@ function CodeRenderer({ className, children }: ComponentProps<"code">) {
 		return <CodeBlock code={text} lang={match[1] ?? "text"} />;
 	}
 	return (
-		<code className="rounded-none bg-muted px-1 py-0.5 font-mono text-xs">
+		<code className="rounded-md bg-muted px-1 py-0.5 font-mono text-xs">
 			{children}
 		</code>
 	);
