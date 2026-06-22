@@ -108,6 +108,9 @@ importers:
       '@better-agent/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@better-agent/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@better-agent/env':
         specifier: workspace:*
         version: link:../../packages/env

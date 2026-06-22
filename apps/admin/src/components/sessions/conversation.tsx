@@ -1,3 +1,4 @@
+import type { AgentClient } from "@better-agent/client";
 import { CopyAction } from "@better-agent/ui/components/actions";
 import { Badge } from "@better-agent/ui/components/badge";
 import { Card } from "@better-agent/ui/components/card";
@@ -65,17 +66,53 @@ function ChatRow({ message }: { message: ChatMessage }) {
 	);
 }
 
-export function Conversation({ sessionId }: { sessionId: string }) {
-	const { messages, streaming, send, stop } = useChat(sessionId);
+function ChatComposer({
+	streaming,
+	onSend,
+	onStop,
+}: {
+	streaming: boolean;
+	onSend: (text: string) => void;
+	onStop: () => void;
+}) {
 	const [text, setText] = useState("");
 	const submit = () => {
 		const trimmed = text.trim();
 		if (trimmed === "" || streaming) {
 			return;
 		}
-		send(trimmed);
+		onSend(trimmed);
 		setText("");
 	};
+	return (
+		<div className="border-t p-3">
+			<PromptInput onSubmit={submit}>
+				<PromptInputTextarea
+					disabled={streaming}
+					onChange={setText}
+					onSubmit={submit}
+					value={text}
+				/>
+				<PromptInputToolbar>
+					<PromptInputTools />
+					<PromptInputSubmit
+						onStop={onStop}
+						status={streaming ? "streaming" : "idle"}
+					/>
+				</PromptInputToolbar>
+			</PromptInput>
+		</div>
+	);
+}
+
+export function Conversation({
+	sessionId,
+	agentClient,
+}: {
+	sessionId: string;
+	agentClient: AgentClient;
+}) {
+	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
 	return (
 		<Card className="flex h-chat flex-col gap-0 overflow-hidden p-0">
 			<ConversationRoot>
@@ -90,23 +127,7 @@ export function Conversation({ sessionId }: { sessionId: string }) {
 				</ConversationContent>
 				<ConversationScrollButton />
 			</ConversationRoot>
-			<div className="border-t p-3">
-				<PromptInput onSubmit={submit}>
-					<PromptInputTextarea
-						disabled={streaming}
-						onChange={setText}
-						onSubmit={submit}
-						value={text}
-					/>
-					<PromptInputToolbar>
-						<PromptInputTools />
-						<PromptInputSubmit
-							onStop={stop}
-							status={streaming ? "streaming" : "idle"}
-						/>
-					</PromptInputToolbar>
-				</PromptInput>
-			</div>
+			<ChatComposer onSend={send} onStop={stop} streaming={streaming} />
 		</Card>
 	);
 }

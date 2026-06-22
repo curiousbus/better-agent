@@ -28,6 +28,8 @@ export interface AgentClientConfig {
 export interface RunOptions {
 	/** 继续指定会话；省略则自动新建一次性会话。 */
 	sessionId?: string;
+	/** 中止信号：用于取消进行中的 run/stream。 */
+	signal?: AbortSignal;
 }
 
 export interface AgentClient {
@@ -52,11 +54,17 @@ export function createAgentClientFrom(client: Client): AgentClient {
 		},
 		async run(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
-			return client.sessions.run({ sessionId, text });
+			return client.sessions.run(
+				{ sessionId, text },
+				{ signal: options?.signal }
+			);
 		},
 		async *stream(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
-			const events = await client.sessions.prompt({ sessionId, text });
+			const events = await client.sessions.prompt(
+				{ sessionId, text },
+				{ signal: options?.signal }
+			);
 			for await (const event of events) {
 				yield event;
 			}
