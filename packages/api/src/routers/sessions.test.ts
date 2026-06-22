@@ -51,7 +51,7 @@ async function buildClient() {
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
-		tokenHash: "hash-sessions",
+		tokenHash: "hash-1",
 	});
 	const runtime = createSessionRuntime({
 		sessionStore,
@@ -65,24 +65,49 @@ async function buildClient() {
 		stores: { agent: agentStore, session: sessionStore, message: messageStore },
 	};
 	const client = createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: null },
+		context: { services: services as never, authedAgent: agent },
 	});
-	return { client, agentId: agent.id };
+	return { client, agentStore, agent, services };
 }
 
-it("create rejects an unknown agent and accepts a known one", async () => {
-	const { client, agentId } = await buildClient();
-	await expect(
-		client.sessions.create({ agentId: "00000000-0000-0000-0000-000000000000" })
-	).rejects.toThrow();
-	const session = await client.sessions.create({ agentId });
+it("create derives the agent from the token and binds the session to it", async () => {
+	const { client, agent } = await buildClient();
+	const session = await client.sessions.create({});
 	expect(session.id).toBeTruthy();
-	expect(session.agentId).toBe(agentId);
+	expect(session.agentId).toBe(agent.id);
+});
+
+it("rejects chat-plane calls without a token", async () => {
+	const { services } = await buildClient();
+	const anon = createRouterClient(appRouter, {
+		context: { services: services as never, authedAgent: null },
+	});
+	await expect(anon.sessions.create({})).rejects.toThrow();
+});
+
+it("cannot read another agent's session (NOT_FOUND, not a crash)", async () => {
+	const { client, agentStore, services } = await buildClient();
+	const session = await client.sessions.create({});
+	const otherAgent = await agentStore.create({
+		name: "Other",
+		description: "d",
+		systemPrompt: "s",
+		providerId: "openai",
+		modelId: "gpt-x",
+		params: null,
+		tokenHash: "hash-2",
+	});
+	const otherClient = createRouterClient(appRouter, {
+		context: { services: services as never, authedAgent: otherAgent },
+	});
+	await expect(
+		otherClient.sessions.listMessages({ sessionId: session.id })
+	).rejects.toThrow();
 });
 
 it("run returns the final assistant message and listMessages replays history", async () => {
-	const { client, agentId } = await buildClient();
-	const session = await client.sessions.create({ agentId });
+	const { client } = await buildClient();
+	const session = await client.sessions.create({});
 	const final = await client.sessions.run({
 		sessionId: session.id,
 		text: "hello",
@@ -96,8 +121,8 @@ it("run returns the final assistant message and listMessages replays history", a
 });
 
 it("prompt streams run events ending with done", async () => {
-	const { client, agentId } = await buildClient();
-	const session = await client.sessions.create({ agentId });
+	const { client } = await buildClient();
+	const session = await client.sessions.create({});
 	const events: RunEvent[] = [];
 	for await (const event of await client.sessions.prompt({
 		sessionId: session.id,
