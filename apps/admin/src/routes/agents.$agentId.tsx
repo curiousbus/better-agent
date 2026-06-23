@@ -95,12 +95,14 @@ function ChatHeader({
 	onToken: (token: string) => void;
 }) {
 	return (
-		<header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-			<span className="truncate font-medium text-sm">{agent.name}</span>
-			<span className="truncate font-mono text-muted-foreground text-xs">
-				{agent.providerId}/{agent.modelId}
-			</span>
-			<div className="ml-auto flex items-center gap-2">
+		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:gap-3 sm:px-4">
+			<div className="flex min-w-0 flex-1 items-baseline gap-2">
+				<span className="truncate font-medium text-sm">{agent.name}</span>
+				<span className="hidden truncate font-mono text-muted-foreground text-xs sm:inline">
+					{agent.providerId}/{agent.modelId}
+				</span>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 				<SessionPicker
 					onChange={onSessionChange}
 					sessions={sessions}
@@ -114,7 +116,7 @@ function ChatHeader({
 					variant="outline"
 				>
 					<PlusIcon className="size-3.5" />
-					New
+					<span className="hidden sm:inline">New</span>
 				</Button>
 				<RegenerateToken agentId={agent.id} onToken={onToken} />
 			</div>

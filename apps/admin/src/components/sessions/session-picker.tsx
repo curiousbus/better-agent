@@ -28,7 +28,7 @@ export function SessionPicker({
 			onValueChange={(next) => onChange(typeof next === "string" ? next : "")}
 			value={value}
 		>
-			<SelectTrigger aria-label="Session" className="w-72">
+			<SelectTrigger aria-label="Session" className="w-36 sm:w-64">
 				<SelectValue placeholder="Select a session…" />
 			</SelectTrigger>
 			<SelectContent>

@@ -1,6 +1,7 @@
 import {
 	SidebarInset,
 	SidebarProvider,
+	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
 import { Toaster } from "@better-agent/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
@@ -43,7 +44,13 @@ function RootDocument() {
 				<SidebarProvider>
 					<AdminSidebar />
 					<SidebarInset className="min-h-0 overflow-hidden">
-						<Outlet />
+						<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
+							<SidebarTrigger />
+							<span className="font-medium text-sm">better-agent</span>
+						</header>
+						<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+							<Outlet />
+						</div>
 					</SidebarInset>
 				</SidebarProvider>
 				<Toaster richColors />
