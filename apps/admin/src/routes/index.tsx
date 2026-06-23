@@ -3,7 +3,7 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bot, PlusIcon } from "lucide-react";
-
+import { RevealText } from "@/components/reveal-text";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -37,12 +37,14 @@ function HomePage() {
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center overflow-auto p-6">
 			<div className="w-full max-w-2xl">
-				<h1 className="font-semibold text-3xl tracking-tight">
-					Hello there 👋
-				</h1>
-				<p className="mt-1 text-lg text-muted-foreground">
-					Pick an agent to start chatting.
-				</p>
+				<RevealText>
+					<h1 className="t-stagger-line t-stagger-line--1 font-semibold text-3xl tracking-tight">
+						Hello there 👋
+					</h1>
+					<p className="t-stagger-line t-stagger-line--2 mt-1 text-lg text-muted-foreground">
+						Pick an agent to start chatting.
+					</p>
+				</RevealText>
 				<div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
 					{rows.map((agent) => (
 						<AgentCard agent={agent} key={agent.id} />

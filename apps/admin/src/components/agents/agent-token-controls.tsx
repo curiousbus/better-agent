@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { RevealText } from "@/components/reveal-text";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -71,13 +72,15 @@ export function GenerateTokenState({
 	const rotate = useRotateToken(onToken);
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-			<div>
-				<p className="font-medium text-lg">Chat with {agent.name}</p>
-				<p className="max-w-sm text-muted-foreground text-sm">
+			<RevealText>
+				<p className="t-stagger-line t-stagger-line--1 font-medium text-lg">
+					Chat with {agent.name}
+				</p>
+				<p className="t-stagger-line t-stagger-line--2 max-w-sm text-muted-foreground text-sm">
 					This agent doesn't have a token yet. Generate one to start chatting —
 					it's stored with the agent and reused automatically.
 				</p>
-			</div>
+			</RevealText>
 			<Button
 				disabled={rotate.isPending}
 				onClick={() => rotate.mutate({ id: agent.id })}

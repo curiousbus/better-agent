@@ -13,6 +13,7 @@ import {
 	RegenerateToken,
 } from "@/components/agents/agent-token-controls";
 import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
+import { RevealText } from "@/components/reveal-text";
 import { Conversation } from "@/components/sessions/conversation";
 import { SessionPicker } from "@/components/sessions/session-picker";
 import type { AgentRow, SessionRow } from "@/utils/api-types";
@@ -64,12 +65,14 @@ function EmptySessions({
 }) {
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-			<div>
-				<p className="font-medium text-lg">Chat with {agentName}</p>
-				<p className="text-muted-foreground text-sm">
+			<RevealText>
+				<p className="t-stagger-line t-stagger-line--1 font-medium text-lg">
+					Chat with {agentName}
+				</p>
+				<p className="t-stagger-line t-stagger-line--2 text-muted-foreground text-sm">
 					No conversations yet. Start one to begin.
 				</p>
-			</div>
+			</RevealText>
 			<Button className="gap-1" disabled={pending} onClick={onNew}>
 				<PlusIcon className="size-4" />
 				New session

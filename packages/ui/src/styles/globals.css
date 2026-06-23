@@ -145,3 +145,72 @@
 	color: var(--shiki-dark);
 	background-color: var(--shiki-dark-bg);
 }
+
+/* transitions.dev — semantic motion tokens (only the ones we use). */
+:root {
+	/* Icon swap */
+	--icon-swap-dur: 250ms;
+	--icon-swap-blur: 2px;
+	--icon-swap-start-scale: 0.25;
+	--icon-swap-ease: ease-in-out;
+	/* Texts reveal */
+	--stagger-dur: 500ms;
+	--stagger-distance: 12px;
+	--stagger-stagger: 40ms;
+	--stagger-blur: 3px;
+	--stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Icon swap — cross-fade two stacked icons in one slot (copy ↔ check). */
+.t-icon-swap {
+	position: relative;
+	display: inline-grid;
+}
+.t-icon-swap .t-icon {
+	grid-area: 1 / 1;
+	transition:
+		opacity var(--icon-swap-dur) var(--icon-swap-ease),
+		filter var(--icon-swap-dur) var(--icon-swap-ease),
+		transform var(--icon-swap-dur) var(--icon-swap-ease);
+	will-change: opacity, filter, transform;
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+	opacity: 1;
+	filter: blur(0);
+	transform: scale(1);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+	opacity: 0;
+	filter: blur(var(--icon-swap-blur));
+	transform: scale(var(--icon-swap-start-scale));
+}
+
+/* Texts reveal — staggered blurred rise for stacked headline + supporting line. */
+.t-stagger-line {
+	display: block;
+	opacity: 0;
+	filter: blur(var(--stagger-blur));
+	transform: translateY(var(--stagger-distance));
+	transition:
+		opacity var(--stagger-dur) var(--stagger-ease),
+		transform var(--stagger-dur) var(--stagger-ease),
+		filter var(--stagger-dur) var(--stagger-ease);
+	will-change: transform, opacity, filter;
+}
+.t-stagger-line--2 {
+	transition-delay: var(--stagger-stagger);
+}
+.t-stagger.is-shown .t-stagger-line {
+	opacity: 1;
+	filter: blur(0);
+	transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.t-icon-swap .t-icon,
+	.t-stagger-line {
+		transition: none !important;
+	}
+}

@@ -23,6 +23,8 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import { useState } from "react";
 
+import { RevealText } from "@/components/reveal-text";
+
 import { type ChatMessage, useChat } from "./use-chat";
 
 function AssistantBody({ message }: { message: ChatMessage }) {
@@ -119,8 +121,14 @@ function ChatComposer({
 function EmptyMessages() {
 	return (
 		<div className="flex flex-col items-center justify-center py-24 text-center">
-			<p className="font-medium text-sm">Start the conversation</p>
-			<p className="text-muted-foreground text-sm">Send a message to begin.</p>
+			<RevealText>
+				<p className="t-stagger-line t-stagger-line--1 font-medium text-sm">
+					Start the conversation
+				</p>
+				<p className="t-stagger-line t-stagger-line--2 text-muted-foreground text-sm">
+					Send a message to begin.
+				</p>
+			</RevealText>
 		</div>
 	);
 }

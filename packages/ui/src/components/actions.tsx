@@ -58,11 +58,10 @@ export function CopyAction({ text }: { text: string }) {
 				);
 			}}
 		>
-			{copied ? (
-				<CheckIcon className="size-3.5" />
-			) : (
-				<CopyIcon className="size-3.5" />
-			)}
+			<span className="t-icon-swap" data-state={copied ? "b" : "a"}>
+				<CopyIcon className="t-icon size-3.5" data-icon="a" />
+				<CheckIcon className="t-icon size-3.5" data-icon="b" />
+			</span>
 		</Action>
 	);
 }
