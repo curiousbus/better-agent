@@ -36,7 +36,7 @@ function buildServices() {
 	const providerCatalog = createProviderCatalogStore(db);
 	const modelCache = createModelCacheStore(db);
 	const providerCredential = createProviderCredentialStore(db, secretBox);
-	const agent = createAgentStore(db);
+	const agent = createAgentStore(db, secretBox);
 	const tokenService = createTokenService();
 	const agentValidator = createAgentValidator({
 		credentialStore: providerCredential,

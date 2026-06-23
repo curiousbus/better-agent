@@ -1,3 +1,4 @@
+import type { SecretBox } from "@better-agent/agent/crypto/secret-box";
 import type { AgentStore } from "@better-agent/agent/ports";
 import { eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
@@ -23,18 +24,14 @@ function toAgentConfig(row: AgentRow) {
 	};
 }
 
-function makeAgentTokenOps(
-	db: Db
-): Pick<AgentStore, "create" | "findByTokenHash" | "rotateToken"> {
+const sealToken = (box: SecretBox, token: string | undefined): string | null =>
+	token === undefined ? null : box.encrypt(token);
+
+function makeAgentReadOps(
+	db: Db,
+	box: SecretBox
+): Pick<AgentStore, "findByTokenHash" | "getToken"> {
 	return {
-		async create(input) {
-			const rows = await db.insert(schema.agents).values(input).returning();
-			const row = rows[0];
-			if (!row) {
-				throw new Error("Failed to create agent");
-			}
-			return toAgentConfig(row);
-		},
 		async findByTokenHash(tokenHash) {
 			const rows = await db
 				.select()
@@ -44,10 +41,42 @@ function makeAgentTokenOps(
 			const row = rows[0];
 			return row ? toAgentConfig(row) : null;
 		},
-		async rotateToken(id, tokenHash) {
+		async getToken(id) {
+			const rows = await db
+				.select({ tokenCipher: schema.agents.tokenCipher })
+				.from(schema.agents)
+				.where(eq(schema.agents.id, id))
+				.limit(1);
+			const cipher = rows[0]?.tokenCipher;
+			return cipher ? box.decrypt(cipher) : null;
+		},
+	};
+}
+
+function makeAgentWriteOps(
+	db: Db,
+	box: SecretBox
+): Pick<AgentStore, "create" | "rotateToken"> {
+	return {
+		async create({ token, ...rest }) {
+			const rows = await db
+				.insert(schema.agents)
+				.values({ ...rest, tokenCipher: sealToken(box, token) })
+				.returning();
+			const row = rows[0];
+			if (!row) {
+				throw new Error("Failed to create agent");
+			}
+			return toAgentConfig(row);
+		},
+		async rotateToken(id, tokenHash, token) {
 			const rows = await db
 				.update(schema.agents)
-				.set({ tokenHash, updatedAt: new Date() })
+				.set({
+					tokenHash,
+					tokenCipher: sealToken(box, token),
+					updatedAt: new Date(),
+				})
 				.where(eq(schema.agents.id, id))
 				.returning();
 			const row = rows[0];
@@ -56,9 +85,10 @@ function makeAgentTokenOps(
 	};
 }
 
-export function createAgentStore(db: Db): AgentStore {
+export function createAgentStore(db: Db, box: SecretBox): AgentStore {
 	return {
-		...makeAgentTokenOps(db),
+		...makeAgentReadOps(db, box),
+		...makeAgentWriteOps(db, box),
 		async get(id) {
 			const rows = await db
 				.select()

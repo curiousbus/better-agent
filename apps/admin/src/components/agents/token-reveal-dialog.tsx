@@ -61,9 +61,9 @@ export function TokenRevealDialog({
 				<DialogHeader>
 					<DialogTitle>Agent token</DialogTitle>
 					<DialogDescription>
-						Copy this token now — it is shown once and cannot be retrieved
-						later. Store it somewhere safe; anyone with it can chat as this
-						agent.
+						Use this token to chat with the agent from an external client (the
+						admin reuses it automatically). Anyone with it can chat as this
+						agent — regenerate to revoke the old one.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex items-center gap-2">

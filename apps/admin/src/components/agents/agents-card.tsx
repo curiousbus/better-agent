@@ -17,7 +17,6 @@ import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
-import { saveAgentToken } from "@/utils/agent-token";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -133,8 +132,7 @@ function useAgentMutations(
 	const create = useMutation(
 		orpc.agents.create.mutationOptions({
 			onSuccess: (result) => {
-				// Show-once: cache the plaintext token locally and reveal it in a modal.
-				saveAgentToken(result.agent.id, result.token);
+				// The server persists the token; reveal it in a modal for copy.
 				onTokenMinted(result.token);
 				onSaved();
 				invalidate();

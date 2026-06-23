@@ -9,17 +9,14 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { saveAgentToken } from "@/utils/agent-token";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 function useRotateToken(onRotated: (token: string) => void) {
 	return useMutation(
 		orpc.agents.rotateToken.mutationOptions({
-			onSuccess: (result) => {
-				saveAgentToken(result.agent.id, result.token);
-				onRotated(result.token);
-			},
+			// The server persists the rotated token; just surface it for copy.
+			onSuccess: (result) => onRotated(result.token),
 			onError: (error) => toast.error(error.message),
 		})
 	);
@@ -77,8 +74,8 @@ export function GenerateTokenState({
 			<div>
 				<p className="font-medium text-lg">Chat with {agent.name}</p>
 				<p className="max-w-sm text-muted-foreground text-sm">
-					This agent has no token cached in this browser. Generate one to start
-					chatting — it's shown once and stored locally.
+					This agent doesn't have a token yet. Generate one to start chatting —
+					it's stored with the agent and reused automatically.
 				</p>
 			</div>
 			<Button

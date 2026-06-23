@@ -10,6 +10,9 @@ export const agents = pgTable("agents", {
 	modelId: text("model_id").notNull(),
 	params: jsonb("params").$type<AgentParams>(),
 	tokenHash: text("token_hash").notNull().unique(),
+	// The current token, encrypted (secret-box). Lets the admin reuse it for
+	// chat instead of relying on a show-once copy. Null for backfilled agents.
+	tokenCipher: text("token_cipher"),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),

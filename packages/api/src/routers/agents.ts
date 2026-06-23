@@ -41,6 +41,14 @@ export const agentsRouter = {
 			context.services.stores.agent.get(input.id)
 		),
 
+	// Returns the agent's current token so a trusted caller (the admin UI) can
+	// reuse it for chat instead of relying on a show-once copy.
+	getToken: publicProcedure
+		.input(idInput)
+		.handler(({ input, context }) =>
+			context.services.stores.agent.getToken(input.id)
+		),
+
 	create: publicProcedure
 		.input(agentInput)
 		.handler(async ({ input, context }) => {
@@ -52,8 +60,8 @@ export const agentsRouter = {
 			const agent = await context.services.stores.agent.create({
 				...input,
 				tokenHash: hash,
+				token,
 			});
-			// Show-once: the plaintext token is returned only here, never persisted.
 			return { agent, token };
 		}),
 
@@ -63,14 +71,14 @@ export const agentsRouter = {
 			const { token, hash } = context.services.tokenService.generate();
 			const agent = await context.services.stores.agent.rotateToken(
 				input.id,
-				hash
+				hash,
+				token
 			);
 			if (!agent) {
 				throw new ORPCError("NOT_FOUND", {
 					message: `Agent ${input.id} not found`,
 				});
 			}
-			// Show-once: the plaintext token is returned only here, never persisted.
 			return { agent, token };
 		}),
 

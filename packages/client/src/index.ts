@@ -21,7 +21,7 @@ export type RunEvent = PromptStream extends AsyncIterable<infer E> ? E : never;
 export interface AgentClientConfig {
 	/** server 根地址，如 "http://localhost:3000"；SDK 自动拼 "/rpc"。 */
 	baseURL: string;
-	/** agent token（创建 agent 时一次性返回）。SDK 以 Bearer 头携带。 */
+	/** agent token（创建 agent 时返回，并持久化在服务端）。SDK 以 Bearer 头携带。 */
 	token: string;
 }
 

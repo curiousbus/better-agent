@@ -1,9 +1,11 @@
 import type { AgentClient } from "@better-agent/client";
+import { createAgentClient } from "@better-agent/client";
+import { env } from "@better-agent/env/web";
 import { Button } from "@better-agent/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -13,7 +15,6 @@ import {
 import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
 import { Conversation } from "@/components/sessions/conversation";
 import { SessionPicker } from "@/components/sessions/session-picker";
-import { getAgentClient } from "@/utils/agent-client";
 import type { AgentRow, SessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
@@ -21,20 +22,20 @@ export const Route = createFileRoute("/agents/$agentId")({
 	component: AgentDetailPage,
 });
 
-// Builds the token-scoped SDK client from the cached token. `ready` stays false
-// until after mount so SSR/first render don't flash the "generate token" state
-// (localStorage is browser-only), avoiding a hydration mismatch.
+// Fetches the agent's token from the server (persisted at create/rotate) and
+// builds the token-scoped SDK client from it. No browser cache — so the token
+// can't go stale; a null token means the agent has none yet (generate one).
 function useAgentClient(agentId: string) {
-	const [client, setClient] = useState<AgentClient | null>(null);
-	const [ready, setReady] = useState(false);
-	const refresh = useCallback(() => {
-		setClient(getAgentClient(agentId));
-		setReady(true);
-	}, [agentId]);
-	useEffect(() => {
-		refresh();
-	}, [refresh]);
-	return { client, ready, refresh };
+	const tokenQuery = useQuery(
+		orpc.agents.getToken.queryOptions({ input: { id: agentId } })
+	);
+	const token = tokenQuery.data ?? null;
+	const client = useMemo(
+		() =>
+			token ? createAgentClient({ baseURL: env.VITE_SERVER_URL, token }) : null,
+		[token]
+	);
+	return { client, ready: !tokenQuery.isPending, refetch: tokenQuery.refetch };
 }
 
 function useCreateSession(
@@ -188,12 +189,13 @@ function AgentChat({
 }
 
 function AgentChatPanel({ agent }: { agent: AgentRow }) {
-	const { client, ready, refresh } = useAgentClient(agent.id);
+	const { client, ready, refetch } = useAgentClient(agent.id);
 	const [revealToken, setRevealToken] = useState<string | null>(null);
-	// A fresh token is cached by the mutation; reveal it AND rebuild the client.
+	// Rotation persisted the new token server-side; reveal it AND refetch so the
+	// client rebuilds with it.
 	const onToken = (token: string) => {
 		setRevealToken(token);
-		refresh();
+		refetch();
 	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
