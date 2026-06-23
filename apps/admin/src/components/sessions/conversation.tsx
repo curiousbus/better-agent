@@ -1,7 +1,6 @@
 import type { AgentClient } from "@better-agent/client";
 import { CopyAction } from "@better-agent/ui/components/actions";
 import { Badge } from "@better-agent/ui/components/badge";
-import { Card } from "@better-agent/ui/components/card";
 import {
 	ConversationContent,
 	Conversation as ConversationRoot,
@@ -91,22 +90,37 @@ function ChatComposer({
 		setText("");
 	};
 	return (
-		<div className="border-t p-3">
-			<PromptInput onSubmit={submit}>
-				<PromptInputTextarea
-					disabled={streaming}
-					onChange={setText}
+		<div className="shrink-0 px-4 pb-4">
+			<div className="mx-auto w-full max-w-3xl">
+				<PromptInput
+					className="rounded-2xl border bg-background p-2 shadow-sm"
 					onSubmit={submit}
-					value={text}
-				/>
-				<PromptInputToolbar>
-					<PromptInputTools />
-					<PromptInputSubmit
-						onStop={onStop}
-						status={streaming ? "streaming" : "idle"}
+				>
+					<PromptInputTextarea
+						disabled={streaming}
+						onChange={setText}
+						onSubmit={submit}
+						placeholder="Send a message…"
+						value={text}
 					/>
-				</PromptInputToolbar>
-			</PromptInput>
+					<PromptInputToolbar>
+						<PromptInputTools />
+						<PromptInputSubmit
+							onStop={onStop}
+							status={streaming ? "streaming" : "idle"}
+						/>
+					</PromptInputToolbar>
+				</PromptInput>
+			</div>
+		</div>
+	);
+}
+
+function EmptyMessages() {
+	return (
+		<div className="flex flex-col items-center justify-center py-24 text-center">
+			<p className="font-medium text-sm">Start the conversation</p>
+			<p className="text-muted-foreground text-sm">Send a message to begin.</p>
 		</div>
 	);
 }
@@ -120,11 +134,11 @@ export function Conversation({
 }) {
 	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
 	return (
-		<Card className="flex h-chat flex-col gap-0 overflow-hidden p-0">
+		<div className="flex min-h-0 flex-1 flex-col">
 			<ConversationRoot>
-				<ConversationContent>
+				<ConversationContent className="mx-auto w-full max-w-3xl">
 					{messages.length === 0 ? (
-						<p className="text-muted-foreground text-sm">No messages yet.</p>
+						<EmptyMessages />
 					) : (
 						messages.map((message) => (
 							<ChatRow key={message.id} message={message} />
@@ -134,6 +148,6 @@ export function Conversation({
 				<ConversationScrollButton />
 			</ConversationRoot>
 			<ChatComposer onSend={send} onStop={stop} streaming={streaming} />
-		</Card>
+		</div>
 	);
 }

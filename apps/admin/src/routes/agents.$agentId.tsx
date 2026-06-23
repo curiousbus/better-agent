@@ -1,42 +1,25 @@
 import type { AgentClient } from "@better-agent/client";
 import { Button } from "@better-agent/ui/components/button";
-import { Card } from "@better-agent/ui/components/card";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTitle,
-	PopoverTrigger,
-} from "@better-agent/ui/components/popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { PlusIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import {
+	GenerateTokenState,
+	RegenerateToken,
+} from "@/components/agents/agent-token-controls";
 import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
 import { Conversation } from "@/components/sessions/conversation";
 import { SessionPicker } from "@/components/sessions/session-picker";
 import { getAgentClient } from "@/utils/agent-client";
-import { saveAgentToken } from "@/utils/agent-token";
-import type { AgentRow } from "@/utils/api-types";
+import type { AgentRow, SessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/agents/$agentId")({
 	component: AgentDetailPage,
 });
-
-function AgentSummary({ agent }: { agent: AgentRow }) {
-	return (
-		<Card className="flex flex-col gap-2 p-4">
-			<div className="font-mono text-muted-foreground text-sm">
-				{agent.providerId}/{agent.modelId}
-			</div>
-			<p className="text-sm">{agent.description}</p>
-			<p className="whitespace-pre-wrap text-muted-foreground text-xs">
-				{agent.systemPrompt}
-			</p>
-		</Card>
-	);
-}
 
 // Builds the token-scoped SDK client from the cached token. `ready` stays false
 // until after mount so SSR/first render don't flash the "generate token" state
@@ -54,82 +37,6 @@ function useAgentClient(agentId: string) {
 	return { client, ready, refresh };
 }
 
-function useRotateToken(onRotated: (token: string) => void) {
-	return useMutation(
-		orpc.agents.rotateToken.mutationOptions({
-			onSuccess: (result) => {
-				saveAgentToken(result.agent.id, result.token);
-				onRotated(result.token);
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-}
-
-function GenerateTokenCard({
-	agentId,
-	onToken,
-}: {
-	agentId: string;
-	onToken: (token: string) => void;
-}) {
-	const rotate = useRotateToken(onToken);
-	return (
-		<Card className="flex flex-col items-start gap-3 p-4">
-			<p className="text-muted-foreground text-sm">
-				This agent has no token cached in this browser. Generate one to chat —
-				the token is shown once and stored locally.
-			</p>
-			<Button
-				disabled={rotate.isPending}
-				onClick={() => rotate.mutate({ id: agentId })}
-				size="sm"
-			>
-				Generate token
-			</Button>
-		</Card>
-	);
-}
-
-function RegenerateToken({
-	agentId,
-	onToken,
-}: {
-	agentId: string;
-	onToken: (token: string) => void;
-}) {
-	const rotate = useRotateToken(onToken);
-	const [open, setOpen] = useState(false);
-	return (
-		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger render={<Button size="xs" variant="outline" />}>
-				Regenerate token
-			</PopoverTrigger>
-			<PopoverContent>
-				<PopoverTitle className="text-sm">
-					Regenerate token? Any external client using the old token will stop
-					working.
-				</PopoverTitle>
-				<div className="mt-2 flex justify-end gap-2">
-					<Button onClick={() => setOpen(false)} size="xs" variant="outline">
-						Cancel
-					</Button>
-					<Button
-						disabled={rotate.isPending}
-						onClick={() => {
-							setOpen(false);
-							rotate.mutate({ id: agentId });
-						}}
-						size="xs"
-					>
-						Confirm
-					</Button>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
 function useCreateSession(
 	agentClient: AgentClient,
 	onCreated: (sessionId: string) => void
@@ -145,39 +52,128 @@ function useCreateSession(
 	});
 }
 
-function AgentSessions({
-	agentId,
-	agentClient,
+function EmptySessions({
+	agentName,
+	onNew,
+	pending,
 }: {
-	agentId: string;
-	agentClient: AgentClient;
+	agentName: string;
+	onNew: () => void;
+	pending: boolean;
 }) {
-	const sessions = useQuery(orpc.sessions.list.queryOptions());
-	const agentSessions = (sessions.data ?? []).filter(
-		(session) => session.agentId === agentId
-	);
-	const [sessionId, setSessionId] = useState("");
-	const create = useCreateSession(agentClient, setSessionId);
 	return (
-		<div className="flex flex-col gap-3">
-			<div className="flex items-center gap-2">
+		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+			<div>
+				<p className="font-medium text-lg">Chat with {agentName}</p>
+				<p className="text-muted-foreground text-sm">
+					No conversations yet. Start one to begin.
+				</p>
+			</div>
+			<Button className="gap-1" disabled={pending} onClick={onNew}>
+				<PlusIcon className="size-4" />
+				New session
+			</Button>
+		</div>
+	);
+}
+
+function ChatHeader({
+	agent,
+	sessions,
+	sessionId,
+	onSessionChange,
+	onNewSession,
+	newPending,
+	onToken,
+}: {
+	agent: AgentRow;
+	sessions: SessionRow[];
+	sessionId: string;
+	onSessionChange: (id: string) => void;
+	onNewSession: () => void;
+	newPending: boolean;
+	onToken: (token: string) => void;
+}) {
+	return (
+		<header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+			<span className="truncate font-medium text-sm">{agent.name}</span>
+			<span className="truncate font-mono text-muted-foreground text-xs">
+				{agent.providerId}/{agent.modelId}
+			</span>
+			<div className="ml-auto flex items-center gap-2">
 				<SessionPicker
-					onChange={setSessionId}
-					sessions={agentSessions}
+					onChange={onSessionChange}
+					sessions={sessions}
 					value={sessionId}
 				/>
 				<Button
-					disabled={create.isPending}
-					onClick={() => create.mutate()}
+					className="gap-1"
+					disabled={newPending}
+					onClick={onNewSession}
 					size="sm"
+					variant="outline"
 				>
-					New session
+					<PlusIcon className="size-3.5" />
+					New
 				</Button>
+				<RegenerateToken agentId={agent.id} onToken={onToken} />
 			</div>
+		</header>
+	);
+}
+
+// Lists the agent's sessions (newest first), tracks the selected one, and
+// auto-selects the latest on load so the chat opens to a conversation.
+function useAgentSessions(agentClient: AgentClient, agentId: string) {
+	const sessions = useQuery(orpc.sessions.list.queryOptions());
+	const agentSessions = useMemo(
+		() =>
+			(sessions.data ?? [])
+				.filter((session) => session.agentId === agentId)
+				.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+		[sessions.data, agentId]
+	);
+	const [sessionId, setSessionId] = useState("");
+	const create = useCreateSession(agentClient, setSessionId);
+	const latestSessionId = agentSessions[0]?.id;
+	useEffect(() => {
+		if (sessionId === "" && latestSessionId) {
+			setSessionId(latestSessionId);
+		}
+	}, [sessionId, latestSessionId]);
+	return { agentSessions, sessionId, setSessionId, create };
+}
+
+function AgentChat({
+	agent,
+	agentClient,
+	onToken,
+}: {
+	agent: AgentRow;
+	agentClient: AgentClient;
+	onToken: (token: string) => void;
+}) {
+	const { agentSessions, sessionId, setSessionId, create } = useAgentSessions(
+		agentClient,
+		agent.id
+	);
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<ChatHeader
+				agent={agent}
+				newPending={create.isPending}
+				onNewSession={() => create.mutate()}
+				onSessionChange={setSessionId}
+				onToken={onToken}
+				sessionId={sessionId}
+				sessions={agentSessions}
+			/>
 			{sessionId === "" ? (
-				<p className="text-muted-foreground text-sm">
-					Select or start a session to chat with this agent.
-				</p>
+				<EmptySessions
+					agentName={agent.name}
+					onNew={() => create.mutate()}
+					pending={create.isPending}
+				/>
 			) : (
 				<Conversation
 					agentClient={agentClient}
@@ -189,34 +185,27 @@ function AgentSessions({
 	);
 }
 
-function AgentChatPanel({ agentId }: { agentId: string }) {
-	const { client, ready, refresh } = useAgentClient(agentId);
+function AgentChatPanel({ agent }: { agent: AgentRow }) {
+	const { client, ready, refresh } = useAgentClient(agent.id);
 	const [revealToken, setRevealToken] = useState<string | null>(null);
 	// A fresh token is cached by the mutation; reveal it AND rebuild the client.
 	const onToken = (token: string) => {
 		setRevealToken(token);
 		refresh();
 	};
-	if (!ready) {
-		return null;
-	}
 	return (
-		<>
-			{client ? (
-				<div className="flex flex-col gap-3">
-					<div className="flex justify-end">
-						<RegenerateToken agentId={agentId} onToken={onToken} />
-					</div>
-					<AgentSessions agentClient={client} agentId={agentId} />
-				</div>
-			) : (
-				<GenerateTokenCard agentId={agentId} onToken={onToken} />
-			)}
+		<div className="flex min-h-0 flex-1 flex-col">
+			{ready && client ? (
+				<AgentChat agent={agent} agentClient={client} onToken={onToken} />
+			) : null}
+			{ready && !client ? (
+				<GenerateTokenState agent={agent} onToken={onToken} />
+			) : null}
 			<TokenRevealDialog
 				onClose={() => setRevealToken(null)}
 				token={revealToken}
 			/>
-		</>
+		</div>
 	);
 }
 
@@ -225,19 +214,12 @@ function AgentDetailPage() {
 	const agent = useQuery(
 		orpc.agents.get.queryOptions({ input: { id: agentId } })
 	);
-	return (
-		<div className="mx-auto flex max-w-3xl flex-col gap-5">
-			<div className="flex flex-col gap-1">
-				<Link
-					className="text-muted-foreground text-sm hover:underline"
-					to="/agents"
-				>
-					← Agents
-				</Link>
-				<h1 className="font-bold text-2xl">{agent.data?.name ?? "Agent"}</h1>
+	if (!agent.data) {
+		return (
+			<div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
+				Loading…
 			</div>
-			{agent.data ? <AgentSummary agent={agent.data} /> : null}
-			<AgentChatPanel agentId={agentId} />
-		</div>
-	);
+		);
+	}
+	return <AgentChatPanel agent={agent.data} key={agentId} />;
 }

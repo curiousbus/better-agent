@@ -8,7 +8,7 @@ export const Route = createFileRoute("/agents/")({
 
 function AgentsPage() {
 	return (
-		<div className="mx-auto flex max-w-5xl flex-col gap-5">
+		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 overflow-auto p-6">
 			<div className="flex flex-col gap-1">
 				<h1 className="font-bold text-2xl">Agents</h1>
 				<p className="text-muted-foreground text-sm">
