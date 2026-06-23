@@ -12,6 +12,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
 import { Conversation } from "@/components/sessions/conversation";
 import { SessionPicker } from "@/components/sessions/session-picker";
 import { getAgentClient } from "@/utils/agent-client";
@@ -53,16 +54,12 @@ function useAgentClient(agentId: string) {
 	return { client, ready, refresh };
 }
 
-function useRotateToken(onRotated: () => void) {
+function useRotateToken(onRotated: (token: string) => void) {
 	return useMutation(
 		orpc.agents.rotateToken.mutationOptions({
 			onSuccess: (result) => {
 				saveAgentToken(result.agent.id, result.token);
-				toast.success("Token generated — copy it now (shown once)", {
-					description: result.token,
-					duration: 30_000,
-				});
-				onRotated();
+				onRotated(result.token);
 			},
 			onError: (error) => toast.error(error.message),
 		})
@@ -71,12 +68,12 @@ function useRotateToken(onRotated: () => void) {
 
 function GenerateTokenCard({
 	agentId,
-	onRefresh,
+	onToken,
 }: {
 	agentId: string;
-	onRefresh: () => void;
+	onToken: (token: string) => void;
 }) {
-	const rotate = useRotateToken(onRefresh);
+	const rotate = useRotateToken(onToken);
 	return (
 		<Card className="flex flex-col items-start gap-3 p-4">
 			<p className="text-muted-foreground text-sm">
@@ -96,12 +93,12 @@ function GenerateTokenCard({
 
 function RegenerateToken({
 	agentId,
-	onRefresh,
+	onToken,
 }: {
 	agentId: string;
-	onRefresh: () => void;
+	onToken: (token: string) => void;
 }) {
-	const rotate = useRotateToken(onRefresh);
+	const rotate = useRotateToken(onToken);
 	const [open, setOpen] = useState(false);
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
@@ -194,19 +191,32 @@ function AgentSessions({
 
 function AgentChatPanel({ agentId }: { agentId: string }) {
 	const { client, ready, refresh } = useAgentClient(agentId);
+	const [revealToken, setRevealToken] = useState<string | null>(null);
+	// A fresh token is cached by the mutation; reveal it AND rebuild the client.
+	const onToken = (token: string) => {
+		setRevealToken(token);
+		refresh();
+	};
 	if (!ready) {
 		return null;
 	}
-	if (!client) {
-		return <GenerateTokenCard agentId={agentId} onRefresh={refresh} />;
-	}
 	return (
-		<div className="flex flex-col gap-3">
-			<div className="flex justify-end">
-				<RegenerateToken agentId={agentId} onRefresh={refresh} />
-			</div>
-			<AgentSessions agentClient={client} agentId={agentId} />
-		</div>
+		<>
+			{client ? (
+				<div className="flex flex-col gap-3">
+					<div className="flex justify-end">
+						<RegenerateToken agentId={agentId} onToken={onToken} />
+					</div>
+					<AgentSessions agentClient={client} agentId={agentId} />
+				</div>
+			) : (
+				<GenerateTokenCard agentId={agentId} onToken={onToken} />
+			)}
+			<TokenRevealDialog
+				onClose={() => setRevealToken(null)}
+				token={revealToken}
+			/>
+		</>
 	);
 }
 

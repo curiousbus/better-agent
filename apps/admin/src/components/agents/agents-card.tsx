@@ -23,6 +23,7 @@ import { orpc } from "@/utils/orpc";
 
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentWizard } from "./agent-wizard";
+import { TokenRevealDialog } from "./token-reveal-dialog";
 
 function matchAgent(row: AgentRow, query: string): boolean {
 	return (
@@ -122,19 +123,19 @@ function useAgentWizard() {
 	return { state, openAdd, openEdit, close };
 }
 
-function useAgentMutations(onSaved: () => void) {
+function useAgentMutations(
+	onSaved: () => void,
+	onTokenMinted: (token: string) => void
+) {
 	const queryClient = useQueryClient();
 	const invalidate = () =>
 		queryClient.invalidateQueries({ queryKey: orpc.agents.list.key() });
 	const create = useMutation(
 		orpc.agents.create.mutationOptions({
 			onSuccess: (result) => {
-				// Show-once: cache the plaintext token locally and surface it for copy.
+				// Show-once: cache the plaintext token locally and reveal it in a modal.
 				saveAgentToken(result.agent.id, result.token);
-				toast.success("Agent created — copy the token now (shown once)", {
-					description: result.token,
-					duration: 30_000,
-				});
+				onTokenMinted(result.token);
 				onSaved();
 				invalidate();
 			},
@@ -160,22 +161,26 @@ function useAgentMutations(onSaved: () => void) {
 			onError: (error) => toast.error(error.message),
 		})
 	);
-	return { create, update, remove };
+	const submit = (editingId: string | null, form: AgentForm) => {
+		const input = toAgentInput(form);
+		if (editingId === null) {
+			create.mutate(input);
+		} else {
+			update.mutate({ id: editingId, ...input });
+		}
+	};
+	return { create, update, remove, submit };
 }
 
 export function AgentsCard() {
 	const agents = useQuery(orpc.agents.list.queryOptions());
 	const view = useListView(agents.data ?? [], { filter: matchAgent });
 	const { state, openAdd, openEdit, close } = useAgentWizard();
-	const { create, update, remove } = useAgentMutations(() => close(false));
-	const handleSubmit = (form: AgentForm) => {
-		const input = toAgentInput(form);
-		if (state.id === null) {
-			create.mutate(input);
-		} else {
-			update.mutate({ id: state.id, ...input });
-		}
-	};
+	const [revealToken, setRevealToken] = useState<string | null>(null);
+	const { create, update, remove, submit } = useAgentMutations(
+		() => close(false),
+		setRevealToken
+	);
 	return (
 		<Card className="flex flex-col gap-3 p-4">
 			<ListToolbar
@@ -198,11 +203,15 @@ export function AgentsCard() {
 					initial={state.initial}
 					key={state.id ?? "new"}
 					onOpenChange={close}
-					onSubmit={handleSubmit}
+					onSubmit={(form) => submit(state.id, form)}
 					open={state.open}
 					pending={create.isPending || update.isPending}
 				/>
 			) : null}
+			<TokenRevealDialog
+				onClose={() => setRevealToken(null)}
+				token={revealToken}
+			/>
 		</Card>
 	);
 }
