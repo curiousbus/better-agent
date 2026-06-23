@@ -50,7 +50,7 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<SidebarProvider>
+				<SidebarProvider className="h-svh overflow-hidden">
 					<WebSidebar />
 					<SidebarInset className="min-h-0 overflow-hidden">
 						<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
