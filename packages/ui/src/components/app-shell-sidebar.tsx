@@ -1,3 +1,4 @@
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import {
 	ACTIVE_BUTTON_CLASS,
 	ActiveHighlight,
@@ -30,6 +31,11 @@ export type {
 	NavChild,
 	NavSection,
 } from "@better-agent/ui/components/app-shell-nav";
+
+// Hover-intent delay for the collapsed-rail tooltips. The base SidebarProvider
+// uses delay=0, which flashes tooltips when the icons slide under the cursor
+// during the collapse animation; a delay shows them only on a deliberate hover.
+const TOOLTIP_DELAY_MS = 500;
 
 export interface AppShellSidebarProps {
 	brand: BrandConfig;
@@ -167,12 +173,16 @@ export function AppShellSidebar({
 				<SidebarBrand brand={brand} />
 			</SidebarHeader>
 			<SidebarContent>
-				<SidebarNav
-					groupLabel={groupLabel}
-					highlightLayoutId={highlightLayoutId}
-					pathname={pathname}
-					sections={sections}
-				/>
+				{/* Override the base provider's delay=0 so collapsed-rail tooltips
+				    only appear on a deliberate hover, not during the collapse. */}
+				<TooltipPrimitive.Provider delay={TOOLTIP_DELAY_MS}>
+					<SidebarNav
+						groupLabel={groupLabel}
+						highlightLayoutId={highlightLayoutId}
+						pathname={pathname}
+						sections={sections}
+					/>
+				</TooltipPrimitive.Provider>
 			</SidebarContent>
 			{footer && (
 				<SidebarFooter>
