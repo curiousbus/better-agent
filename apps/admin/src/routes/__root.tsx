@@ -1,3 +1,7 @@
+import {
+	SidebarInset,
+	SidebarProvider,
+} from "@better-agent/ui/components/sidebar";
 import { Toaster } from "@better-agent/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import {
@@ -7,7 +11,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 
-import { AdminRail } from "@/components/rail";
+import { AdminSidebar } from "@/components/sidebar";
 import type { orpc } from "@/utils/orpc";
 
 import appCss from "../index.css?url";
@@ -36,12 +40,12 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<div className="flex h-svh overflow-hidden">
-					<AdminRail />
-					<main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+				<SidebarProvider>
+					<AdminSidebar />
+					<SidebarInset className="min-h-0 overflow-hidden">
 						<Outlet />
-					</main>
-				</div>
+					</SidebarInset>
+				</SidebarProvider>
 				<Toaster richColors />
 				<Scripts />
 			</body>
