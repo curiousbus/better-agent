@@ -1,3 +1,4 @@
+import { CopyAction } from "@better-agent/ui/components/actions";
 import { Button } from "@better-agent/ui/components/button";
 import { Card } from "@better-agent/ui/components/card";
 import {
@@ -19,10 +20,12 @@ import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
-
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
+import { RegenerateToken } from "./agent-token-controls";
 import { AgentWizard } from "./agent-wizard";
 import { TokenRevealDialog } from "./token-reveal-dialog";
+
+const TOKEN_PREVIEW_LEN = 14;
 
 function matchAgent(row: AgentRow, query: string): boolean {
 	return (
@@ -32,14 +35,35 @@ function matchAgent(row: AgentRow, query: string): boolean {
 	);
 }
 
+// Shows the agent's persisted token (truncated) with a click-to-copy icon.
+function TokenCell({ agentId }: { agentId: string }) {
+	const tokenQuery = useQuery(
+		orpc.agents.getToken.queryOptions({ input: { id: agentId } })
+	);
+	const token = tokenQuery.data ?? null;
+	if (!token) {
+		return <span className="text-muted-foreground text-xs">—</span>;
+	}
+	return (
+		<div className="flex items-center gap-1">
+			<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+				{token.slice(0, TOKEN_PREVIEW_LEN)}…
+			</code>
+			<CopyAction label="Copy token" text={token} />
+		</div>
+	);
+}
+
 function AgentRows({
 	rows,
 	onEdit,
 	onDelete,
+	onTokenRotated,
 }: {
 	rows: AgentRow[];
 	onEdit: (row: AgentRow) => void;
 	onDelete: (id: string) => void;
+	onTokenRotated: (token: string) => void;
 }) {
 	return (
 		<TableBody>
@@ -57,14 +81,15 @@ function AgentRows({
 					<TableCell className="font-mono text-muted-foreground">
 						{row.providerId}/{row.modelId}
 					</TableCell>
-					<TableCell className="max-w-xs truncate text-muted-foreground">
-						{row.description}
+					<TableCell>
+						<TokenCell agentId={row.id} />
 					</TableCell>
 					<TableCell className="text-right">
-						<div className="flex justify-end gap-2">
+						<div className="flex justify-end gap-1">
 							<Button onClick={() => onEdit(row)} size="xs" variant="outline">
 								Edit
 							</Button>
+							<RegenerateToken agentId={row.id} onToken={onTokenRotated} />
 							<DeleteConfirm
 								label="Delete this agent?"
 								onConfirm={() => onDelete(row.id)}
@@ -81,10 +106,12 @@ function AgentsTable({
 	view,
 	onEdit,
 	onDelete,
+	onTokenRotated,
 }: {
 	view: ListView<AgentRow>;
 	onEdit: (row: AgentRow) => void;
 	onDelete: (id: string) => void;
+	onTokenRotated: (token: string) => void;
 }) {
 	return (
 		<>
@@ -93,11 +120,16 @@ function AgentsTable({
 					<TableRow>
 						<TableHead>Name</TableHead>
 						<TableHead>Model</TableHead>
-						<TableHead>Description</TableHead>
+						<TableHead>Token</TableHead>
 						<TableHead className="text-right">Actions</TableHead>
 					</TableRow>
 				</TableHeader>
-				<AgentRows onDelete={onDelete} onEdit={onEdit} rows={view.pageRows} />
+				<AgentRows
+					onDelete={onDelete}
+					onEdit={onEdit}
+					onTokenRotated={onTokenRotated}
+					rows={view.pageRows}
+				/>
 			</Table>
 			<Pagination
 				onPage={view.setPage}
@@ -171,6 +203,7 @@ function useAgentMutations(
 }
 
 export function AgentsCard() {
+	const queryClient = useQueryClient();
 	const agents = useQuery(orpc.agents.list.queryOptions());
 	const view = useListView(agents.data ?? [], { filter: matchAgent });
 	const { state, openAdd, openEdit, close } = useAgentWizard();
@@ -179,6 +212,11 @@ export function AgentsCard() {
 		() => close(false),
 		setRevealToken
 	);
+	// After a rotate: reveal the new token and refetch the table's token cells.
+	const handleTokenRotated = (token: string) => {
+		setRevealToken(token);
+		queryClient.invalidateQueries({ queryKey: orpc.agents.getToken.key() });
+	};
 	return (
 		<Card className="flex flex-col gap-3 p-4">
 			<ListToolbar
@@ -194,6 +232,7 @@ export function AgentsCard() {
 			<AgentsTable
 				onDelete={(id) => remove.mutate({ id })}
 				onEdit={openEdit}
+				onTokenRotated={handleTokenRotated}
 				view={view}
 			/>
 			{state.open ? (

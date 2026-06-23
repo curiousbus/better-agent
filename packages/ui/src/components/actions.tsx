@@ -41,11 +41,17 @@ export function Action({
 	);
 }
 
-export function CopyAction({ text }: { text: string }) {
+export function CopyAction({
+	text,
+	label = "Copy",
+}: {
+	text: string;
+	label?: string;
+}) {
 	const [copied, setCopied] = useState(false);
 	return (
 		<Action
-			label="Copy message"
+			label={label}
 			onClick={() => {
 				navigator.clipboard.writeText(text).then(
 					() => {

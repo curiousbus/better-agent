@@ -8,10 +8,7 @@ import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-	GenerateTokenState,
-	RegenerateToken,
-} from "@/components/agents/agent-token-controls";
+import { GenerateTokenState } from "@/components/agents/agent-token-controls";
 import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
 import { RevealText } from "@/components/reveal-text";
 import { Conversation } from "@/components/sessions/conversation";
@@ -88,7 +85,6 @@ function ChatHeader({
 	onSessionChange,
 	onNewSession,
 	newPending,
-	onToken,
 }: {
 	agent: AgentRow;
 	sessions: SessionRow[];
@@ -96,7 +92,6 @@ function ChatHeader({
 	onSessionChange: (id: string) => void;
 	onNewSession: () => void;
 	newPending: boolean;
-	onToken: (token: string) => void;
 }) {
 	return (
 		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:gap-3 sm:px-4">
@@ -122,7 +117,6 @@ function ChatHeader({
 					<PlusIcon className="size-3.5" />
 					<span className="hidden sm:inline">New</span>
 				</Button>
-				<RegenerateToken agentId={agent.id} onToken={onToken} />
 			</div>
 		</header>
 	);
@@ -153,11 +147,9 @@ function useAgentSessions(agentClient: AgentClient, agentId: string) {
 function AgentChat({
 	agent,
 	agentClient,
-	onToken,
 }: {
 	agent: AgentRow;
 	agentClient: AgentClient;
-	onToken: (token: string) => void;
 }) {
 	const { agentSessions, sessionId, setSessionId, create } = useAgentSessions(
 		agentClient,
@@ -170,7 +162,6 @@ function AgentChat({
 				newPending={create.isPending}
 				onNewSession={() => create.mutate()}
 				onSessionChange={setSessionId}
-				onToken={onToken}
 				sessionId={sessionId}
 				sessions={agentSessions}
 			/>
@@ -203,7 +194,7 @@ function AgentChatPanel({ agent }: { agent: AgentRow }) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			{ready && client ? (
-				<AgentChat agent={agent} agentClient={client} onToken={onToken} />
+				<AgentChat agent={agent} agentClient={client} />
 			) : null}
 			{ready && !client ? (
 				<GenerateTokenState agent={agent} onToken={onToken} />
