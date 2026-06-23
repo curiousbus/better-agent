@@ -36,7 +36,13 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 					<ReasoningContent>{message.reasoning}</ReasoningContent>
 				</Reasoning>
 			)}
-			{streamingEmpty ? <Loader /> : <Response>{message.text}</Response>}
+			{streamingEmpty ? (
+				<Loader />
+			) : (
+				<Response isAnimating={message.status === "streaming"}>
+					{message.text}
+				</Response>
+			)}
 			{message.status === "error" ? (
 				<Badge variant="destructive">error</Badge>
 			) : null}

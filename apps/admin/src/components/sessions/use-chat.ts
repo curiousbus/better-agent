@@ -1,4 +1,5 @@
 import type { AgentClient } from "@better-agent/client";
+import { createStreamReveal } from "@better-agent/ui/lib/stream-reveal";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -63,15 +64,26 @@ interface StreamArgs {
 async function streamPrompt(args: StreamArgs) {
 	const { agentClient, sessionId, text, signal, user, assistant, setDraft } =
 		args;
-	for await (const event of agentClient.stream(text, { sessionId, signal })) {
-		if (event.type === "text-delta") {
-			assistant.text += event.delta;
-		} else if (event.type === "reasoning-delta") {
-			assistant.reasoning += event.delta;
-		} else if (event.type === "error") {
-			assistant.status = "error";
+	// Reveal buffered deltas one chunk per frame (steady typing cadence) instead
+	// of a setState per network token, which is what made the output choppy.
+	const reveal = createStreamReveal({
+		onFrame: ({ text: revealedText, reasoning }) =>
+			setDraft([user, { ...assistant, text: revealedText, reasoning }]),
+	});
+	try {
+		for await (const event of agentClient.stream(text, { sessionId, signal })) {
+			if (event.type === "text-delta") {
+				reveal.pushText(event.delta);
+			} else if (event.type === "reasoning-delta") {
+				reveal.pushReasoning(event.delta);
+			} else if (event.type === "error") {
+				assistant.status = "error";
+			}
 		}
-		setDraft([user, { ...assistant }]);
+		reveal.flush();
+	} catch (error) {
+		reveal.stop();
+		throw error;
 	}
 }
 
