@@ -44,6 +44,7 @@ const DEFAULT_MAX_STEPS = 50;
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
+	clock?: () => Date;
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	modelFactory: ModelFactory;

@@ -7,11 +7,13 @@ import type {
 	SessionStore,
 } from "../ports";
 import { compactSession, type Summarizer } from "./compaction";
+import { buildDynamicContext } from "./dynamic-context";
 import { toModelMessages } from "./to-model-messages";
 import { estimateTokens, exceedsContext } from "./token-estimate";
 import type { Session } from "./types";
 
 interface BuildTurnMessagesDeps {
+	clock?: () => Date;
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	sessionStore: SessionStore;
@@ -65,8 +67,10 @@ export async function buildTurnMessages(
 	sessionId: string
 ): Promise<ModelMessage[]> {
 	const history = await deps.messageStore.listWithParts(sessionId);
+	const now = (deps.clock ?? (() => new Date()))();
+	const systemPrompt = `${agent.systemPrompt}\n\n${buildDynamicContext(now)}`;
 	const base = {
-		systemPrompt: agent.systemPrompt,
+		systemPrompt,
 		summary: session.summary,
 		compactedThroughSeq: session.compactedThroughSeq,
 		history,
