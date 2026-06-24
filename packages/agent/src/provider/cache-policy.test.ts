@@ -43,3 +43,26 @@ it("prompt-cache-key policy sets promptCacheKey=sessionId in providerOptions", (
 	);
 	expect(out.providerOptions.openai?.promptCacheKey).toBe("s1");
 });
+
+it("tags the last leading system message (summary) for anthropic", () => {
+	const messages: ModelMessage[] = [
+		{ role: "system", content: "SYS" },
+		{ role: "system", content: "对话摘要：recap" },
+		{ role: "user", content: "hi" },
+	];
+	const out = applyCachePolicy(
+		{ messages, sessionId: "s1" },
+		{ strategy: "anthropic-breakpoint", providerKey: "anthropic" }
+	);
+	// index 1 (the summary) carries the breakpoint; index 0 (system prompt) does NOT
+	const summary = out.messages[1] as {
+		providerOptions?: { anthropic?: { cacheControl?: unknown } };
+	};
+	const sysPrompt = out.messages[0] as {
+		providerOptions?: { anthropic?: unknown };
+	};
+	expect(summary.providerOptions?.anthropic?.cacheControl).toMatchObject({
+		type: "ephemeral",
+	});
+	expect(sysPrompt.providerOptions?.anthropic).toBeUndefined();
+});

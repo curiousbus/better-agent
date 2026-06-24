@@ -39,35 +39,55 @@ export function resolveCachePolicy(providerNpm: string | null): CachePolicy {
 		case GOOGLE_NPM:
 			return { strategy: "none", providerKey: "google" };
 		default:
+			// Intentional harmless fallback: the AI SDK ignores unknown providerOptions keys,
+			// so an "openai" key on a non-OpenAI provider is a no-op.
 			return { strategy: "prompt-cache-key", providerKey: "openai" };
 	}
 }
 
+/** Returns the index of the last message in the leading contiguous system-message run, or -1. */
+function lastLeadingSystemIndex(messages: ModelMessage[]): number {
+	let idx = -1;
+	for (const msg of messages) {
+		if (msg.role !== "system") {
+			break;
+		}
+		idx++;
+	}
+	return idx;
+}
+
 /**
- * Tags the first system message with Anthropic's cacheControl at the
- * message-level providerOptions. The Anthropic SDK reads cacheControl from
- * message.providerOptions (not from content parts) for system messages, since
- * SystemModelMessage.content is typed as `string` in the AI SDK.
+ * Tags the LAST message in the leading contiguous run of system messages with
+ * Anthropic's cacheControl at the message-level providerOptions. This ensures
+ * the cached prefix covers ALL leading system messages (system prompt + any
+ * compaction summary), not just the first one.
+ *
+ * The Anthropic SDK reads cacheControl from message.providerOptions (not from
+ * content parts) for system messages, since SystemModelMessage.content is
+ * typed as `string` in the AI SDK.
  */
 function tagSystemMessage(messages: ModelMessage[]): ModelMessage[] {
-	let tagged = false;
-	return messages.map((msg) => {
-		if (!tagged && msg.role === "system") {
-			tagged = true;
-			return {
-				...msg,
-				providerOptions: {
-					...msg.providerOptions,
-					anthropic: {
-						...(msg.providerOptions?.anthropic as
-							| Record<string, unknown>
-							| undefined),
-						cacheControl: { type: "ephemeral" },
-					},
-				},
-			};
+	const targetIdx = lastLeadingSystemIndex(messages);
+	if (targetIdx === -1) {
+		return messages;
+	}
+	return messages.map((msg, i) => {
+		if (i !== targetIdx) {
+			return msg;
 		}
-		return msg;
+		return {
+			...msg,
+			providerOptions: {
+				...msg.providerOptions,
+				anthropic: {
+					...(msg.providerOptions?.anthropic as
+						| Record<string, unknown>
+						| undefined),
+					cacheControl: { type: "ephemeral" },
+				},
+			},
+		};
 	});
 }
 
