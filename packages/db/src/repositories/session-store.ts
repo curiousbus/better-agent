@@ -13,6 +13,7 @@ function toSession(row: SessionRow): Session {
 	return {
 		id: row.id,
 		agentId: row.agentId,
+		userId: row.userId,
 		title: row.title,
 		status: row.status,
 		summary: row.summary,
@@ -22,12 +23,37 @@ function toSession(row: SessionRow): Session {
 	};
 }
 
+function makeSessionMutators(
+	db: Db
+): Pick<SessionStore, "setStatus" | "setTitle" | "setSummary"> {
+	return {
+		async setStatus(id, status) {
+			await db
+				.update(schema.sessions)
+				.set({ status, updatedAt: new Date() })
+				.where(eq(schema.sessions.id, id));
+		},
+		async setTitle(id, title) {
+			await db
+				.update(schema.sessions)
+				.set({ title, updatedAt: new Date() })
+				.where(eq(schema.sessions.id, id));
+		},
+		async setSummary(id, summary, compactedThroughSeq) {
+			await db
+				.update(schema.sessions)
+				.set({ summary, compactedThroughSeq, updatedAt: new Date() })
+				.where(eq(schema.sessions.id, id));
+		},
+	};
+}
+
 export function createSessionStore(db: Db): SessionStore {
 	return {
 		async create(input) {
 			const rows = await db
 				.insert(schema.sessions)
-				.values({ agentId: input.agentId })
+				.values({ agentId: input.agentId, userId: input.userId ?? null })
 				.returning();
 			const row = rows[0];
 			if (!row) {
@@ -48,23 +74,13 @@ export function createSessionStore(db: Db): SessionStore {
 			const rows = await db.select().from(schema.sessions);
 			return rows.map(toSession);
 		},
-		async setStatus(id, status) {
-			await db
-				.update(schema.sessions)
-				.set({ status, updatedAt: new Date() })
-				.where(eq(schema.sessions.id, id));
+		async listByUser(userId) {
+			const rows = await db
+				.select()
+				.from(schema.sessions)
+				.where(eq(schema.sessions.userId, userId));
+			return rows.map(toSession);
 		},
-		async setTitle(id, title) {
-			await db
-				.update(schema.sessions)
-				.set({ title, updatedAt: new Date() })
-				.where(eq(schema.sessions.id, id));
-		},
-		async setSummary(id, summary, compactedThroughSeq) {
-			await db
-				.update(schema.sessions)
-				.set({ summary, compactedThroughSeq, updatedAt: new Date() })
-				.where(eq(schema.sessions.id, id));
-		},
+		...makeSessionMutators(db),
 	};
 }

@@ -22,6 +22,7 @@ import {
 export const sessions = pgTable("sessions", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	agentId: uuid("agent_id").notNull(),
+	userId: uuid("user_id"),
 	title: text("title"),
 	status: text("status").$type<SessionStatus>().notNull().default("active"),
 	summary: text("summary"),

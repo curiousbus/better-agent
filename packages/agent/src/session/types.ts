@@ -14,10 +14,12 @@ export interface Session {
 	/** 首条 user 消息自动摘要；未生成前为 null。 */
 	title: string | null;
 	updatedAt: Date;
+	userId: string | null;
 }
 
 export interface SessionInput {
 	agentId: string;
+	userId?: string | null;
 }
 
 export type MessageRole = "user" | "assistant" | "system";

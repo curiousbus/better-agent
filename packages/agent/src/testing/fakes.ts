@@ -120,6 +120,7 @@ export function createFakeSessionStore(): SessionStore {
 			const session: Session = {
 				id: crypto.randomUUID(),
 				agentId: input.agentId,
+				userId: input.userId ?? null,
 				title: null,
 				status: "active",
 				summary: null,
@@ -135,6 +136,11 @@ export function createFakeSessionStore(): SessionStore {
 		},
 		list() {
 			return Promise.resolve([...map.values()]);
+		},
+		listByUser(userId) {
+			return Promise.resolve(
+				[...map.values()].filter((s) => s.userId === userId)
+			);
 		},
 		...makeSessionMutators(map),
 	};

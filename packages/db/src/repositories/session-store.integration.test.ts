@@ -60,3 +60,15 @@ it("setSummary persists summary and compactedThroughSeq", async () => {
 	expect(reread?.summary).toBe("summary so far");
 	expect(reread?.compactedThroughSeq).toBe(4);
 });
+
+it("persists userId and lists by user", async () => {
+	const store = createSessionStore(db);
+	const USER_1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+	const USER_2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+	const mine = await store.create({ agentId: AGENT_ID, userId: USER_1 });
+	await store.create({ agentId: AGENT_ID, userId: USER_2 });
+	await store.create({ agentId: AGENT_ID }); // null user
+	expect(mine.userId).toBe(USER_1);
+	const u1 = await store.listByUser(USER_1);
+	expect(u1.map((s) => s.id)).toEqual([mine.id]);
+});
