@@ -1,10 +1,10 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
-import type { Message } from "@better-agent/agent/session/types";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
-import { agentProcedure, publicProcedure } from "../index";
+import { userProcedure } from "../index";
+import { drain, errorMessage } from "./sessions";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -13,55 +13,28 @@ const remoteToolSchema = z.object({
 	description: z.string(),
 	parameters: z.record(z.string(), z.unknown()),
 });
-
 const promptInput = z.object({
 	sessionId: z.uuid(),
 	text: z.string().min(1),
 	tools: z.array(remoteToolSchema).optional(),
 });
 
-// Loads the session and asserts it belongs to the authed agent. Returns
-// NOT_FOUND for both missing and other-agent sessions so existence never leaks.
-async function requireOwnedSession(
+async function requireUserSession(
 	context: Context,
-	agentId: string,
+	userId: string,
 	sessionId: string
 ): Promise<void> {
 	const session = await context.services.stores.session.get(sessionId);
-	if (!session || session.agentId !== agentId) {
+	if (!session || session.userId !== userId) {
 		throw new ORPCError("NOT_FOUND", {
 			message: `Session ${sessionId} not found`,
 		});
 	}
 }
 
-export async function drain(
-	gen: AsyncGenerator<RunEvent, Message>
-): Promise<Message> {
-	let next = await gen.next();
-	while (!next.done) {
-		next = await gen.next();
-	}
-	return next.value;
-}
-
-export function errorMessage(error: unknown): string {
-	if (error instanceof ORPCError) {
-		return error.message;
-	}
-	return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Run a turn as a stream of events. Any failure (missing/foreign session,
- * model/provider error, etc.) is delivered as a terminal `error` event rather
- * than thrown, so the HTTP stream always establishes (200) and the client can
- * read the reason — a throw out of a streaming handler yields a 500 with no
- * CORS header, which the browser masks as a CORS failure.
- */
-async function* streamTurn(
+async function* streamUserTurn(
 	context: Context,
-	agentId: string,
+	userId: string,
 	input: {
 		sessionId: string;
 		text: string;
@@ -74,7 +47,7 @@ async function* streamTurn(
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
 	try {
-		await requireOwnedSession(context, agentId, input.sessionId);
+		await requireUserSession(context, userId, input.sessionId);
 		const toolDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: undefined;
@@ -89,41 +62,40 @@ async function* streamTurn(
 	}
 }
 
-export const sessionsRouter = {
-	create: agentProcedure.handler(({ context }) =>
-		context.services.stores.session.create({
-			agentId: context.authedAgent.id,
-		})
+export const userSessionsRouter = {
+	create: userProcedure
+		.input(z.object({ agentId: z.uuid() }))
+		.handler(async ({ input, context }) => {
+			const agent = await context.services.stores.agent.get(input.agentId);
+			if (!agent) {
+				throw new ORPCError("NOT_FOUND", { message: "Agent not found" });
+			}
+			return context.services.stores.session.create({
+				agentId: input.agentId,
+				userId: context.authedUser.id,
+			});
+		}),
+
+	list: userProcedure.handler(({ context }) =>
+		context.services.stores.session.listByUser(context.authedUser.id)
 	),
 
-	get: agentProcedure.input(idInput).handler(async ({ input, context }) => {
-		await requireOwnedSession(context, context.authedAgent.id, input.id);
+	get: userProcedure.input(idInput).handler(async ({ input, context }) => {
+		await requireUserSession(context, context.authedUser.id, input.id);
 		return context.services.stores.session.get(input.id);
 	}),
 
-	list: publicProcedure.handler(({ context }) =>
-		context.services.stores.session.list()
-	),
-
-	listMessages: agentProcedure
+	listMessages: userProcedure
 		.input(sessionIdInput)
 		.handler(async ({ input, context }) => {
-			await requireOwnedSession(
-				context,
-				context.authedAgent.id,
-				input.sessionId
-			);
+			await requireUserSession(context, context.authedUser.id, input.sessionId);
 			return context.services.stores.message.listWithParts(input.sessionId);
 		}),
 
-	run: agentProcedure
+	run: userProcedure
 		.input(promptInput)
 		.handler(async ({ input, context, signal }) => {
-			await requireOwnedSession(
-				context,
-				context.authedAgent.id,
-				input.sessionId
-			);
+			await requireUserSession(context, context.authedUser.id, input.sessionId);
 			const toolDefs = input.tools
 				? buildRemoteToolDefs(
 						input.tools,
@@ -140,13 +112,13 @@ export const sessionsRouter = {
 			);
 		}),
 
-	prompt: agentProcedure
+	prompt: userProcedure
 		.input(promptInput)
 		.handler(({ input, context, signal }) =>
-			streamTurn(context, context.authedAgent.id, input, signal)
+			streamUserTurn(context, context.authedUser.id, input, signal)
 		),
 
-	submitToolResult: agentProcedure
+	submitToolResult: userProcedure
 		.input(
 			z.object({
 				sessionId: z.uuid(),
@@ -156,11 +128,7 @@ export const sessionsRouter = {
 			})
 		)
 		.handler(async ({ input, context }) => {
-			await requireOwnedSession(
-				context,
-				context.authedAgent.id,
-				input.sessionId
-			);
+			await requireUserSession(context, context.authedUser.id, input.sessionId);
 			await context.services.pendingToolCallStore.resolve({
 				sessionId: input.sessionId,
 				callId: input.callId,

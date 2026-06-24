@@ -5,6 +5,7 @@ import { agentsRouter } from "./agents";
 import { authRouter } from "./auth";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
+import { userSessionsRouter } from "./user-sessions";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => "OK"),
@@ -12,6 +13,7 @@ export const appRouter = {
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,
+	userSessions: userSessionsRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
