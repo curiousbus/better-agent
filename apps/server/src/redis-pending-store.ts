@@ -7,6 +7,43 @@ function channelFor(sessionId: string, callId: string): string {
 	return `toolresult:${sessionId}:${callId}`;
 }
 
+function makeParkPromise(
+	channel: string,
+	callId: string,
+	local: Map<string, (result: ExecuteResult) => void>,
+	subscriber: Redis,
+	abortSignal: AbortSignal | undefined
+): Promise<ExecuteResult> {
+	return new Promise<ExecuteResult>((resolve, reject) => {
+		const cleanup = () => {
+			local.delete(channel);
+			subscriber.unsubscribe(channel);
+		};
+
+		const onAbort = () => {
+			clearTimeout(timer);
+			cleanup();
+			reject(new Error(`Tool call ${callId} aborted`));
+		};
+
+		const timer = setTimeout(() => {
+			abortSignal?.removeEventListener("abort", onAbort);
+			cleanup();
+			reject(new Error(`Tool call ${callId} timed out`));
+		}, PENDING_TTL_MS);
+
+		const settle = (result: ExecuteResult) => {
+			clearTimeout(timer);
+			abortSignal?.removeEventListener("abort", onAbort);
+			resolve(result);
+		};
+
+		local.set(channel, settle);
+
+		abortSignal?.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
 export function createRedisPendingToolCallStore(
 	redis: Redis
 ): PendingToolCallStore {
@@ -23,40 +60,16 @@ export function createRedisPendingToolCallStore(
 	});
 
 	return {
-		park({ sessionId, callId, abortSignal }) {
+		async park({ sessionId, callId, abortSignal }) {
 			const channel = channelFor(sessionId, callId);
 
 			if (abortSignal?.aborted) {
 				return Promise.reject(new Error(`Tool call ${callId} aborted`));
 			}
 
-			return new Promise<ExecuteResult>((resolve, reject) => {
-				const cleanup = () => {
-					local.delete(channel);
-					subscriber.unsubscribe(channel);
-				};
+			await subscriber.subscribe(channel);
 
-				const timer = setTimeout(() => {
-					cleanup();
-					reject(new Error(`Tool call ${callId} timed out`));
-				}, PENDING_TTL_MS);
-
-				const settle = (result: ExecuteResult) => {
-					clearTimeout(timer);
-					resolve(result);
-				};
-
-				local.set(channel, settle);
-				subscriber.subscribe(channel);
-
-				const onAbort = () => {
-					clearTimeout(timer);
-					cleanup();
-					reject(new Error(`Tool call ${callId} aborted`));
-				};
-
-				abortSignal?.addEventListener("abort", onAbort, { once: true });
-			});
+			return makeParkPromise(channel, callId, local, subscriber, abortSignal);
 		},
 
 		async resolve({ sessionId, callId, result }) {

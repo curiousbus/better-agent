@@ -2,6 +2,8 @@ import RedisMock from "ioredis-mock";
 import { expect, it } from "vitest";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 
+const ABORT_SETTLE_DELAY_MS = 5;
+
 // ioredis-mock v8 shares a pub/sub bus across all instances created with `new RedisMock()`
 // (no `createConnectedClient` needed; two instances suffice to simulate two server processes).
 
@@ -12,8 +14,6 @@ it("park resolves when resolve publishes the result (cross-connection)", async (
 	const resolver = createRedisPendingToolCallStore(redisB);
 
 	const parked = parker.park({ sessionId: "s1", callId: "c1" });
-	// Allow the subscribe to register before publishing.
-	await new Promise<void>((r) => setTimeout(r, 10));
 
 	await resolver.resolve({
 		sessionId: "s1",
@@ -34,7 +34,7 @@ it("park rejects on abort signal fired after parking", async () => {
 		abortSignal: controller.signal,
 	});
 
-	await new Promise<void>((r) => setTimeout(r, 5));
+	await new Promise<void>((r) => setTimeout(r, ABORT_SETTLE_DELAY_MS));
 	controller.abort();
 
 	await expect(parked).rejects.toThrow("aborted");
