@@ -220,6 +220,32 @@ it("yields text deltas incrementally without waiting for the stream to finish", 
 	expect(deltas).toEqual(["a", "b"]);
 }, 5000);
 
+it("persists the streamed part incrementally (created before flush)", async () => {
+	const { runtime, session, messageStore } = await setup(scriptedModel(HAPPY));
+	const gen = runtime.runTurn({ sessionId: session.id, text: "hi" });
+	let sawStreamingPart = false;
+	let next = await gen.next();
+	while (!next.done) {
+		if (next.value.type === "text-delta") {
+			const groups = await messageStore.listWithParts(session.id);
+			const parts = groups.flatMap((g) => g.parts);
+			if (parts.some((p) => p.type === "text" && p.status === "streaming")) {
+				sawStreamingPart = true;
+			}
+		}
+		next = await gen.next();
+	}
+	expect(sawStreamingPart).toBe(true);
+	// And after completion the assistant part is finalized.
+	const finalGroups = await messageStore.listWithParts(session.id);
+	const assistantParts = finalGroups.find(
+		(g) => g.message.role === "assistant"
+	)?.parts;
+	const textPart = assistantParts?.find((p) => p.type === "text");
+	expect(textPart?.status).toBe("complete");
+	expect((textPart?.content as { text: string }).text).toBe("Hello world");
+});
+
 it("rejects a concurrent turn on the same session as busy", async () => {
 	const { runtime, session } = await setup(scriptedModel(HAPPY));
 	const first = runtime.runTurn({ sessionId: session.id, text: "hi" });

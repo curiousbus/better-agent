@@ -5,6 +5,7 @@ import type { AgentStore, MessageStore, SessionStore } from "../ports";
 import type { ModelFactory } from "../provider/model-factory";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
+import { createPartBuffer } from "./part-buffer";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
 import { toModelMessages } from "./to-model-messages";
@@ -71,30 +72,6 @@ function buildSettings(params: AgentParams | null) {
 	return settings;
 }
 
-/** 累積一類 part 的文本，結束時一次性落庫（spec §8「finish 時落庫」）。 */
-function createPartBuffer(
-	messageStore: MessageStore,
-	messageId: string,
-	type: "text" | "reasoning"
-) {
-	let buf = "";
-	return {
-		append(delta: string) {
-			buf += delta;
-		},
-		async flush(status: PartStatus): Promise<void> {
-			if (buf.length > 0) {
-				await messageStore.appendPart({
-					messageId,
-					type,
-					content: { text: buf },
-					status,
-				});
-			}
-		},
-	};
-}
-
 async function loadContext(
 	deps: SessionRuntimeDeps,
 	sessionId: string
@@ -138,10 +115,10 @@ async function* drainStream(
 ): AsyncGenerator<RunEvent, void> {
 	for await (const chunk of result.fullStream) {
 		if (chunk.type === "text-delta") {
-			textBuf.append(chunk.text);
+			await textBuf.append(chunk.text);
 			yield { type: "text-delta", delta: chunk.text };
 		} else if (chunk.type === "reasoning-delta") {
-			reasoningBuf.append(chunk.text);
+			await reasoningBuf.append(chunk.text);
 			yield { type: "reasoning-delta", delta: chunk.text };
 		} else if (chunk.type === "finish-step") {
 			yield { type: "step-finish" };
