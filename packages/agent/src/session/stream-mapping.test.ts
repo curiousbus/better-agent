@@ -69,7 +69,7 @@ describe("mapUsage detail fields", () => {
 			totalTokens: 28,
 			reasoningTokens: 2,
 			cacheReadTokens: 5,
-			cacheWriteTokens: null,
+			cacheWriteTokens: 3,
 			costCents: null,
 		});
 	});

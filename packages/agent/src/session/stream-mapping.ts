@@ -29,7 +29,7 @@ export function mapUsage(usage: UsageInput): MessageUsage {
 		totalTokens: usage.totalTokens ?? null,
 		reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? null,
 		cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens ?? null,
-		cacheWriteTokens: null,
+		cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens ?? null,
 		costCents: null,
 	};
 }
