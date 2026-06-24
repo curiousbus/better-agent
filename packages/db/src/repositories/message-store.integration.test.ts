@@ -57,7 +57,15 @@ it("updateMessage patches status/usage/finishReason and returns null for missing
 	const updated = await store.updateMessage(created.id, {
 		status: "complete",
 		finishReason: "stop",
-		usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+		usage: {
+			inputTokens: 10,
+			outputTokens: 20,
+			totalTokens: 30,
+			reasoningTokens: null,
+			cacheReadTokens: null,
+			cacheWriteTokens: null,
+			costCents: null,
+		},
 	});
 	expect(updated?.status).toBe("complete");
 	expect(updated?.finishReason).toBe("stop");
@@ -65,6 +73,10 @@ it("updateMessage patches status/usage/finishReason and returns null for missing
 		inputTokens: 10,
 		outputTokens: 20,
 		totalTokens: 30,
+		reasoningTokens: null,
+		cacheReadTokens: null,
+		cacheWriteTokens: null,
+		costCents: null,
 	});
 	expect(
 		await store.updateMessage("00000000-0000-0000-0000-000000000000", {
