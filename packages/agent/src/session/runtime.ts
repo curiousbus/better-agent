@@ -63,6 +63,15 @@ export interface SessionRuntime {
 
 type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
 
+interface AttemptArgs {
+	abortSignal?: AbortSignal;
+	ctx: DrainCtx;
+	messages: ModelMessage[];
+	model: AiModel;
+	params: AgentParams | null;
+	providerOptions: SharedV3ProviderOptions;
+}
+
 function buildSettings(params: AgentParams | null) {
 	const settings: {
 		temperature?: number;
@@ -82,18 +91,14 @@ function buildSettings(params: AgentParams | null) {
 }
 
 async function* runAttempt(
-	model: AiModel,
-	messages: ModelMessage[],
-	providerOptions: SharedV3ProviderOptions,
-	params: AgentParams | null,
+	args: AttemptArgs,
 	bufs: {
 		text: ReturnType<typeof createPartBuffer>;
 		reasoning: ReturnType<typeof createPartBuffer>;
 	},
-	state: StreamOutcome,
-	ctx: DrainCtx,
-	abortSignal?: AbortSignal
+	state: StreamOutcome
 ): AsyncGenerator<RunEvent, void> {
+	const { model, messages, providerOptions, params, ctx, abortSignal } = args;
 	try {
 		const tools = buildTools(ctx.toolDefs, {
 			sessionId: ctx.sessionId,
@@ -128,13 +133,9 @@ async function* runAttempt(
 
 async function* streamAssistant(
 	deps: SessionRuntimeDeps,
-	model: AiModel,
-	messages: ModelMessage[],
-	providerOptions: SharedV3ProviderOptions,
-	params: AgentParams | null,
-	ctx: DrainCtx,
-	abortSignal?: AbortSignal
+	args: AttemptArgs
 ): AsyncGenerator<RunEvent, StreamOutcome> {
+	const { ctx, abortSignal } = args;
 	const bufs = {
 		text: createPartBuffer(deps.messageStore, ctx.assistantId, "text"),
 		reasoning: createPartBuffer(
@@ -154,16 +155,7 @@ async function* streamAssistant(
 	};
 	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
 		resetOutcome(state);
-		yield* runAttempt(
-			model,
-			messages,
-			providerOptions,
-			params,
-			bufs,
-			state,
-			ctx,
-			abortSignal
-		);
+		yield* runAttempt(args, bufs, state);
 		if (shouldRetryAttempt(state, attempt, abortSignal?.aborted ?? false)) {
 			await sleep(backoffMs(attempt));
 			continue;
@@ -194,17 +186,22 @@ async function withCost(
 	return { ...usage, costCents: entry ? computeCost(usage, entry) : null };
 }
 
+interface FinalizeArgs {
+	agent: AgentIdentity;
+	assistantId: string;
+	fallback: Message;
+	outcome: StreamOutcome;
+	sessionId: string;
+}
+
 async function* finalizeAssistant(
 	deps: Pick<
 		SessionRuntimeDeps,
 		"messageStore" | "modelCacheStore" | "sessionStore"
 	>,
-	agent: AgentIdentity,
-	assistantId: string,
-	fallback: Message,
-	sessionId: string,
-	outcome: StreamOutcome
+	args: FinalizeArgs
 ): AsyncGenerator<RunEvent, Message> {
+	const { agent, assistantId, fallback, sessionId, outcome } = args;
 	const usage = await withCost(deps, agent, outcome.usage);
 	const final = await deps.messageStore.updateMessage(assistantId, {
 		status: outcome.status,
@@ -221,11 +218,7 @@ async function* finalizeAssistant(
 		await deps.sessionStore.setStatus(sessionId, "error");
 		yield { type: "error", message: outcome.errorMessage ?? "stream error" };
 	} else {
-		yield {
-			type: "done",
-			usage,
-			finishReason: outcome.finishReason,
-		};
+		yield { type: "done", usage, finishReason: outcome.finishReason };
 	}
 	return final ?? fallback;
 }
@@ -257,23 +250,21 @@ async function* executeTurn(
 		sessionId,
 		toolDefs: tools ?? [],
 	};
-	const outcome = yield* streamAssistant(
-		deps,
+	const outcome = yield* streamAssistant(deps, {
 		model,
-		cached.messages,
-		cached.providerOptions,
-		agent.params,
+		messages: cached.messages,
+		providerOptions: cached.providerOptions,
+		params: agent.params,
 		ctx,
-		abortSignal
-	);
-	return yield* finalizeAssistant(
-		deps,
+		abortSignal,
+	});
+	return yield* finalizeAssistant(deps, {
 		agent,
-		assistant.id,
-		assistant,
+		assistantId: assistant.id,
+		fallback: assistant,
 		sessionId,
-		outcome
-	);
+		outcome,
+	});
 }
 
 export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
