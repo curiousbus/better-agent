@@ -9,7 +9,6 @@ interface ChatViewProps {
 	agent: AgentRow;
 	agentClient: AgentClient;
 	initialText?: string;
-	newPending: boolean;
 	onClose: () => void;
 	onNewSession: () => void;
 	onSessionChange: (sessionId: string) => void;
@@ -24,8 +23,7 @@ function ChatViewHeader({
 	onClose,
 	onSessionChange,
 	onNewSession,
-	newPending,
-}: Omit<ChatViewProps, "agentClient">) {
+}: Omit<ChatViewProps, "agentClient" | "initialText">) {
 	return (
 		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:gap-3 sm:px-4">
 			<div className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -42,7 +40,6 @@ function ChatViewHeader({
 				/>
 				<Button
 					className="gap-1"
-					disabled={newPending}
 					onClick={onNewSession}
 					size="sm"
 					variant="outline"
@@ -72,13 +69,11 @@ export function ChatView({
 	onClose,
 	onSessionChange,
 	onNewSession,
-	newPending,
 }: ChatViewProps) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatViewHeader
 				agent={agent}
-				newPending={newPending}
 				onClose={onClose}
 				onNewSession={onNewSession}
 				onSessionChange={onSessionChange}

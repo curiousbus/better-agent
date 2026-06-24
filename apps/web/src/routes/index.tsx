@@ -1,11 +1,12 @@
+import type { AgentClient } from "@better-agent/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { ChatView } from "@/components/chat/chat-view";
 import { WebComposer } from "@/components/chat/web-composer";
-import type { AgentRow } from "@/utils/api-types";
+import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { userAgentClient } from "@/utils/chat-client";
 import { client, orpc } from "@/utils/orpc";
 
@@ -13,11 +14,11 @@ export const Route = createFileRoute("/")({
 	component: HomePage,
 });
 
-function useUserAgentClient(agentId: string | null) {
+function useUserAgentClient(agentId: string | null): AgentClient | null {
 	return useMemo(() => (agentId ? userAgentClient(agentId) : null), [agentId]);
 }
 
-function useUserSessions(agentId: string | null) {
+function useUserSessions(agentId: string | null): UserSessionRow[] {
 	const query = useQuery(orpc.userSessions.list.queryOptions());
 	return useMemo(
 		() =>
@@ -77,6 +78,59 @@ async function sendFirstMessage({
 	}
 }
 
+interface HomeActions {
+	clearInitialText: () => void;
+	closeChat: () => void;
+	closeComposer: () => void;
+	newSession: () => void;
+	selectAgent: (agent: AgentRow) => void;
+	selectSession: (id: string) => void;
+	send: (text: string) => Promise<void>;
+}
+
+function useHomeActions(
+	selectedAgent: AgentRow | null,
+	invalidate: () => Promise<void>,
+	setInitialText: (t: string) => void,
+	setSelectedAgent: (a: AgentRow | null) => void,
+	setSessionId: (id: string) => void,
+	setSending: (v: boolean) => void
+): HomeActions {
+	const send = useCallback(
+		(text: string) =>
+			sendFirstMessage({
+				agentId: selectedAgent?.id ?? "",
+				text,
+				setSending,
+				setSessionId,
+				setInitialText,
+				invalidate,
+			}),
+		[selectedAgent?.id, invalidate, setSending, setSessionId, setInitialText]
+	);
+	return {
+		clearInitialText: () => setInitialText(""),
+		closeChat: () => {
+			setInitialText("");
+			setSessionId("");
+		},
+		closeComposer: () => {
+			setSelectedAgent(null);
+			setSessionId("");
+		},
+		newSession: () => {
+			setInitialText("");
+			setSessionId("");
+		},
+		selectAgent: (agent: AgentRow) => {
+			setSelectedAgent(agent);
+			setSessionId("");
+		},
+		selectSession: setSessionId,
+		send,
+	};
+}
+
 function useHomeState() {
 	const [selectedAgent, setSelectedAgent] = useState<AgentRow | null>(null);
 	const [sessionId, setSessionId] = useState("");
@@ -85,17 +139,21 @@ function useHomeState() {
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.userSessions.list.key() });
-	const send = (text: string) =>
-		sendFirstMessage({
-			agentId: selectedAgent?.id ?? "",
-			text,
-			setSending,
-			setSessionId,
-			setInitialText,
-			invalidate,
-		});
+	const invalidate = useCallback(
+		() =>
+			queryClient.invalidateQueries({
+				queryKey: orpc.userSessions.list.key(),
+			}),
+		[queryClient]
+	);
+	const actions = useHomeActions(
+		selectedAgent,
+		invalidate,
+		setInitialText,
+		setSelectedAgent,
+		setSessionId,
+		setSending
+	);
 	return {
 		selectedAgent,
 		sessionId,
@@ -103,67 +161,27 @@ function useHomeState() {
 		sending,
 		agentClient,
 		sessions,
-		selectAgent: (agent: AgentRow) => {
-			setSelectedAgent(agent);
-			setSessionId("");
-		},
-		closeComposer: () => {
-			setSelectedAgent(null);
-			setSessionId("");
-		},
-		closeChat: () => setSessionId(""),
-		selectSession: setSessionId,
-		newSession: () => setSessionId(""),
-		send,
+		...actions,
 	};
-}
-
-interface ComposerPanelProps {
-	agent: AgentRow;
-	onClose: () => void;
-	onSend: (text: string) => Promise<void>;
-	onSessionSelect: (id: string) => void;
-	sending: boolean;
-	sessions: ReturnType<typeof useUserSessions>;
-}
-
-function ComposerPanel({
-	agent,
-	onClose,
-	onSend,
-	onSessionSelect,
-	sending,
-	sessions,
-}: ComposerPanelProps) {
-	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			<WebComposer
-				agent={agent}
-				onClose={onClose}
-				onSend={onSend}
-				onSessionSelect={onSessionSelect}
-				sending={sending}
-				sessions={sessions}
-			/>
-		</div>
-	);
 }
 
 interface ChatPanelProps {
 	agent: AgentRow;
-	agentClient: ReturnType<typeof useUserAgentClient>;
+	agentClient: AgentClient | null;
 	initialText: string;
+	onClearInitialText: () => void;
 	onClose: () => void;
 	onNewSession: () => void;
 	onSessionChange: (id: string) => void;
 	sessionId: string;
-	sessions: ReturnType<typeof useUserSessions>;
+	sessions: UserSessionRow[];
 }
 
 function ChatPanel({
 	agent,
 	agentClient,
 	initialText,
+	onClearInitialText,
 	onClose,
 	onNewSession,
 	onSessionChange,
@@ -173,16 +191,21 @@ function ChatPanel({
 	if (!agentClient) {
 		return null;
 	}
+	// Clear initialText once Conversation has consumed it so a future remount
+	// (e.g. navigating chat→composer→chat) never re-sends a stale value.
+	const handleSessionChange = (id: string) => {
+		onClearInitialText();
+		onSessionChange(id);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatView
 				agent={agent}
 				agentClient={agentClient}
 				initialText={initialText}
-				newPending={false}
 				onClose={onClose}
 				onNewSession={onNewSession}
-				onSessionChange={onSessionChange}
+				onSessionChange={handleSessionChange}
 				sessionId={sessionId}
 				sessions={sessions}
 			/>
@@ -198,6 +221,7 @@ function HomePage() {
 		sending,
 		agentClient,
 		sessions,
+		clearInitialText,
 		selectAgent,
 		closeComposer,
 		closeChat,
@@ -216,7 +240,7 @@ function HomePage() {
 
 	if (sessionId === "") {
 		return (
-			<ComposerPanel
+			<WebComposer
 				agent={selectedAgent}
 				onClose={closeComposer}
 				onSend={send}
@@ -232,6 +256,7 @@ function HomePage() {
 			agent={selectedAgent}
 			agentClient={agentClient}
 			initialText={initialText}
+			onClearInitialText={clearInitialText}
 			onClose={closeChat}
 			onNewSession={newSession}
 			onSessionChange={selectSession}

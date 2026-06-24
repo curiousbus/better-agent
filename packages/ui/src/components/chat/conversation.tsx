@@ -21,7 +21,7 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { RevealText } from "./reveal-text";
 
@@ -144,12 +144,16 @@ export function Conversation({
 }) {
 	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
 	const sentRef = useRef(false);
+	const sendRef = useRef(send);
+	useLayoutEffect(() => {
+		sendRef.current = send;
+	});
 	useEffect(() => {
 		if (initialText && !sentRef.current) {
 			sentRef.current = true;
-			send(initialText);
+			sendRef.current(initialText);
 		}
-	}, [initialText, send]);
+	}, [initialText]); // send accessed via ref, not a dep
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ConversationRoot>
