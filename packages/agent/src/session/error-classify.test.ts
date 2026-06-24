@@ -21,6 +21,7 @@ it("classifies network/timeout/overloaded messages as retryable", () => {
 
 it("classifies abort errors as aborted", () => {
 	expect(classifyError({ name: "AbortError" })).toBe("aborted");
+	expect(classifyError({ name: "TimeoutError" })).toBe("aborted");
 });
 
 it("classifies content-filter errors as content-filter", () => {
@@ -31,4 +32,7 @@ it("classifies content-filter errors as content-filter", () => {
 
 it("honors an explicit isRetryable flag", () => {
 	expect(classifyError({ isRetryable: true })).toBe("retryable");
+	expect(classifyError({ statusCode: 400, isRetryable: true })).toBe(
+		"retryable"
+	);
 });
