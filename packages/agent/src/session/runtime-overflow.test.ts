@@ -4,6 +4,7 @@ import { expect, it } from "vitest";
 import type { ModelFactory } from "../provider/model-factory";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
+	createFakeCatalogStore,
 	createFakeMessageStore,
 	createFakeModelStore,
 	createFakeSessionStore,
@@ -121,6 +122,7 @@ async function overflowSetup() {
 		modelFactory: fakeModelFactory(HAPPY),
 		sessionLock: createInMemorySessionLock(),
 		modelCacheStore,
+		providerCatalogStore: createFakeCatalogStore(),
 		summarizer,
 	});
 	return { runtime, session, summarizer, sessionStore };

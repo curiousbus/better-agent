@@ -1,3 +1,4 @@
+import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { ModelMessage } from "ai";
 
 export type CacheStrategy =
@@ -17,7 +18,7 @@ interface ApplyCachePolicyInput {
 
 interface ApplyCachePolicyOutput {
 	messages: ModelMessage[];
-	providerOptions: Record<string, Record<string, unknown>>;
+	providerOptions: SharedV3ProviderOptions;
 }
 
 const ANTHROPIC_NPM = "@ai-sdk/anthropic";

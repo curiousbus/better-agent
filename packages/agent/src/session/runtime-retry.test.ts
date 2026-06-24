@@ -3,6 +3,7 @@ import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { expect, it } from "vitest";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
+	createFakeCatalogStore,
 	createFakeMessageStore,
 	createFakeModelStore,
 	createFakeSessionStore,
@@ -71,6 +72,7 @@ async function drainTurn(
 		modelFactory: fakeModelFactory(model),
 		sessionLock: createInMemorySessionLock(),
 		modelCacheStore: createFakeModelStore(),
+		providerCatalogStore: createFakeCatalogStore(),
 		summarizer: createFakeSummarizer(),
 		...depsOverrides,
 	});

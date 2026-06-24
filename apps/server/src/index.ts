@@ -97,50 +97,51 @@ function buildPendingToolCallStore() {
 		: createInMemoryPendingToolCallStore();
 }
 
-function buildServices() {
-	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
-	const {
-		providerCatalog,
-		modelCache,
-		providerCredential,
-		agentStore,
-		modelFactory,
-		agentValidator,
-	} = buildProviderDeps(secretBox);
-	const sessionStore = createSessionStore(db);
-	const messageStore = createMessageStore(db);
-	const tokenService = createTokenService();
-	const runtime = createSessionRuntime({
+function buildRuntime(
+	deps: ReturnType<typeof buildProviderDeps>,
+	sessionStore: ReturnType<typeof createSessionStore>,
+	messageStore: ReturnType<typeof createMessageStore>
+) {
+	return createSessionRuntime({
 		sessionStore,
 		messageStore,
-		agentStore,
-		modelFactory,
+		agentStore: deps.agentStore,
+		modelFactory: deps.modelFactory,
 		sessionLock: createInMemorySessionLock(),
-		modelCacheStore: modelCache,
-		summarizer: createModelSummarizer(modelFactory),
+		modelCacheStore: deps.modelCache,
+		providerCatalogStore: deps.providerCatalog,
+		summarizer: createModelSummarizer(deps.modelFactory),
 	});
+}
+
+function buildServices() {
+	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
+	const deps = buildProviderDeps(secretBox);
+	const sessionStore = createSessionStore(db);
+	const messageStore = createMessageStore(db);
+	const runtime = buildRuntime(deps, sessionStore, messageStore);
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
 	return {
 		catalog: createModelCatalog({
-			catalogStore: providerCatalog,
-			modelStore: modelCache,
+			catalogStore: deps.providerCatalog,
+			modelStore: deps.modelCache,
 			fetcher: () => fetchModelsDev(env.MODELS_DEV_URL),
 			allowedProviders: env.CATALOG_PROVIDERS,
 		}),
-		modelFactory,
-		agentValidator,
+		modelFactory: deps.modelFactory,
+		agentValidator: deps.agentValidator,
 		runtime,
-		tokenService,
+		tokenService: createTokenService(),
 		jwtService,
 		emailSender,
 		authConfig,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		stores: {
-			providerCatalog,
-			modelCache,
-			providerCredential,
-			agent: agentStore,
+			providerCatalog: deps.providerCatalog,
+			modelCache: deps.modelCache,
+			providerCredential: deps.providerCredential,
+			agent: deps.agentStore,
 			session: sessionStore,
 			message: messageStore,
 			...authStores,

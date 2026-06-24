@@ -7,6 +7,7 @@ import { expect, it } from "vitest";
 import type { ModelFactory } from "../provider/model-factory";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
+	createFakeCatalogStore,
 	createFakeMessageStore,
 	createFakeModelStore,
 	createFakeSessionStore,
@@ -96,6 +97,7 @@ async function setup(model: LanguageModelV3) {
 		modelFactory: fakeModelFactory(model),
 		sessionLock: createInMemorySessionLock(),
 		modelCacheStore: createFakeModelStore(),
+		providerCatalogStore: createFakeCatalogStore(),
 		summarizer: createFakeSummarizer(),
 	});
 	return { runtime, sessionStore, messageStore, session };

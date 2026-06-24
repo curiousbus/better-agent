@@ -7,6 +7,7 @@ import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import {
+	createFakeCatalogStore,
 	createFakeMessageStore,
 	createFakeModelStore,
 	createFakeSessionStore,
@@ -64,6 +65,7 @@ async function buildClient() {
 		modelFactory: { create: () => Promise.resolve(mockModel(HAPPY)) },
 		sessionLock: createInMemorySessionLock(),
 		modelCacheStore: createFakeModelStore(),
+		providerCatalogStore: createFakeCatalogStore(),
 		summarizer: createFakeSummarizer(),
 	});
 	const pendingToolCallStore = createInMemoryPendingToolCallStore();

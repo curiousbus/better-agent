@@ -1,3 +1,4 @@
+import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { ModelMessage } from "ai";
 import { stepCountIs, streamText } from "ai";
 import type { AgentParams } from "../agent/types";
@@ -5,8 +6,10 @@ import type {
 	AgentStore,
 	MessageStore,
 	ModelCacheStore,
+	ProviderCatalogStore,
 	SessionStore,
 } from "../ports";
+import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
 import { computeCost } from "../provider/cost";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
@@ -40,6 +43,7 @@ export interface SessionRuntimeDeps {
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	modelFactory: ModelFactory;
+	providerCatalogStore: ProviderCatalogStore;
 	sessionLock: SessionLock;
 	sessionStore: SessionStore;
 	sleep?: (ms: number) => Promise<void>;
@@ -80,6 +84,7 @@ function buildSettings(params: AgentParams | null) {
 async function* runAttempt(
 	model: AiModel,
 	messages: ModelMessage[],
+	providerOptions: SharedV3ProviderOptions,
 	params: AgentParams | null,
 	bufs: {
 		text: ReturnType<typeof createPartBuffer>;
@@ -99,6 +104,7 @@ async function* runAttempt(
 		const result = streamText({
 			model,
 			messages,
+			providerOptions,
 			stopWhen: stepCountIs(DEFAULT_MAX_STEPS),
 			tools,
 			experimental_repairToolCall: () => Promise.resolve(null),
@@ -124,6 +130,7 @@ async function* streamAssistant(
 	deps: SessionRuntimeDeps,
 	model: AiModel,
 	messages: ModelMessage[],
+	providerOptions: SharedV3ProviderOptions,
 	params: AgentParams | null,
 	ctx: DrainCtx,
 	abortSignal?: AbortSignal
@@ -147,7 +154,16 @@ async function* streamAssistant(
 	};
 	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
 		resetOutcome(state);
-		yield* runAttempt(model, messages, params, bufs, state, ctx, abortSignal);
+		yield* runAttempt(
+			model,
+			messages,
+			providerOptions,
+			params,
+			bufs,
+			state,
+			ctx,
+			abortSignal
+		);
 		if (shouldRetryAttempt(state, attempt, abortSignal?.aborted ?? false)) {
 			await sleep(backoffMs(attempt));
 			continue;
@@ -221,7 +237,10 @@ async function* executeTurn(
 	const { sessionId, text, abortSignal, tools } = input;
 	const { session, agent } = await loadContext(deps, sessionId);
 	await persistUserTurn(deps.messageStore, sessionId, text);
-	const messages = await buildTurnMessages(deps, agent, session, sessionId);
+	const rawMessages = await buildTurnMessages(deps, agent, session, sessionId);
+	const provider = await deps.providerCatalogStore.get(agent.providerId);
+	const policy = resolveCachePolicy(provider?.npm ?? null);
+	const cached = applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 	const assistant = await deps.messageStore.createMessage({
 		sessionId,
 		role: "assistant",
@@ -241,7 +260,8 @@ async function* executeTurn(
 	const outcome = yield* streamAssistant(
 		deps,
 		model,
-		messages,
+		cached.messages,
+		cached.providerOptions,
 		agent.params,
 		ctx,
 		abortSignal

@@ -7,6 +7,7 @@ import { expect, it } from "vitest";
 import type { ModelFactory } from "../provider/model-factory";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
+	createFakeCatalogStore,
 	createFakeMessageStore,
 	createFakeModelStore,
 	createFakeSessionStore,
@@ -57,6 +58,7 @@ async function setup(model: LanguageModelV3) {
 		modelFactory: { create: () => Promise.resolve(model) } as ModelFactory,
 		sessionLock: createInMemorySessionLock(),
 		modelCacheStore: createFakeModelStore(),
+		providerCatalogStore: createFakeCatalogStore(),
 		summarizer: createFakeSummarizer(),
 	});
 	return { runtime, sessionStore, messageStore, session };
@@ -106,7 +108,7 @@ async function assertToolErrorPersisted(
 	expect(assistantMsg?.message.status).toBe("complete");
 }
 
-// ── tool-error scenario ───────────────────────────────────────────────────────
+// ── tool-error scenario ──────────────────────────────────────────────────────
 const FAIL_TOOL_NAME = "fail";
 const FAIL_STEP1: LanguageModelV3StreamPart[] = [
 	{
@@ -159,7 +161,7 @@ it("persists a tool-result with isError:true when tool execute throws", async ()
 	await assertToolErrorPersisted(messageStore, session.id, events);
 });
 
-// ── isError:true resolved (not thrown) scenario ───────────────────────────────
+// ── isError:true resolved (not thrown) scenario ──────────────────────────────
 const RESOLVE_ERR_TOOL_NAME = "resolve-err";
 
 const RESOLVE_ERR_STEP1: LanguageModelV3StreamPart[] = [
@@ -219,10 +221,8 @@ it("persists a tool-result with isError:true when tool resolves with isError:tru
 });
 
 // ── cross-step text ordering scenario ────────────────────────────────────────
-
 const ORDER_CALL_ID = "call-order-1";
 const ORDER_TOOL_NAME = "noop";
-
 const ORDER_STEP1: LanguageModelV3StreamPart[] = [
 	{ type: "text-start", id: "s1" },
 	{ type: "text-delta", id: "s1", delta: "Before" },
