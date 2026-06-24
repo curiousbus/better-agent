@@ -8,6 +8,7 @@ import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
+import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { db } from "@better-agent/db";
@@ -34,7 +35,9 @@ import { initLogger, log } from "evlog";
 import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
+import { createRedisPendingToolCallStore } from "./redis-pending-store";
 
 initLogger({
 	env: { service: "better-agent-server" },
@@ -88,6 +91,12 @@ function buildProviderDeps(secretBox: ReturnType<typeof createSecretBox>) {
 	};
 }
 
+function buildPendingToolCallStore() {
+	return env.REDIS_URL
+		? createRedisPendingToolCallStore(new Redis(env.REDIS_URL))
+		: createInMemoryPendingToolCallStore();
+}
+
 function buildServices() {
 	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
 	const {
@@ -126,6 +135,7 @@ function buildServices() {
 		jwtService,
 		emailSender,
 		authConfig,
+		pendingToolCallStore: buildPendingToolCallStore(),
 		stores: {
 			providerCatalog,
 			modelCache,
