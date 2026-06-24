@@ -5,15 +5,28 @@ import type { ToolContext, ToolDef } from "./types";
 
 type CtxBase = Omit<ToolContext, "callId">;
 
-export function buildTools(defs: ToolDef[], ctxBase: CtxBase): ToolSet {
+export function buildTools(
+	defs: ToolDef[],
+	ctxBase: CtxBase,
+	opts?: { cacheLastToolDef?: boolean }
+): ToolSet {
 	const tools: ToolSet = {};
-	for (const def of defs) {
+	for (const [i, def] of defs.entries()) {
 		if (tools[def.name]) {
 			throw new Error(`Duplicate tool name: ${def.name}`);
 		}
+		const isLast = i === defs.length - 1;
+		const cacheLast = opts?.cacheLastToolDef === true && isLast;
 		tools[def.name] = tool({
 			description: def.description,
 			inputSchema: jsonSchema(def.parameters),
+			...(cacheLast
+				? {
+						providerOptions: {
+							anthropic: { cacheControl: { type: "ephemeral" } },
+						},
+					}
+				: {}),
 			execute: async (
 				args: unknown,
 				options: { toolCallId: string; abortSignal?: AbortSignal }

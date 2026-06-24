@@ -17,6 +17,7 @@ interface ApplyCachePolicyInput {
 }
 
 interface ApplyCachePolicyOutput {
+	cacheToolDefs: boolean;
 	messages: ModelMessage[];
 	providerOptions: SharedV3ProviderOptions;
 }
@@ -57,6 +58,21 @@ function lastLeadingSystemIndex(messages: ModelMessage[]): number {
 	return idx;
 }
 
+function withAnthropicCacheControl(msg: ModelMessage): ModelMessage {
+	return {
+		...msg,
+		providerOptions: {
+			...msg.providerOptions,
+			anthropic: {
+				...(msg.providerOptions?.anthropic as
+					| Record<string, unknown>
+					| undefined),
+				cacheControl: { type: "ephemeral" },
+			},
+		},
+	};
+}
+
 /**
  * Tags the LAST message in the leading contiguous run of system messages with
  * Anthropic's cacheControl at the message-level providerOptions. This ensures
@@ -72,23 +88,26 @@ function tagSystemMessage(messages: ModelMessage[]): ModelMessage[] {
 	if (targetIdx === -1) {
 		return messages;
 	}
-	return messages.map((msg, i) => {
-		if (i !== targetIdx) {
-			return msg;
+	return messages.map((msg, i) =>
+		i === targetIdx ? withAnthropicCacheControl(msg) : msg
+	);
+}
+
+/** Tags the last `user` message so the cached prefix covers system + history through the prompt. */
+function tagLastUserMessage(messages: ModelMessage[]): ModelMessage[] {
+	let targetIdx = -1;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i]?.role === "user") {
+			targetIdx = i;
+			break;
 		}
-		return {
-			...msg,
-			providerOptions: {
-				...msg.providerOptions,
-				anthropic: {
-					...(msg.providerOptions?.anthropic as
-						| Record<string, unknown>
-						| undefined),
-					cacheControl: { type: "ephemeral" },
-				},
-			},
-		};
-	});
+	}
+	if (targetIdx === -1) {
+		return messages;
+	}
+	return messages.map((msg, i) =>
+		i === targetIdx ? withAnthropicCacheControl(msg) : msg
+	);
 }
 
 export function applyCachePolicy(
@@ -100,15 +119,20 @@ export function applyCachePolicy(
 
 	switch (strategy) {
 		case "anthropic-breakpoint":
-			return { messages: tagSystemMessage(messages), providerOptions: {} };
+			return {
+				messages: tagLastUserMessage(tagSystemMessage(messages)),
+				providerOptions: {},
+				cacheToolDefs: true,
+			};
 		case "prompt-cache-key":
 			return {
 				messages,
 				providerOptions: { [providerKey]: { promptCacheKey: sessionId } },
+				cacheToolDefs: false,
 			};
 		case "none":
-			return { messages, providerOptions: {} };
+			return { messages, providerOptions: {}, cacheToolDefs: false };
 		default:
-			return { messages, providerOptions: {} };
+			return { messages, providerOptions: {}, cacheToolDefs: false };
 	}
 }

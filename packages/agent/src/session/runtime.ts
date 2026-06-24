@@ -65,6 +65,7 @@ type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
 
 interface AttemptArgs {
 	abortSignal?: AbortSignal;
+	cacheToolDefs?: boolean;
 	ctx: DrainCtx;
 	messages: ModelMessage[];
 	model: AiModel;
@@ -100,12 +101,16 @@ async function* runAttempt(
 ): AsyncGenerator<RunEvent, void> {
 	const { model, messages, providerOptions, params, ctx, abortSignal } = args;
 	try {
-		const tools = buildTools(ctx.toolDefs, {
-			sessionId: ctx.sessionId,
-			messageId: ctx.assistantId,
-			agentId: ctx.agentId,
-			abortSignal: abortSignal ?? new AbortController().signal,
-		});
+		const tools = buildTools(
+			ctx.toolDefs,
+			{
+				sessionId: ctx.sessionId,
+				messageId: ctx.assistantId,
+				agentId: ctx.agentId,
+				abortSignal: abortSignal ?? new AbortController().signal,
+			},
+			{ cacheLastToolDef: args.cacheToolDefs === true }
+		);
 		const result = streamText({
 			model,
 			messages,
@@ -257,6 +262,7 @@ async function* executeTurn(
 		params: agent.params,
 		ctx,
 		abortSignal,
+		cacheToolDefs: cached.cacheToolDefs,
 	});
 	return yield* finalizeAssistant(deps, {
 		agent,

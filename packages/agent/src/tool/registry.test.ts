@@ -58,3 +58,38 @@ it("throws on duplicate tool names", () => {
 		DUPLICATE_NAME_RE
 	);
 });
+
+const defs: ToolDef[] = [
+	{
+		name: "alpha",
+		description: "a",
+		parameters: { type: "object", properties: {} },
+		execute: async () => ({ output: "" }),
+	},
+	{
+		name: "omega",
+		description: "o",
+		parameters: { type: "object", properties: {} },
+		execute: async () => ({ output: "" }),
+	},
+];
+
+it("tags only the last tool def with anthropic cacheControl when opted in", () => {
+	const tools = buildTools(defs, ctxBase, { cacheLastToolDef: true });
+	expect(
+		(tools.omega as { providerOptions?: Record<string, unknown> })
+			.providerOptions
+	).toMatchObject({
+		anthropic: { cacheControl: { type: "ephemeral" } },
+	});
+	expect(
+		(tools.alpha as { providerOptions?: unknown }).providerOptions
+	).toBeUndefined();
+});
+
+it("does not tag tool defs by default", () => {
+	const tools = buildTools(defs, ctxBase);
+	expect(
+		(tools.omega as { providerOptions?: unknown }).providerOptions
+	).toBeUndefined();
+});

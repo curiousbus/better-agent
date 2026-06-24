@@ -66,3 +66,45 @@ it("tags the last leading system message (summary) for anthropic", () => {
 	});
 	expect(sysPrompt.providerOptions?.anthropic).toBeUndefined();
 });
+
+it("tags the last user message with anthropic cacheControl", () => {
+	const messages: ModelMessage[] = [
+		{ role: "system", content: "sys" },
+		{ role: "user", content: "first" },
+		{ role: "assistant", content: "reply" },
+		{ role: "user", content: "latest" },
+	];
+	const out = applyCachePolicy(
+		{ messages, sessionId: "s1" },
+		{
+			strategy: "anthropic-breakpoint",
+			providerKey: "anthropic",
+		}
+	);
+	const lastUser = out.messages.at(-1);
+	expect(lastUser?.providerOptions?.anthropic).toMatchObject({
+		cacheControl: { type: "ephemeral" },
+	});
+	// the earlier user message is NOT tagged
+	expect(out.messages[1]?.providerOptions?.anthropic).toBeUndefined();
+});
+
+it("signals cacheToolDefs only for the anthropic strategy", () => {
+	const base = { messages: [], sessionId: "s1" };
+	expect(
+		applyCachePolicy(base, {
+			strategy: "anthropic-breakpoint",
+			providerKey: "anthropic",
+		}).cacheToolDefs
+	).toBe(true);
+	expect(
+		applyCachePolicy(base, {
+			strategy: "prompt-cache-key",
+			providerKey: "openai",
+		}).cacheToolDefs
+	).toBe(false);
+	expect(
+		applyCachePolicy(base, { strategy: "none", providerKey: "google" })
+			.cacheToolDefs
+	).toBe(false);
+});
