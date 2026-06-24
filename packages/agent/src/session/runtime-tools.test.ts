@@ -18,6 +18,13 @@ import { createSessionRuntime } from "./runtime";
 import { createInMemorySessionLock } from "./session-lock";
 import type { Message } from "./types";
 
+const INPUT_TOKENS = 10;
+const OUTPUT_TOKENS = 5;
+const INPUT_TOKENS_2 = 15;
+const OUTPUT_TOKENS_2 = 3;
+const INPUT_TOKENS_SIMPLE = 5;
+const OUTPUT_TOKENS_SIMPLE = 2;
+
 function v3Usage(input: number, output: number) {
 	return {
 		inputTokens: {
@@ -80,7 +87,7 @@ const STEP_1_CHUNKS: LanguageModelV3StreamPart[] = [
 	{
 		type: "finish",
 		finishReason: { unified: "tool-calls", raw: "tool_calls" },
-		usage: v3Usage(10, 5),
+		usage: v3Usage(INPUT_TOKENS, OUTPUT_TOKENS),
 	},
 ];
 
@@ -91,7 +98,7 @@ const STEP_2_CHUNKS: LanguageModelV3StreamPart[] = [
 	{
 		type: "finish",
 		finishReason: { unified: "stop", raw: "stop" },
-		usage: v3Usage(15, 3),
+		usage: v3Usage(INPUT_TOKENS_2, OUTPUT_TOKENS_2),
 	},
 ];
 
@@ -126,11 +133,11 @@ it("runs an in-process tool and persists the call + result", async () => {
 	expect(events.some((e) => e.type === "tool-call")).toBe(true);
 	expect(events.some((e) => e.type === "tool-result")).toBe(true);
 
-	const parts = (await messageStore.listWithParts(session.id)).flatMap(
+	const allParts = (await messageStore.listWithParts(session.id)).flatMap(
 		(g) => g.parts
 	);
-	expect(parts.some((p) => p.type === "tool-call")).toBe(true);
-	expect(parts.some((p) => p.type === "tool-result")).toBe(true);
+	expect(allParts.some((p) => p.type === "tool-call")).toBe(true);
+	expect(allParts.some((p) => p.type === "tool-result")).toBe(true);
 
 	expect(executeCount).toBeGreaterThan(0);
 
@@ -148,7 +155,7 @@ it("no tools provided behaves identically to single-step text turn", async () =>
 		{
 			type: "finish",
 			finishReason: { unified: "stop", raw: "stop" },
-			usage: v3Usage(5, 2),
+			usage: v3Usage(INPUT_TOKENS_SIMPLE, OUTPUT_TOKENS_SIMPLE),
 		},
 	];
 	const model = new MockLanguageModelV3({
@@ -165,11 +172,7 @@ it("no tools provided behaves identically to single-step text turn", async () =>
 		(g) => g.message.role === "assistant"
 	);
 	expect(assistant?.message.status).toBe("complete");
-	expect(
-		parts(assistant?.parts ?? []).some((p) => p.type === "tool-call")
-	).toBe(false);
+	expect((assistant?.parts ?? []).some((p) => p.type === "tool-call")).toBe(
+		false
+	);
 });
-
-function parts(ps: { type: string }[]) {
-	return ps;
-}

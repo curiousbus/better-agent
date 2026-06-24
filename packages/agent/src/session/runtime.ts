@@ -105,7 +105,7 @@ async function* runAttempt(
 			maxRetries: 0,
 			...buildSettings(params),
 		});
-		yield* drainStream(result, bufs.text, bufs.reasoning, state, ctx);
+		yield* drainStream(result, bufs, state, ctx);
 	} catch (error) {
 		if (abortSignal?.aborted) {
 			state.status = "aborted";

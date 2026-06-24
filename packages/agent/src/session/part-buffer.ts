@@ -11,50 +11,81 @@ const PERSIST_THROTTLE_MS = 250;
  */
 export type PartBuf = ReturnType<typeof createPartBuffer>;
 
+interface BufState {
+	buf: string;
+	lastWrite: number;
+	partId: string | null;
+}
+
+interface AppendCtx {
+	messageId: string;
+	messageStore: MessageStore;
+	type: "text" | "reasoning";
+}
+
+async function appendDelta(
+	delta: string,
+	s: BufState,
+	ctx: AppendCtx
+): Promise<void> {
+	s.buf += delta;
+	if (s.partId === null) {
+		const part = await ctx.messageStore.appendPart({
+			messageId: ctx.messageId,
+			type: ctx.type,
+			content: { text: s.buf },
+			status: "streaming",
+		});
+		s.partId = part.id;
+		s.lastWrite = Date.now();
+		return;
+	}
+	if (Date.now() - s.lastWrite >= PERSIST_THROTTLE_MS) {
+		await ctx.messageStore.updatePart(s.partId, { content: { text: s.buf } });
+		s.lastWrite = Date.now();
+	}
+}
+
 export function createPartBuffer(
 	messageStore: MessageStore,
 	messageId: string,
 	type: "text" | "reasoning"
 ) {
-	let buf = "";
-	let partId: string | null = null;
-	let lastWrite = 0;
+	const s: BufState = { buf: "", partId: null, lastWrite: 0 };
+	const ctx: AppendCtx = { messageStore, messageId, type };
 	return {
-		async append(delta: string): Promise<void> {
-			buf += delta;
-			if (partId === null) {
-				const part = await messageStore.appendPart({
-					messageId,
-					type,
-					content: { text: buf },
-					status: "streaming",
-				});
-				partId = part.id;
-				lastWrite = Date.now();
-				return;
-			}
-			if (Date.now() - lastWrite >= PERSIST_THROTTLE_MS) {
-				await messageStore.updatePart(partId, { content: { text: buf } });
-				lastWrite = Date.now();
-			}
+		append(delta: string): Promise<void> {
+			return appendDelta(delta, s, ctx);
 		},
 		async flush(status: PartStatus): Promise<void> {
-			if (buf.length === 0) {
+			if (s.buf.length === 0) {
 				return;
 			}
-			if (partId === null) {
+			if (s.partId === null) {
 				await messageStore.appendPart({
 					messageId,
 					type,
-					content: { text: buf },
+					content: { text: s.buf },
 					status,
 				});
 				return;
 			}
-			await messageStore.updatePart(partId, {
-				content: { text: buf },
+			await messageStore.updatePart(s.partId, {
+				content: { text: s.buf },
 				status,
 			});
+		},
+		async finishStep(): Promise<void> {
+			if (s.partId === null || s.buf.length === 0) {
+				return;
+			}
+			await messageStore.updatePart(s.partId, {
+				content: { text: s.buf },
+				status: "complete",
+			});
+			s.partId = null;
+			s.buf = "";
+			s.lastWrite = 0;
 		},
 	};
 }
