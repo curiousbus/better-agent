@@ -187,6 +187,18 @@ function hangingAfterTwoDeltas(): LanguageModelV3 {
 	});
 }
 
+it("records an error category on a failed turn", async () => {
+	const { runtime, messageStore, session } = await setup(
+		rejectingModel("bad request")
+	);
+	const { final } = await collect(
+		runtime.runTurn({ sessionId: session.id, text: "hi" })
+	);
+	expect(final.status).toBe("error");
+	const assistant = (await messageStore.listWithParts(session.id))[1];
+	expect(assistant?.message.error?.category).toBe("fatal");
+});
+
 it("yields text deltas incrementally without waiting for the stream to finish", async () => {
 	const { runtime, session } = await setup(hangingAfterTwoDeltas());
 	const gen = runtime.runTurn({ sessionId: session.id, text: "hi" });

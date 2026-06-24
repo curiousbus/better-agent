@@ -37,7 +37,14 @@ export interface MessageUsage {
 	totalTokens: number | null;
 }
 
+export type ErrorCategory =
+	| "retryable"
+	| "content-filter"
+	| "fatal"
+	| "aborted";
+
 export interface MessageError {
+	category?: ErrorCategory;
 	message: string;
 }
 

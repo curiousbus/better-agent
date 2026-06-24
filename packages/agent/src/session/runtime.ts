@@ -3,10 +3,12 @@ import { stepCountIs, streamText } from "ai";
 import type { AgentConfig, AgentParams } from "../agent/types";
 import type { AgentStore, MessageStore, SessionStore } from "../ports";
 import type { ModelFactory } from "../provider/model-factory";
+import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
 import { toModelMessages } from "./to-model-messages";
 import type {
+	ErrorCategory,
 	FinishReason,
 	Message,
 	MessageUsage,
@@ -38,6 +40,7 @@ type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
 type PartBuf = ReturnType<typeof createPartBuffer>;
 
 interface StreamOutcome {
+	errorCategory: ErrorCategory | null;
 	errorMessage: string | null;
 	finishReason: FinishReason;
 	status: StreamStatus;
@@ -147,6 +150,7 @@ async function* drainStream(
 			state.status = "error";
 			state.finishReason = "error";
 			state.errorMessage = errorToMessage(chunk.error);
+			state.errorCategory = classifyError(chunk.error);
 		} else if (chunk.type === "abort") {
 			state.status = "aborted";
 		}
@@ -168,10 +172,11 @@ async function* streamAssistant(
 		"reasoning"
 	);
 	const state: StreamOutcome = {
-		usage: null,
+		errorCategory: null,
+		errorMessage: null,
 		finishReason: "stop",
 		status: "complete",
-		errorMessage: null,
+		usage: null,
 	};
 	try {
 		const result = streamText({
@@ -190,6 +195,7 @@ async function* streamAssistant(
 			state.status = "error";
 			state.finishReason = "error";
 			state.errorMessage = errorToMessage(error);
+			state.errorCategory = classifyError(error);
 		}
 	} finally {
 		const partStatus: PartStatus =
@@ -211,7 +217,12 @@ async function* finalizeAssistant(
 		status: outcome.status,
 		usage: outcome.usage,
 		finishReason: outcome.finishReason,
-		error: outcome.errorMessage ? { message: outcome.errorMessage } : null,
+		error: outcome.errorMessage
+			? {
+					message: outcome.errorMessage,
+					category: outcome.errorCategory ?? "fatal",
+				}
+			: null,
 	});
 	if (outcome.status === "error") {
 		await deps.sessionStore.setStatus(sessionId, "error");
