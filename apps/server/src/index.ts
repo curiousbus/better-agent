@@ -1,5 +1,6 @@
 import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
+import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
@@ -9,6 +10,11 @@ import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { db } from "@better-agent/db";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
+import {
+	createMagicLinkStore,
+	createRefreshTokenStore,
+	createUserStore,
+} from "@better-agent/db/repositories/auth-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import {
 	createModelCacheStore,
@@ -26,10 +32,36 @@ import { initLogger, log } from "evlog";
 import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { createEmailSender } from "./email-sender";
 
 initLogger({
 	env: { service: "better-agent-server" },
 });
+
+const ACCESS_TTL = 900;
+const REFRESH_TTL = 2_592_000;
+const MAGIC_LINK_TTL = 900;
+
+function buildAuthServices() {
+	return {
+		jwtService: createJwtService(env.AUTH_JWT_SECRET),
+		emailSender: createEmailSender({
+			apiKey: env.RESEND_API_KEY,
+			from: env.AUTH_EMAIL_FROM,
+		}),
+		authConfig: {
+			webUrl: env.WEB_URL,
+			accessTtl: ACCESS_TTL,
+			refreshTtl: REFRESH_TTL,
+			magicLinkTtl: MAGIC_LINK_TTL,
+		},
+		authStores: {
+			user: createUserStore(db),
+			magicLink: createMagicLinkStore(db),
+			refreshToken: createRefreshTokenStore(db),
+		},
+	};
+}
 
 function buildServices() {
 	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
@@ -54,6 +86,8 @@ function buildServices() {
 		agentStore: agent,
 		modelFactory,
 	});
+	const { jwtService, emailSender, authConfig, authStores } =
+		buildAuthServices();
 	return {
 		catalog: createModelCatalog({
 			catalogStore: providerCatalog,
@@ -65,6 +99,9 @@ function buildServices() {
 		agentValidator,
 		runtime,
 		tokenService,
+		jwtService,
+		emailSender,
+		authConfig,
 		stores: {
 			providerCatalog,
 			modelCache,
@@ -72,6 +109,7 @@ function buildServices() {
 			agent,
 			session,
 			message,
+			...authStores,
 		},
 	};
 }
