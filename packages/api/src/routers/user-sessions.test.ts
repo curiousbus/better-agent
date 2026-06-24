@@ -134,10 +134,10 @@ it("get/listMessages reject another user's session as NOT_FOUND", async () => {
 	});
 	await expect(
 		client.userSessions.get({ id: otherSession.id })
-	).rejects.toThrow();
+	).rejects.toMatchObject({ code: "NOT_FOUND" });
 	await expect(
 		client.userSessions.listMessages({ sessionId: otherSession.id })
-	).rejects.toThrow();
+	).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
 
 it("create rejects an unknown agent", async () => {

@@ -1,4 +1,5 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
+import type { Session } from "@better-agent/agent/session/types";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -23,13 +24,14 @@ async function requireUserSession(
 	context: Context,
 	userId: string,
 	sessionId: string
-): Promise<void> {
+): Promise<Session> {
 	const session = await context.services.stores.session.get(sessionId);
 	if (!session || session.userId !== userId) {
 		throw new ORPCError("NOT_FOUND", {
 			message: `Session ${sessionId} not found`,
 		});
 	}
+	return session;
 }
 
 async function* streamUserTurn(
@@ -80,10 +82,11 @@ export const userSessionsRouter = {
 		context.services.stores.session.listByUser(context.authedUser.id)
 	),
 
-	get: userProcedure.input(idInput).handler(async ({ input, context }) => {
-		await requireUserSession(context, context.authedUser.id, input.id);
-		return context.services.stores.session.get(input.id);
-	}),
+	get: userProcedure
+		.input(idInput)
+		.handler(({ input, context }) =>
+			requireUserSession(context, context.authedUser.id, input.id)
+		),
 
 	listMessages: userProcedure
 		.input(sessionIdInput)
