@@ -5,6 +5,7 @@ import type { AgentStore, MessageStore, SessionStore } from "../ports";
 import type { ModelFactory } from "../provider/model-factory";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
+import { SessionBusyError, type SessionLock } from "./session-lock";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
 import { toModelMessages } from "./to-model-messages";
 import type {
@@ -22,6 +23,7 @@ export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
 	messageStore: MessageStore;
 	modelFactory: ModelFactory;
+	sessionLock: SessionLock;
 	sessionStore: SessionStore;
 }
 
@@ -240,42 +242,49 @@ async function* finalizeAssistant(
 export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 	return {
 		async *runTurn({ sessionId, text, abortSignal }) {
-			const { session, agent } = await loadContext(deps, sessionId);
-			await persistUserTurn(deps.messageStore, sessionId, text);
-			const assistant = await deps.messageStore.createMessage({
-				sessionId,
-				role: "assistant",
-				status: "streaming",
-				providerId: agent.providerId,
-				modelId: agent.modelId,
-			});
-			yield { type: "message-start", messageId: assistant.id };
-			const history = await deps.messageStore.listWithParts(sessionId);
-			const messages = toModelMessages({
-				systemPrompt: agent.systemPrompt,
-				summary: session.summary,
-				compactedThroughSeq: session.compactedThroughSeq,
-				history,
-			});
-			const model = await deps.modelFactory.create(
-				agent.providerId,
-				agent.modelId
-			);
-			const outcome = yield* streamAssistant(
-				deps,
-				model,
-				messages,
-				agent.params,
-				assistant.id,
-				abortSignal
-			);
-			return yield* finalizeAssistant(
-				deps,
-				assistant.id,
-				assistant,
-				sessionId,
-				outcome
-			);
+			if (!deps.sessionLock.acquire(sessionId)) {
+				throw new SessionBusyError(sessionId);
+			}
+			try {
+				const { session, agent } = await loadContext(deps, sessionId);
+				await persistUserTurn(deps.messageStore, sessionId, text);
+				const assistant = await deps.messageStore.createMessage({
+					sessionId,
+					role: "assistant",
+					status: "streaming",
+					providerId: agent.providerId,
+					modelId: agent.modelId,
+				});
+				yield { type: "message-start", messageId: assistant.id };
+				const history = await deps.messageStore.listWithParts(sessionId);
+				const messages = toModelMessages({
+					systemPrompt: agent.systemPrompt,
+					summary: session.summary,
+					compactedThroughSeq: session.compactedThroughSeq,
+					history,
+				});
+				const model = await deps.modelFactory.create(
+					agent.providerId,
+					agent.modelId
+				);
+				const outcome = yield* streamAssistant(
+					deps,
+					model,
+					messages,
+					agent.params,
+					assistant.id,
+					abortSignal
+				);
+				return yield* finalizeAssistant(
+					deps,
+					assistant.id,
+					assistant,
+					sessionId,
+					outcome
+				);
+			} finally {
+				deps.sessionLock.release(sessionId);
+			}
 		},
 	};
 }

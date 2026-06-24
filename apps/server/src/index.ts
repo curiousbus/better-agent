@@ -6,6 +6,7 @@ import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
+import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { db } from "@better-agent/db";
@@ -63,28 +64,48 @@ function buildAuthServices() {
 	};
 }
 
-function buildServices() {
-	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
+function buildProviderDeps(secretBox: ReturnType<typeof createSecretBox>) {
 	const providerCatalog = createProviderCatalogStore(db);
 	const modelCache = createModelCacheStore(db);
 	const providerCredential = createProviderCredentialStore(db, secretBox);
-	const agent = createAgentStore(db, secretBox);
-	const tokenService = createTokenService();
-	const agentValidator = createAgentValidator({
-		credentialStore: providerCredential,
-		modelStore: modelCache,
-	});
-	const session = createSessionStore(db);
-	const message = createMessageStore(db);
+	const agentStore = createAgentStore(db, secretBox);
 	const modelFactory = createModelFactory({
 		catalogStore: providerCatalog,
 		credentialStore: providerCredential,
 	});
-	const runtime = createSessionRuntime({
-		sessionStore: session,
-		messageStore: message,
-		agentStore: agent,
+	const agentValidator = createAgentValidator({
+		credentialStore: providerCredential,
+		modelStore: modelCache,
+	});
+	return {
+		providerCatalog,
+		modelCache,
+		providerCredential,
+		agentStore,
 		modelFactory,
+		agentValidator,
+	};
+}
+
+function buildServices() {
+	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
+	const {
+		providerCatalog,
+		modelCache,
+		providerCredential,
+		agentStore,
+		modelFactory,
+		agentValidator,
+	} = buildProviderDeps(secretBox);
+	const sessionStore = createSessionStore(db);
+	const messageStore = createMessageStore(db);
+	const tokenService = createTokenService();
+	const runtime = createSessionRuntime({
+		sessionStore,
+		messageStore,
+		agentStore,
+		modelFactory,
+		sessionLock: createInMemorySessionLock(),
 	});
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
@@ -106,9 +127,9 @@ function buildServices() {
 			providerCatalog,
 			modelCache,
 			providerCredential,
-			agent,
-			session,
-			message,
+			agent: agentStore,
+			session: sessionStore,
+			message: messageStore,
 			...authStores,
 		},
 	};

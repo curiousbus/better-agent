@@ -12,9 +12,11 @@ import {
 } from "../testing/fakes";
 import type { RunEvent } from "./events";
 import { createSessionRuntime } from "./runtime";
+import { createInMemorySessionLock } from "./session-lock";
 import type { Message } from "./types";
 
 const NOT_FOUND_RE = /not found/i;
+const ALREADY_PROCESSING_RE = /already processing/i;
 
 function v3Usage(input: number, output: number) {
 	return {
@@ -90,6 +92,7 @@ async function setup(model: LanguageModelV3) {
 		messageStore,
 		agentStore,
 		modelFactory: fakeModelFactory(model),
+		sessionLock: createInMemorySessionLock(),
 	});
 	return { runtime, sessionStore, messageStore, session };
 }
@@ -216,3 +219,17 @@ it("yields text deltas incrementally without waiting for the stream to finish", 
 	);
 	expect(deltas).toEqual(["a", "b"]);
 }, 5000);
+
+it("rejects a concurrent turn on the same session as busy", async () => {
+	const { runtime, session } = await setup(scriptedModel(HAPPY));
+	const first = runtime.runTurn({ sessionId: session.id, text: "hi" });
+	await first.next(); // acquires the lock and starts streaming (lock held)
+	const second = runtime.runTurn({ sessionId: session.id, text: "hi" });
+	await expect(second.next()).rejects.toThrow(ALREADY_PROCESSING_RE);
+	// Drain the first turn to release the lock, then a fresh turn succeeds.
+	while (!(await first.next()).done) {
+		// drain
+	}
+	const third = runtime.runTurn({ sessionId: session.id, text: "hi" });
+	expect((await third.next()).done).toBe(false);
+});

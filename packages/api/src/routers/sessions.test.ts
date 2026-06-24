@@ -4,6 +4,7 @@ import type {
 } from "@ai-sdk/provider";
 import type { RunEvent } from "@better-agent/agent/session/events";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
+import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import {
 	createFakeMessageStore,
@@ -58,6 +59,7 @@ async function buildClient() {
 		messageStore,
 		agentStore,
 		modelFactory: { create: () => Promise.resolve(mockModel(HAPPY)) },
+		sessionLock: createInMemorySessionLock(),
 	});
 	const services = {
 		// only the fields the sessions router touches are needed for these tests
