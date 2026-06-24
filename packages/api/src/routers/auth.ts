@@ -83,11 +83,11 @@ export const authRouter = {
 					message: "Refresh token expired",
 				});
 			}
-			await stores.refreshToken.revoke(record.id);
 			const user = await stores.user.findById(record.userId);
 			if (!user) {
 				throw new ORPCError("UNAUTHORIZED", { message: "Unknown user" });
 			}
+			await stores.refreshToken.revoke(record.id);
 			return issueTokens(context, user);
 		}),
 

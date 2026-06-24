@@ -67,4 +67,8 @@ it("refresh rotates the token and rejects the reused old one", async () => {
 	await expect(
 		client.auth.refresh({ refreshToken: first.refreshToken })
 	).rejects.toThrow();
+	// The reuse attempt triggers revokeAllForUser, so the rotated token dies too.
+	await expect(
+		client.auth.refresh({ refreshToken: rotated.refreshToken })
+	).rejects.toThrow();
 });
