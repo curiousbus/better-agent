@@ -10,7 +10,6 @@ import type {
 	SessionStore,
 } from "../ports";
 import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
-import { computeCost } from "../provider/cost";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
 import type { ToolDef } from "../tool/types";
@@ -28,6 +27,7 @@ import {
 } from "./retry-helpers";
 import type { DrainCtx } from "./runtime-drain";
 import { drainStream } from "./runtime-drain";
+import { finalizeAssistant } from "./runtime-finalize";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import {
 	buildStructuredOutputToolDef,
@@ -38,7 +38,7 @@ import {
 	loadContext,
 	persistUserTurn,
 } from "./turn-messages";
-import type { Message, MessageUsage, PartStatus } from "./types";
+import type { Message, PartStatus } from "./types";
 
 const DEFAULT_MAX_STEPS = 50;
 
@@ -187,65 +187,6 @@ async function* streamAssistant(
 	return state;
 }
 
-interface AgentIdentity {
-	modelId: string;
-	providerId: string;
-}
-
-async function withCost(
-	deps: Pick<SessionRuntimeDeps, "modelCacheStore">,
-	agent: AgentIdentity,
-	usage: MessageUsage | null
-): Promise<MessageUsage | null> {
-	if (usage === null) {
-		return null;
-	}
-	const entry = await deps.modelCacheStore.get(agent.providerId, agent.modelId);
-	return { ...usage, costCents: entry ? computeCost(usage, entry) : null };
-}
-
-interface FinalizeArgs {
-	agent: AgentIdentity;
-	assistantId: string;
-	fallback: Message;
-	outcome: StreamOutcome;
-	sessionId: string;
-}
-
-async function* finalizeAssistant(
-	deps: Pick<
-		SessionRuntimeDeps,
-		"messageStore" | "modelCacheStore" | "sessionStore"
-	>,
-	args: FinalizeArgs
-): AsyncGenerator<RunEvent, Message> {
-	const { agent, assistantId, fallback, sessionId, outcome } = args;
-	const usage = await withCost(deps, agent, outcome.usage);
-	const final = await deps.messageStore.updateMessage(assistantId, {
-		status: outcome.status,
-		usage,
-		finishReason: outcome.finishReason,
-		error: outcome.errorMessage
-			? {
-					message: outcome.errorMessage,
-					category: outcome.errorCategory ?? "fatal",
-				}
-			: null,
-	});
-	if (outcome.status === "error") {
-		await deps.sessionStore.setStatus(sessionId, "error");
-		yield { type: "error", message: outcome.errorMessage ?? "stream error" };
-	} else {
-		yield {
-			type: "done",
-			usage,
-			finishReason: outcome.finishReason,
-			structured: outcome.structured,
-		};
-	}
-	return final ?? fallback;
-}
-
 async function* executeTurn(
 	deps: SessionRuntimeDeps,
 	input: RunTurnInput
@@ -268,6 +209,11 @@ async function* executeTurn(
 	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
 	const toolDefs = [...(tools ?? [])];
 	if (input.outputSchema) {
+		// Injected last so the model can call remote tools first, then submit.
+		// Known nuances (acceptable this iteration): it becomes the Anthropic
+		// cache breakpoint (last tool def), and on a later non-structured turn
+		// its persisted call replays in history with the tool absent from the
+		// active set — benign since its result is an empty no-op.
 		toolDefs.push(buildStructuredOutputToolDef(input.outputSchema));
 	}
 	const ctx: DrainCtx = {
