@@ -34,6 +34,15 @@ it("park rejects on abort", async () => {
 	await expect(parked).rejects.toThrow(ABORT_RE);
 });
 
+it("park rejects immediately when the signal is already aborted", async () => {
+	const store = createInMemoryPendingToolCallStore();
+	const ac = new AbortController();
+	ac.abort();
+	await expect(
+		store.park({ sessionId: "s1", callId: "c1", abortSignal: ac.signal })
+	).rejects.toThrow(ABORT_RE);
+});
+
 it("park rejects after the TTL", async () => {
 	vi.useFakeTimers();
 	const store = createInMemoryPendingToolCallStore();

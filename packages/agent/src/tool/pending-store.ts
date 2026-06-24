@@ -26,24 +26,34 @@ export function createInMemoryPendingToolCallStore(): PendingToolCallStore {
 		park({ sessionId, callId, abortSignal }) {
 			const key = keyFor(sessionId, callId);
 			return new Promise<ExecuteResult>((resolve, reject) => {
+				if (abortSignal?.aborted) {
+					reject(new Error(`Tool call ${callId} aborted`));
+					return;
+				}
+
+				const onAbort = () => {
+					clearTimeout(timer);
+					pending.delete(key);
+					abortSignal?.removeEventListener("abort", onAbort);
+					reject(new Error(`Tool call ${callId} aborted`));
+				};
+
 				const settle = (result: ExecuteResult) => {
 					clearTimeout(timer);
 					pending.delete(key);
+					abortSignal?.removeEventListener("abort", onAbort);
 					resolve(result);
 				};
 
 				const timer = setTimeout(() => {
 					pending.delete(key);
+					abortSignal?.removeEventListener("abort", onAbort);
 					reject(new Error(`Tool call ${callId} timeout`));
 				}, PENDING_TTL_MS);
 
 				pending.set(key, settle);
 
-				abortSignal?.addEventListener("abort", () => {
-					clearTimeout(timer);
-					pending.delete(key);
-					reject(new Error(`Tool call ${callId} aborted`));
-				});
+				abortSignal?.addEventListener("abort", onAbort, { once: true });
 			});
 		},
 
