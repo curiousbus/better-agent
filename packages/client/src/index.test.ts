@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type ClientToolDef,
 	createAgentClientFrom,
+	createUserSessionClientFrom,
 	dispatchToolCall,
 	type RunEvent,
 } from "./index";
@@ -247,5 +248,29 @@ describe("dispatchToolCall", () => {
 		);
 		expect(submitted[0]?.isError).toBe(true);
 		expect(submitted[0]?.result).toBe("kaboom");
+	});
+});
+
+describe("createUserSessionClientFrom — user-plane adapter", () => {
+	it("user-plane client creates sessions via userSessions.create with the bound agentId", async () => {
+		const calls: { create?: unknown } = {};
+		const fake = {
+			userSessions: {
+				create: (input: { agentId: string }) => {
+					calls.create = input;
+					return Promise.resolve({ id: "s1" });
+				},
+				listMessages: () => Promise.resolve([]),
+				run: () => Promise.resolve({}),
+				prompt: () =>
+					(async function* () {
+						/* no events */
+					})(),
+			},
+		} as never;
+		const client = createUserSessionClientFrom(fake, "agent-1");
+		const s = await client.createSession();
+		expect(s.sessionId).toBe("s1");
+		expect(calls.create).toEqual({ agentId: "agent-1" });
 	});
 });

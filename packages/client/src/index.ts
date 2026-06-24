@@ -191,6 +191,41 @@ export function createAgentClientFrom(client: Client): AgentClient {
 	return agentClient;
 }
 
+/** 用已有 oRPC client 构造用户平面 SDK（以 userSessions 路由驱动，绑定 agentId）。 */
+export function createUserSessionClientFrom(
+	client: Client,
+	agentId: string
+): AgentClient {
+	const ensureSession = async (sessionId?: string): Promise<string> =>
+		sessionId ?? (await client.userSessions.create({ agentId })).id;
+	return {
+		async createSession() {
+			const session = await client.userSessions.create({ agentId });
+			return { sessionId: session.id };
+		},
+		async run(text, options) {
+			const sessionId = await ensureSession(options?.sessionId);
+			return client.userSessions.run(
+				{ sessionId, text },
+				{ signal: options?.signal }
+			);
+		},
+		async *stream(text, options) {
+			const sessionId = await ensureSession(options?.sessionId);
+			const events = await client.userSessions.prompt(
+				{ sessionId, text },
+				{ signal: options?.signal }
+			);
+			for await (const event of events) {
+				yield event;
+			}
+		},
+		listMessages(sessionId) {
+			return client.userSessions.listMessages({ sessionId });
+		},
+	};
+}
+
 /** 创建一个绑定 baseURL + token 的 Agent SDK client。 */
 export function createAgentClient(config: AgentClientConfig): AgentClient {
 	const link = new RPCLink({
