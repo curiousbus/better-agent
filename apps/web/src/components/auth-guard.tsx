@@ -74,9 +74,11 @@ export function AuthBoundary() {
 		select: (state) => state.location.pathname,
 	});
 	const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+	// Read live each render: after /auth/verify calls setTokens, this becomes
+	// non-null on the next render, so the just-signed-in user isn't redirected.
 	const authed = getAccessToken() !== null;
 	useEffect(() => {
-		if (!(isPublic || !ready || authed)) {
+		if (!isPublic && ready && !authed) {
 			navigate({ to: "/login" });
 		}
 	}, [isPublic, ready, authed, navigate]);
@@ -91,7 +93,7 @@ export function AuthBoundary() {
 		return <LoadingScreen />;
 	}
 	if (!authed) {
-		return null;
+		return <LoadingScreen />;
 	}
 	return <AuthedShell />;
 }
