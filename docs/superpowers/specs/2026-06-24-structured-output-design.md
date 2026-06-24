@@ -80,7 +80,8 @@ stopWhen: [stepCountIs(DEFAULT_MAX_STEPS), hasToolCall("StructuredOutput")]
 ### 3.7 API（`api/routers/sessions.ts` + `user-sessions.ts`）
 - 复用一个 `outputSchemaInput = z.record(z.string(), z.unknown()).optional()`（与 `remoteToolSchema.parameters` 同款 JSON Schema 形状）。
 - `promptInput` 增加 `outputSchema`。
-- `run` handler：把 `outputSchema` 透传给 `runTurn`；返回从 `Message` 升级为 `{ message: Message; structured: unknown | null }`。`run` 的 drain 改用一个能同时返回 `Message` + 末次 `done.structured` 的小工具（`drainWithStructured`）。
+- `run` handler：把 `outputSchema` 透传给 `runTurn`；返回从 `Message` 升级为 **`Message & { structured: unknown | null }`**（即 `{ ...message, structured }`，在原 message 字段上**附加** `structured`，而非包成 `{ message, structured }` envelope）。`run` 的 drain 改用一个能同时返回 `Message` + 末次 `done.structured` 的小工具（`drainWithStructured`）。
+  - 选附加字段而非 envelope 的原因：`packages/client` 的 `Message` 类型是从 `sessions.run` 返回类型**推断**的（`Awaited<ReturnType<Client["sessions"]["run"]>>`），envelope 会把 client 里所有 `message.role`/`.id` 用法连带改掉；附加字段是纯增量，现有用法不破。
 - `prompt` handler：透传 `outputSchema`；结构化结果通过 `done.structured` 事件自然流出，无需额外改动。
 - 两个 router（agent 平面 + user 平面）改动一致。
 
@@ -105,7 +106,7 @@ client.run(text, { outputSchema })
                                               → hasToolCall 命中 → 循环停
       → finalizeAssistant: done { ..., structured }
   → drainWithStructured 收集 message + structured
-  → 返回 { message, structured }
+  → 返回 { ...message, structured }
 ```
 
 ---
@@ -153,6 +154,6 @@ client.run(text, { outputSchema })
 
 1. **schema 过网络用 JSON Schema**（非 zod）——与 `remoteToolSchema.parameters` 一致，可序列化。
 2. **结果持久化复用 tool-call part，零迁移**——不给 `Message` 加字段。
-3. **`run` 返回 `{ message, structured }` envelope**——破坏性升级，但 `run` 用得少、最直观（用户确认）。
+3. **`run` 返回 `Message & { structured }`（附加字段，非 envelope）**——用户确认 run 要能直接拿 structured；实现细节上选附加字段而非 `{ message, structured }` envelope，因为 client 的 `Message` 类型由 run 返回推断，附加字段破坏面最小。tool-assisted 路径（`runWithTools`）在历史里找到 assistant message 后补 `structured`（从 done 事件捕获，无则 null）。
 4. **未交卷返回 `structured: null`**，不 emit error。
 5. **`StructuredOutput` 为特例 server-side 工具**，不引入通用 server 工具框架（YAGNI）。
