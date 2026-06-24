@@ -8,7 +8,9 @@ import type { ModelFactory } from "../provider/model-factory";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
 	createFakeMessageStore,
+	createFakeModelStore,
 	createFakeSessionStore,
+	createFakeSummarizer,
 } from "../testing/fakes";
 import type { RunEvent } from "./events";
 import { createSessionRuntime } from "./runtime";
@@ -93,6 +95,8 @@ async function setup(model: LanguageModelV3) {
 		agentStore,
 		modelFactory: fakeModelFactory(model),
 		sessionLock: createInMemorySessionLock(),
+		modelCacheStore: createFakeModelStore(),
+		summarizer: createFakeSummarizer(),
 	});
 	return { runtime, sessionStore, messageStore, session };
 }

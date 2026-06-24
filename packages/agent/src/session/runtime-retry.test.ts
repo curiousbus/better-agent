@@ -4,7 +4,9 @@ import { expect, it } from "vitest";
 import { createFakeAgentStore } from "../testing/fake-agent-store";
 import {
 	createFakeMessageStore,
+	createFakeModelStore,
 	createFakeSessionStore,
+	createFakeSummarizer,
 } from "../testing/fakes";
 import type { RunEvent } from "./events";
 import type { SessionRuntimeDeps } from "./runtime";
@@ -68,6 +70,8 @@ async function drainTurn(
 		agentStore,
 		modelFactory: fakeModelFactory(model),
 		sessionLock: createInMemorySessionLock(),
+		modelCacheStore: createFakeModelStore(),
+		summarizer: createFakeSummarizer(),
 		...depsOverrides,
 	});
 	const { final } = await collect(

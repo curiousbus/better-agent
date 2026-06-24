@@ -8,7 +8,9 @@ import { createInMemorySessionLock } from "@better-agent/agent/session/session-l
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import {
 	createFakeMessageStore,
+	createFakeModelStore,
 	createFakeSessionStore,
+	createFakeSummarizer,
 } from "@better-agent/agent/testing/fakes";
 import { createRouterClient } from "@orpc/server";
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
@@ -60,6 +62,8 @@ async function buildClient() {
 		agentStore,
 		modelFactory: { create: () => Promise.resolve(mockModel(HAPPY)) },
 		sessionLock: createInMemorySessionLock(),
+		modelCacheStore: createFakeModelStore(),
+		summarizer: createFakeSummarizer(),
 	});
 	const services = {
 		// only the fields the sessions router touches are needed for these tests

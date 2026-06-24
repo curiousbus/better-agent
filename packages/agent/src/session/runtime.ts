@@ -1,8 +1,14 @@
 import type { ModelMessage } from "ai";
 import { stepCountIs, streamText } from "ai";
-import type { AgentConfig, AgentParams } from "../agent/types";
-import type { AgentStore, MessageStore, SessionStore } from "../ports";
+import type { AgentParams } from "../agent/types";
+import type {
+	AgentStore,
+	MessageStore,
+	ModelCacheStore,
+	SessionStore,
+} from "../ports";
 import type { ModelFactory } from "../provider/model-factory";
+import type { Summarizer } from "./compaction";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { createPartBuffer } from "./part-buffer";
@@ -16,18 +22,24 @@ import {
 } from "./retry-helpers";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
-import { toModelMessages } from "./to-model-messages";
-import type { Message, PartStatus, Session } from "./types";
+import {
+	buildTurnMessages,
+	loadContext,
+	persistUserTurn,
+} from "./turn-messages";
+import type { Message, PartStatus } from "./types";
 
 const MAX_STEPS = 1; // P1 无工具；工具阶段（P2）再调高
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
 	messageStore: MessageStore;
+	modelCacheStore: ModelCacheStore;
 	modelFactory: ModelFactory;
 	sessionLock: SessionLock;
 	sessionStore: SessionStore;
 	sleep?: (ms: number) => Promise<void>;
+	summarizer: Summarizer;
 }
 
 export interface RunTurnInput {
@@ -63,41 +75,6 @@ function buildSettings(params: AgentParams | null) {
 		settings.maxOutputTokens = params.maxOutputTokens;
 	}
 	return settings;
-}
-
-async function loadContext(
-	deps: SessionRuntimeDeps,
-	sessionId: string
-): Promise<{ session: Session; agent: AgentConfig }> {
-	const session = await deps.sessionStore.get(sessionId);
-	if (!session) {
-		throw new Error(`Session ${sessionId} not found`);
-	}
-	const agent = await deps.agentStore.get(session.agentId);
-	if (!agent) {
-		throw new Error(`Agent ${session.agentId} not found`);
-	}
-	return { session, agent };
-}
-
-async function persistUserTurn(
-	messageStore: MessageStore,
-	sessionId: string,
-	text: string
-): Promise<void> {
-	const msg = await messageStore.createMessage({
-		sessionId,
-		role: "user",
-		status: "complete",
-		providerId: null,
-		modelId: null,
-	});
-	await messageStore.appendPart({
-		messageId: msg.id,
-		type: "text",
-		content: { text },
-		status: "complete",
-	});
 }
 
 async function* drainStream(
@@ -254,6 +231,12 @@ export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 			try {
 				const { session, agent } = await loadContext(deps, sessionId);
 				await persistUserTurn(deps.messageStore, sessionId, text);
+				const messages = await buildTurnMessages(
+					deps,
+					agent,
+					session,
+					sessionId
+				);
 				const assistant = await deps.messageStore.createMessage({
 					sessionId,
 					role: "assistant",
@@ -262,13 +245,6 @@ export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 					modelId: agent.modelId,
 				});
 				yield { type: "message-start", messageId: assistant.id };
-				const history = await deps.messageStore.listWithParts(sessionId);
-				const messages = toModelMessages({
-					systemPrompt: agent.systemPrompt,
-					summary: session.summary,
-					compactedThroughSeq: session.compactedThroughSeq,
-					history,
-				});
 				const model = await deps.modelFactory.create(
 					agent.providerId,
 					agent.modelId

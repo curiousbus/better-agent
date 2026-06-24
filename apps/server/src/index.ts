@@ -5,6 +5,7 @@ import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
+import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createContext } from "@better-agent/api/context";
@@ -106,6 +107,8 @@ function buildServices() {
 		agentStore,
 		modelFactory,
 		sessionLock: createInMemorySessionLock(),
+		modelCacheStore: modelCache,
+		summarizer: createModelSummarizer(modelFactory),
 	});
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
