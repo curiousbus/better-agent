@@ -1,22 +1,16 @@
-import {
-	SidebarInset,
-	SidebarProvider,
-	SidebarTrigger,
-} from "@better-agent/ui/components/sidebar";
 import { Toaster } from "@better-agent/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	createRootRouteWithContext,
 	HeadContent,
-	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { createMiddleware } from "@tanstack/react-start";
 import { evlogErrorHandler } from "evlog/nitro/v3";
 
-import { WebSidebar } from "@/components/sidebar";
+import { AuthBoundary } from "@/components/auth-guard";
 import type { orpc } from "@/utils/orpc";
 
 import appCss from "../index.css?url";
@@ -50,18 +44,7 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<SidebarProvider className="h-svh overflow-hidden">
-					<WebSidebar />
-					<SidebarInset className="min-h-0 overflow-hidden">
-						<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
-							<SidebarTrigger />
-							<span className="font-medium text-sm">better-agent</span>
-						</header>
-						<div className="flex min-h-0 flex-1 flex-col overflow-auto">
-							<Outlet />
-						</div>
-					</SidebarInset>
-				</SidebarProvider>
+				<AuthBoundary />
 				<Toaster richColors />
 				<TanStackRouterDevtools position="bottom-left" />
 				<ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
