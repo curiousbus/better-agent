@@ -21,7 +21,7 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { RevealText } from "./reveal-text";
 
@@ -136,11 +136,20 @@ function EmptyMessages() {
 export function Conversation({
 	sessionId,
 	agentClient,
+	initialText,
 }: {
 	sessionId: string;
 	agentClient: AgentClient;
+	initialText?: string;
 }) {
 	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
+	const sentRef = useRef(false);
+	useEffect(() => {
+		if (initialText && !sentRef.current) {
+			sentRef.current = true;
+			send(initialText);
+		}
+	}, [initialText, send]);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ConversationRoot>
