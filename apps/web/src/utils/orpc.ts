@@ -71,12 +71,12 @@ const link = new RPCLink({
 			try {
 				return await next();
 			} catch (error) {
-				if (isUnauthorized(error) && !refreshInFlight) {
-					refreshInFlight = refreshAccessToken().finally(() => {
-						refreshInFlight = null;
-					});
-				}
-				if (isUnauthorized(error) && refreshInFlight) {
+				if (isUnauthorized(error)) {
+					if (!refreshInFlight) {
+						refreshInFlight = refreshAccessToken().finally(() => {
+							refreshInFlight = null;
+						});
+					}
 					const ok = await refreshInFlight;
 					if (ok) {
 						return await next();
