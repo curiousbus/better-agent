@@ -6,6 +6,7 @@ import type { RunEvent } from "./events";
 import type { PartBuf } from "./part-buffer";
 import type { StreamOutcome } from "./retry-helpers";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
+import { STRUCTURED_OUTPUT_TOOL_NAME } from "./structured-output";
 
 export interface DrainCtx {
 	agentId: string;
@@ -27,6 +28,9 @@ async function* drainToolCall(
 	const callId = chunk.toolCallId as string;
 	const toolName = chunk.toolName as string;
 	const args = chunk.input;
+	if (toolName === STRUCTURED_OUTPUT_TOOL_NAME) {
+		state.structured = args;
+	}
 	await ctx.messageStore.appendPart({
 		messageId: ctx.assistantId,
 		type: "tool-call",

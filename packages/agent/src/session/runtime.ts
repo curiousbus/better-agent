@@ -1,6 +1,6 @@
 import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { ModelMessage } from "ai";
-import { stepCountIs, streamText } from "ai";
+import { hasToolCall, stepCountIs, streamText } from "ai";
 import type { AgentParams } from "../agent/types";
 import type {
 	AgentStore,
@@ -30,6 +30,10 @@ import type { DrainCtx } from "./runtime-drain";
 import { drainStream } from "./runtime-drain";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import {
+	buildStructuredOutputToolDef,
+	STRUCTURED_OUTPUT_TOOL_NAME,
+} from "./structured-output";
+import {
 	buildTurnMessages,
 	loadContext,
 	persistUserTurn,
@@ -52,6 +56,7 @@ export interface SessionRuntimeDeps {
 
 export interface RunTurnInput {
 	abortSignal?: AbortSignal;
+	outputSchema?: Record<string, unknown>;
 	sessionId: string;
 	text: string;
 	tools?: ToolDef[];
@@ -71,6 +76,7 @@ interface AttemptArgs {
 	model: AiModel;
 	params: AgentParams | null;
 	providerOptions: SharedV3ProviderOptions;
+	structuredOutput?: boolean;
 }
 
 function buildSettings(params: AgentParams | null) {
@@ -115,8 +121,14 @@ async function* runAttempt(
 			model,
 			messages,
 			providerOptions,
-			stopWhen: stepCountIs(DEFAULT_MAX_STEPS),
+			stopWhen: args.structuredOutput
+				? [
+						stepCountIs(DEFAULT_MAX_STEPS),
+						hasToolCall(STRUCTURED_OUTPUT_TOOL_NAME),
+					]
+				: stepCountIs(DEFAULT_MAX_STEPS),
 			tools,
+			...(args.structuredOutput ? { toolChoice: "required" as const } : {}),
 			experimental_repairToolCall: () => Promise.resolve(null),
 			abortSignal,
 			maxRetries: 0,
@@ -157,6 +169,7 @@ async function* streamAssistant(
 		errorMessage: null,
 		errorCategory: null,
 		emittedOutput: false,
+		structured: null,
 	};
 	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
 		resetOutcome(state);
@@ -223,7 +236,12 @@ async function* finalizeAssistant(
 		await deps.sessionStore.setStatus(sessionId, "error");
 		yield { type: "error", message: outcome.errorMessage ?? "stream error" };
 	} else {
-		yield { type: "done", usage, finishReason: outcome.finishReason };
+		yield {
+			type: "done",
+			usage,
+			finishReason: outcome.finishReason,
+			structured: outcome.structured,
+		};
 	}
 	return final ?? fallback;
 }
@@ -248,12 +266,16 @@ async function* executeTurn(
 	});
 	yield { type: "message-start", messageId: assistant.id };
 	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
+	const toolDefs = [...(tools ?? [])];
+	if (input.outputSchema) {
+		toolDefs.push(buildStructuredOutputToolDef(input.outputSchema));
+	}
 	const ctx: DrainCtx = {
 		agentId: agent.id,
 		assistantId: assistant.id,
 		messageStore: deps.messageStore,
 		sessionId,
-		toolDefs: tools ?? [],
+		toolDefs,
 	};
 	const outcome = yield* streamAssistant(deps, {
 		model,
@@ -263,6 +285,7 @@ async function* executeTurn(
 		ctx,
 		abortSignal,
 		cacheToolDefs: cached.cacheToolDefs,
+		structuredOutput: input.outputSchema != null,
 	});
 	return yield* finalizeAssistant(deps, {
 		agent,

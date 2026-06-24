@@ -6,7 +6,12 @@ export type RunEvent =
 	| { type: "text-delta"; delta: string }
 	| { type: "reasoning-delta"; delta: string }
 	| { type: "step-finish" }
-	| { type: "done"; usage: MessageUsage | null; finishReason: FinishReason }
+	| {
+			type: "done";
+			usage: MessageUsage | null;
+			finishReason: FinishReason;
+			structured?: unknown;
+	  }
 	| { type: "error"; message: string }
 	| { type: "tool-call"; callId: string; toolName: string; args: unknown }
 	| { type: "tool-result"; callId: string; result: unknown; isError: boolean };
