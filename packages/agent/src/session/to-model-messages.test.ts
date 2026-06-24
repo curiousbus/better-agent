@@ -96,7 +96,140 @@ const SUMMARY_NO_COMPACTION_EXPECTED = [
 	{ role: "assistant", content: "b" },
 ];
 
-describe("toModelMessages", () => {
+const TOOL_CALL_ID = "call-abc-123";
+const TOOL_NAME = "calculator";
+const TOOL_ARGS = { expression: "2+2" };
+const TOOL_RESULT_VALUE = "4";
+
+const TOOL_CALL_ENTRY: MessageWithParts = {
+	message: {
+		id: "msg-tc",
+		sessionId: "s",
+		role: "assistant",
+		seq: 0,
+		status: "complete",
+		providerId: null,
+		modelId: null,
+		usage: null,
+		finishReason: null,
+		error: null,
+		createdAt: NOW,
+		updatedAt: NOW,
+	},
+	parts: [
+		{
+			id: "p-text",
+			messageId: "msg-tc",
+			seq: 0,
+			type: "text",
+			content: { text: "Let me calculate that." },
+			status: "complete",
+			createdAt: NOW,
+			updatedAt: NOW,
+		},
+		{
+			id: "p-call",
+			messageId: "msg-tc",
+			seq: 1,
+			type: "tool-call",
+			content: { callId: TOOL_CALL_ID, toolName: TOOL_NAME, args: TOOL_ARGS },
+			status: "complete",
+			createdAt: NOW,
+			updatedAt: NOW,
+		},
+	],
+};
+
+const TOOL_RESULT_ENTRY: MessageWithParts = {
+	message: {
+		id: "msg-tr",
+		sessionId: "s",
+		role: "assistant",
+		seq: 1,
+		status: "complete",
+		providerId: null,
+		modelId: null,
+		usage: null,
+		finishReason: null,
+		error: null,
+		createdAt: NOW,
+		updatedAt: NOW,
+	},
+	parts: [
+		{
+			id: "p-result",
+			messageId: "msg-tr",
+			seq: 0,
+			type: "tool-result",
+			content: {
+				callId: TOOL_CALL_ID,
+				isError: false,
+				result: TOOL_RESULT_VALUE,
+			},
+			status: "complete",
+			createdAt: NOW,
+			updatedAt: NOW,
+		},
+	],
+};
+
+type ContentArray = Array<{ type: string; toolCallId?: string }>;
+
+function assertToolReplayMessages(
+	result: ReturnType<typeof toModelMessages>
+): void {
+	expect(result[0]).toEqual({ role: "system", content: "S" });
+	expect(result[1]).toEqual({
+		role: "assistant",
+		content: [
+			{ type: "text", text: "Let me calculate that." },
+			{
+				type: "tool-call",
+				toolCallId: TOOL_CALL_ID,
+				toolName: TOOL_NAME,
+				input: TOOL_ARGS,
+			},
+		],
+	});
+	expect(result[2]).toEqual({
+		role: "tool",
+		content: [
+			{
+				type: "tool-result",
+				toolCallId: TOOL_CALL_ID,
+				toolName: TOOL_NAME,
+				output: { type: "text", value: TOOL_RESULT_VALUE },
+			},
+		],
+	});
+}
+
+function assertToolCallIdMatch(
+	result: ReturnType<typeof toModelMessages>
+): void {
+	const assistantMsg = result[1] as { role: string; content: ContentArray };
+	const toolMsg = result[2] as { role: string; content: ContentArray };
+	const callPart = assistantMsg.content.find((p) => p.type === "tool-call");
+	const resultPart = toolMsg.content[0] as
+		| { type: string; toolCallId: string }
+		| undefined;
+	expect(callPart?.toolCallId).toBe(resultPart?.toolCallId);
+}
+
+describe("toModelMessages — tool replay", () => {
+	it("replays tool-call and tool-result parts as paired model messages", () => {
+		const result = toModelMessages({
+			systemPrompt: "S",
+			summary: null,
+			compactedThroughSeq: null,
+			history: [TOOL_CALL_ENTRY, TOOL_RESULT_ENTRY],
+		});
+		assertToolReplayMessages(result);
+		assertToolCallIdMatch(result);
+	});
+});
+
+describe("toModelMessages — text and compaction", () => {
 	it("prepends the system prompt then maps user/assistant turns", () => {
 		const result = toModelMessages({
 			systemPrompt: "You are helpful.",
