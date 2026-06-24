@@ -16,6 +16,7 @@ export const env = createEnv({
 			.default("development"),
 		CREDENTIALS_SECRET: z.string().min(32),
 		AUTH_JWT_SECRET: z.string().min(32),
+		REDIS_URL: z.string().optional(),
 		RESEND_API_KEY: z.string().optional(),
 		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
 		WEB_URL: z.url().default("http://localhost:3001"),
