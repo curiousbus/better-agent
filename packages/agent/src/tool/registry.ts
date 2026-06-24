@@ -23,7 +23,11 @@ export function buildTools(defs: ToolDef[], ctxBase: CtxBase): ToolSet {
 					abortSignal: options.abortSignal ?? ctxBase.abortSignal,
 					callId: options.toolCallId,
 				});
-				return truncateOutput(result.output).output;
+				const output = truncateOutput(result.output).output;
+				if (result.isError) {
+					throw new Error(output);
+				}
+				return output;
 			},
 		});
 	}

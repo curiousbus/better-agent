@@ -72,15 +72,46 @@ async function collectEvents(gen: AsyncGenerator<RunEvent, Message>) {
 	return events;
 }
 
+interface ToolResultEvent {
+	callId: string;
+	isError: boolean;
+	result: unknown;
+	type: "tool-result";
+}
+
+async function assertToolErrorPersisted(
+	messageStore: ReturnType<typeof createFakeMessageStore>,
+	sessionId: string,
+	events: RunEvent[]
+) {
+	const resultEvents = events.filter(
+		(e) => e.type === "tool-result"
+	) as ToolResultEvent[];
+	expect(resultEvents.length).toBeGreaterThan(0);
+	expect(resultEvents.some((e) => e.isError)).toBe(true);
+
+	const allParts = (await messageStore.listWithParts(sessionId)).flatMap(
+		(g) => g.parts
+	);
+	const errorPart = allParts.find(
+		(p) =>
+			p.type === "tool-result" &&
+			(p.content as { isError?: boolean }).isError === true
+	);
+	expect(errorPart).toBeDefined();
+
+	const assistantMsg = (await messageStore.listWithParts(sessionId)).find(
+		(g) => g.message.role === "assistant"
+	);
+	expect(assistantMsg?.message.status).toBe("complete");
+}
+
 // ── tool-error scenario ───────────────────────────────────────────────────────
-
-const FAIL_CALL_ID = "call-fail-1";
 const FAIL_TOOL_NAME = "fail";
-
 const FAIL_STEP1: LanguageModelV3StreamPart[] = [
 	{
 		type: "tool-call",
-		toolCallId: FAIL_CALL_ID,
+		toolCallId: "call-fail-1",
 		toolName: FAIL_TOOL_NAME,
 		input: JSON.stringify({}),
 	},
@@ -125,30 +156,66 @@ it("persists a tool-result with isError:true when tool execute throws", async ()
 	const events = await collectEvents(
 		runtime.runTurn({ sessionId: session.id, text: "go", tools: [failTool] })
 	);
+	await assertToolErrorPersisted(messageStore, session.id, events);
+});
 
-	const resultEvents = events.filter((e) => e.type === "tool-result") as {
-		type: "tool-result";
-		callId: string;
-		result: unknown;
-		isError: boolean;
-	}[];
-	expect(resultEvents.length).toBeGreaterThan(0);
-	expect(resultEvents.some((e) => e.isError)).toBe(true);
+// ── isError:true resolved (not thrown) scenario ───────────────────────────────
+const RESOLVE_ERR_TOOL_NAME = "resolve-err";
 
-	const allParts = (await messageStore.listWithParts(session.id)).flatMap(
-		(g) => g.parts
-	);
-	const errorResultPart = allParts.find(
-		(p) =>
-			p.type === "tool-result" &&
-			(p.content as { isError?: boolean }).isError === true
-	);
-	expect(errorResultPart).toBeDefined();
+const RESOLVE_ERR_STEP1: LanguageModelV3StreamPart[] = [
+	{
+		type: "tool-call",
+		toolCallId: "call-resolve-err-1",
+		toolName: RESOLVE_ERR_TOOL_NAME,
+		input: JSON.stringify({}),
+	},
+	{
+		type: "finish",
+		finishReason: { unified: "tool-calls", raw: "tool_calls" },
+		usage: v3Usage(INPUT_TOKENS, OUTPUT_TOKENS),
+	},
+];
 
-	const assistantMsg = (await messageStore.listWithParts(session.id)).find(
-		(g) => g.message.role === "assistant"
+const RESOLVE_ERR_STEP2: LanguageModelV3StreamPart[] = [
+	{ type: "text-start", id: "r2" },
+	{ type: "text-delta", id: "r2", delta: "Done after resolve-error" },
+	{ type: "text-end", id: "r2" },
+	{
+		type: "finish",
+		finishReason: { unified: "stop", raw: "stop" },
+		usage: v3Usage(INPUT_TOKENS_2, OUTPUT_TOKENS_2),
+	},
+];
+
+// The resolve-error tool RESOLVES (does not throw) but sets isError:true.
+// The registry must throw so the AI SDK emits a tool-error chunk, which
+// drainStream persists as a tool-result part with isError:true.
+const resolveErrTool: ToolDef = {
+	name: RESOLVE_ERR_TOOL_NAME,
+	description: "resolves with isError:true",
+	parameters: { type: "object", properties: {} },
+	execute: (_args, _ctx) => Promise.resolve({ output: "boom", isError: true }),
+};
+
+it("persists a tool-result with isError:true when tool resolves with isError:true", async () => {
+	let callStep = 0;
+	const model = new MockLanguageModelV3({
+		doStream: () => {
+			callStep++;
+			const chunks = callStep === 1 ? RESOLVE_ERR_STEP1 : RESOLVE_ERR_STEP2;
+			return Promise.resolve({ stream: simulateReadableStream({ chunks }) });
+		},
+	});
+
+	const { runtime, messageStore, session } = await setup(model);
+	const events = await collectEvents(
+		runtime.runTurn({
+			sessionId: session.id,
+			text: "go",
+			tools: [resolveErrTool],
+		})
 	);
-	expect(assistantMsg?.message.status).toBe("complete");
+	await assertToolErrorPersisted(messageStore, session.id, events);
 });
 
 // ── cross-step text ordering scenario ────────────────────────────────────────

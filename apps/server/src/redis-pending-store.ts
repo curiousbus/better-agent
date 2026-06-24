@@ -1,6 +1,7 @@
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { PENDING_TTL_MS } from "@better-agent/agent/tool/pending-store";
 import type { ExecuteResult } from "@better-agent/agent/tool/types";
+import { log } from "evlog";
 import type { Redis } from "ioredis";
 
 function channelFor(sessionId: string, callId: string): string {
@@ -29,7 +30,7 @@ function makeParkPromise(
 		const timer = setTimeout(() => {
 			abortSignal?.removeEventListener("abort", onAbort);
 			cleanup();
-			reject(new Error(`Tool call ${callId} timed out`));
+			reject(new Error(`Tool call ${callId} timeout`));
 		}, PENDING_TTL_MS);
 
 		const settle = (result: ExecuteResult) => {
@@ -50,6 +51,13 @@ export function createRedisPendingToolCallStore(
 	const subscriber = redis.duplicate();
 	const local = new Map<string, (result: ExecuteResult) => void>();
 
+	redis.on("error", (err: Error) => {
+		log.error({ action: "redis pending-store error", error: String(err) });
+	});
+	subscriber.on("error", (err: Error) => {
+		log.error({ action: "redis pending-store error", error: String(err) });
+	});
+
 	subscriber.on("message", (channel: string, payload: string) => {
 		const settle = local.get(channel);
 		if (settle) {
@@ -67,6 +75,10 @@ export function createRedisPendingToolCallStore(
 				return Promise.reject(new Error(`Tool call ${callId} aborted`));
 			}
 
+			// Causal-ordering: the client only calls submitToolResult AFTER receiving
+			// the tool-call event, which is emitted only after the agent has already
+			// called park() and subscribed here — so a publish never precedes the
+			// subscribe in the normal flow.
 			await subscriber.subscribe(channel);
 
 			return makeParkPromise(channel, callId, local, subscriber, abortSignal);

@@ -108,7 +108,10 @@ async function runWithTools(
 	for await (const _event of stream(text, { ...options, sessionId })) {
 		// drain — dispatchToolCall fires inside stream
 	}
-	const history = await client.sessions.listMessages({ sessionId });
+	const history = await client.sessions.listMessages(
+		{ sessionId },
+		{ signal: options.signal }
+	);
 	const lastAssistant = [...history]
 		.reverse()
 		.find((item) => item.message.role === "assistant");
