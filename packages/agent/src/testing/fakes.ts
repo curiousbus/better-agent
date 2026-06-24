@@ -10,6 +10,7 @@ import type {
 	ProviderCatalogEntry,
 	ProviderCredential,
 } from "../provider/types";
+import type { Summarizer } from "../session/compaction";
 import type { Message, MessagePart, Session } from "../session/types";
 
 export function createFakeCatalogStore(): ProviderCatalogStore {
@@ -235,6 +236,19 @@ export function createFakeMessageStore(): MessageStore {
 			return Promise.resolve(
 				groupMessagesWithParts(state.messages, state.parts, sessionId)
 			);
+		},
+	};
+}
+
+export function createFakeSummarizer(canned = "summary"): Summarizer & {
+	calls: { providerId: string; modelId: string; prompt: string }[];
+} {
+	const calls: { providerId: string; modelId: string; prompt: string }[] = [];
+	return {
+		calls,
+		summarize(input) {
+			calls.push(input);
+			return Promise.resolve(canned);
 		},
 	};
 }
