@@ -6,6 +6,13 @@ import type { Redis } from "ioredis";
 // A turn (multi-step tool loops) can run for minutes; the TTL only exists so a
 // crashed instance cannot deadlock a session forever. Release is token-guarded
 // so a turn that outlives the TTL never deletes a successor instance's lock.
+//
+// Known limitation: the TTL is fixed and not refreshed mid-turn. A legitimate
+// turn that runs longer than LOCK_TTL_MS lets the lock auto-expire, so a second
+// concurrent prompt for the same session could be admitted. The token-guard
+// prevents lock corruption but not this concurrency window. If multi-step tool
+// loops routinely approach the TTL in production, add a heartbeat that PEXPIREs
+// the key on a timer while the turn is in flight.
 const LOCK_TTL_MS = 300_000;
 
 // KEYS[1]=lock key, ARGV[1]=token. Delete only if we still own it.
