@@ -15,6 +15,10 @@ export const env = createEnv({
 			.enum(["development", "production", "test"])
 			.default("development"),
 		CREDENTIALS_SECRET: z.string().min(32),
+		AUTH_JWT_SECRET: z.string().min(32),
+		RESEND_API_KEY: z.string().optional(),
+		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
+		WEB_URL: z.url().default("http://localhost:3001"),
 		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),
 		/** 逗号分隔的「只同步这些 provider」白名单（避免把 models.dev 全部 145 个 provider 同步进来）。 */
 		CATALOG_PROVIDERS: z
