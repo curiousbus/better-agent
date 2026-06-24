@@ -11,6 +11,7 @@ import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
 import type { ToolDef } from "../tool/types";
 import type { Summarizer } from "./compaction";
+import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { createPartBuffer } from "./part-buffer";
 import type { StreamOutcome } from "./retry-helpers";
@@ -113,9 +114,7 @@ async function* runAttempt(
 			state.finishReason = "error";
 			state.errorMessage =
 				error instanceof Error ? error.message : String(error);
-			state.errorCategory = (await import("./error-classify")).classifyError(
-				error
-			);
+			state.errorCategory = classifyError(error);
 		}
 	}
 }
