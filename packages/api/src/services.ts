@@ -16,6 +16,7 @@ import type {
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
+import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 
 export interface AgentServices {
 	agentValidator: AgentValidator;
@@ -29,6 +30,7 @@ export interface AgentServices {
 	emailSender: EmailSender;
 	jwtService: JwtService;
 	modelFactory: ModelFactory;
+	pendingToolCallStore: PendingToolCallStore;
 	runtime: SessionRuntime;
 	stores: {
 		providerCatalog: ProviderCatalogStore;

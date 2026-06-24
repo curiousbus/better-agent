@@ -1,5 +1,6 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Message } from "@better-agent/agent/session/types";
+import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
@@ -7,9 +8,16 @@ import { agentProcedure, publicProcedure } from "../index";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
+const remoteToolSchema = z.object({
+	name: z.string().min(1),
+	description: z.string(),
+	parameters: z.record(z.string(), z.unknown()),
+});
+
 const promptInput = z.object({
 	sessionId: z.uuid(),
 	text: z.string().min(1),
+	tools: z.array(remoteToolSchema).optional(),
 });
 
 // Loads the session and asserts it belongs to the authed agent. Returns
@@ -52,14 +60,26 @@ function errorMessage(error: unknown): string {
 async function* streamTurn(
 	context: Context,
 	agentId: string,
-	input: { sessionId: string; text: string },
+	input: {
+		sessionId: string;
+		text: string;
+		tools?: Array<{
+			name: string;
+			description: string;
+			parameters: Record<string, unknown>;
+		}>;
+	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
 	try {
 		await requireOwnedSession(context, agentId, input.sessionId);
+		const toolDefs = input.tools
+			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
+			: undefined;
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,
+			tools: toolDefs,
 			abortSignal: signal,
 		});
 	} catch (error) {
@@ -102,10 +122,17 @@ export const sessionsRouter = {
 				context.authedAgent.id,
 				input.sessionId
 			);
+			const toolDefs = input.tools
+				? buildRemoteToolDefs(
+						input.tools,
+						context.services.pendingToolCallStore
+					)
+				: undefined;
 			return drain(
 				context.services.runtime.runTurn({
 					sessionId: input.sessionId,
 					text: input.text,
+					tools: toolDefs,
 					abortSignal: signal,
 				})
 			);
@@ -116,4 +143,27 @@ export const sessionsRouter = {
 		.handler(({ input, context, signal }) =>
 			streamTurn(context, context.authedAgent.id, input, signal)
 		),
+
+	submitToolResult: agentProcedure
+		.input(
+			z.object({
+				sessionId: z.uuid(),
+				callId: z.string().min(1),
+				result: z.string(),
+				isError: z.boolean().default(false),
+			})
+		)
+		.handler(async ({ input, context }) => {
+			await requireOwnedSession(
+				context,
+				context.authedAgent.id,
+				input.sessionId
+			);
+			await context.services.pendingToolCallStore.resolve({
+				sessionId: input.sessionId,
+				callId: input.callId,
+				result: { output: input.result, isError: input.isError },
+			});
+			return { ok: true };
+		}),
 };

@@ -12,6 +12,7 @@ import {
 	createFakeSessionStore,
 	createFakeSummarizer,
 } from "@better-agent/agent/testing/fakes";
+import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { createRouterClient } from "@orpc/server";
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { expect, it } from "vitest";
@@ -65,9 +66,11 @@ async function buildClient() {
 		modelCacheStore: createFakeModelStore(),
 		summarizer: createFakeSummarizer(),
 	});
+	const pendingToolCallStore = createInMemoryPendingToolCallStore();
 	const services = {
 		// only the fields the sessions router touches are needed for these tests
 		runtime,
+		pendingToolCallStore,
 		stores: { agent: agentStore, session: sessionStore, message: messageStore },
 	};
 	const client = createRouterClient(appRouter, {
@@ -77,7 +80,7 @@ async function buildClient() {
 			authedUser: null,
 		},
 	});
-	return { client, agentStore, agent, services };
+	return { client, agentStore, agent, services, pendingToolCallStore };
 }
 
 it("create derives the agent from the token and binds the session to it", async () => {
@@ -173,4 +176,20 @@ it("prompt yields an error event (not throw) for an unknown session", async () =
 	}
 	expect(events).toHaveLength(1);
 	expect(events[0]?.type).toBe("error");
+});
+
+it("submitToolResult resolves a parked tool call", async () => {
+	const { client, pendingToolCallStore } = await buildClient();
+	const session = await client.sessions.create({});
+	const parked = pendingToolCallStore.park({
+		sessionId: session.id,
+		callId: "c1",
+	});
+	await client.sessions.submitToolResult({
+		sessionId: session.id,
+		callId: "c1",
+		result: "DONE",
+		isError: false,
+	});
+	await expect(parked).resolves.toEqual({ output: "DONE", isError: false });
 });
