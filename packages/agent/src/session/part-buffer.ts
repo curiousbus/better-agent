@@ -9,6 +9,8 @@ const PERSIST_THROTTLE_MS = 250;
  * PERSIST_THROTTLE_MS, and finalized on flush. A mid-stream crash therefore
  * leaves the partial text durable rather than losing the whole message.
  */
+export type PartBuf = ReturnType<typeof createPartBuffer>;
+
 export function createPartBuffer(
 	messageStore: MessageStore,
 	messageId: string,

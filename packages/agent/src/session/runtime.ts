@@ -8,8 +8,9 @@ import type {
 	SessionStore,
 } from "../ports";
 import type { ModelFactory } from "../provider/model-factory";
+import { buildTools } from "../tool/registry";
+import type { ToolDef } from "../tool/types";
 import type { Summarizer } from "./compaction";
-import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { createPartBuffer } from "./part-buffer";
 import type { StreamOutcome } from "./retry-helpers";
@@ -20,8 +21,9 @@ import {
 	resetOutcome,
 	shouldRetryAttempt,
 } from "./retry-helpers";
+import type { DrainCtx } from "./runtime-drain";
+import { drainStream } from "./runtime-drain";
 import { SessionBusyError, type SessionLock } from "./session-lock";
-import { mapFinishReason, mapUsage } from "./stream-mapping";
 import {
 	buildTurnMessages,
 	loadContext,
@@ -29,7 +31,7 @@ import {
 } from "./turn-messages";
 import type { Message, PartStatus } from "./types";
 
-const MAX_STEPS = 1; // P1 无工具；工具阶段（P2）再调高
+const DEFAULT_MAX_STEPS = 50;
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
@@ -46,6 +48,7 @@ export interface RunTurnInput {
 	abortSignal?: AbortSignal;
 	sessionId: string;
 	text: string;
+	tools?: ToolDef[];
 }
 
 export interface SessionRuntime {
@@ -53,11 +56,6 @@ export interface SessionRuntime {
 }
 
 type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
-type PartBuf = ReturnType<typeof createPartBuffer>;
-
-function errorToMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 function buildSettings(params: AgentParams | null) {
 	const settings: {
@@ -77,65 +75,47 @@ function buildSettings(params: AgentParams | null) {
 	return settings;
 }
 
-async function* drainStream(
-	result: ReturnType<typeof streamText>,
-	textBuf: PartBuf,
-	reasoningBuf: PartBuf,
-	state: StreamOutcome
-): AsyncGenerator<RunEvent, void> {
-	for await (const chunk of result.fullStream) {
-		if (chunk.type === "text-delta") {
-			state.emittedOutput = true;
-			await textBuf.append(chunk.text);
-			yield { type: "text-delta", delta: chunk.text };
-		} else if (chunk.type === "reasoning-delta") {
-			state.emittedOutput = true;
-			await reasoningBuf.append(chunk.text);
-			yield { type: "reasoning-delta", delta: chunk.text };
-		} else if (chunk.type === "finish-step") {
-			yield { type: "step-finish" };
-		} else if (chunk.type === "finish") {
-			state.usage = mapUsage(chunk.totalUsage);
-			state.finishReason = mapFinishReason(chunk.finishReason);
-		} else if (chunk.type === "error") {
-			state.status = "error";
-			state.finishReason = "error";
-			state.errorMessage = errorToMessage(chunk.error);
-			state.errorCategory = classifyError(chunk.error);
-		} else if (chunk.type === "abort") {
-			state.status = "aborted";
-		}
-	}
-}
-
 async function* runAttempt(
 	model: AiModel,
 	messages: ModelMessage[],
 	params: AgentParams | null,
-	textBuf: PartBuf,
-	reasoningBuf: PartBuf,
+	bufs: {
+		text: ReturnType<typeof createPartBuffer>;
+		reasoning: ReturnType<typeof createPartBuffer>;
+	},
 	state: StreamOutcome,
+	ctx: DrainCtx,
 	abortSignal?: AbortSignal
 ): AsyncGenerator<RunEvent, void> {
 	try {
+		const tools = buildTools(ctx.toolDefs, {
+			sessionId: ctx.sessionId,
+			messageId: ctx.assistantId,
+			agentId: ctx.agentId,
+			abortSignal: abortSignal ?? new AbortController().signal,
+		});
 		const result = streamText({
 			model,
 			messages,
-			stopWhen: stepCountIs(MAX_STEPS),
-			tools: {},
+			stopWhen: stepCountIs(DEFAULT_MAX_STEPS),
+			tools,
+			experimental_repairToolCall: () => Promise.resolve(null),
 			abortSignal,
 			maxRetries: 0,
 			...buildSettings(params),
 		});
-		yield* drainStream(result, textBuf, reasoningBuf, state);
+		yield* drainStream(result, bufs.text, bufs.reasoning, state, ctx);
 	} catch (error) {
 		if (abortSignal?.aborted) {
 			state.status = "aborted";
 		} else {
 			state.status = "error";
 			state.finishReason = "error";
-			state.errorMessage = errorToMessage(error);
-			state.errorCategory = classifyError(error);
+			state.errorMessage =
+				error instanceof Error ? error.message : String(error);
+			state.errorCategory = (await import("./error-classify")).classifyError(
+				error
+			);
 		}
 	}
 }
@@ -145,19 +125,17 @@ async function* streamAssistant(
 	model: AiModel,
 	messages: ModelMessage[],
 	params: AgentParams | null,
-	assistantId: string,
+	ctx: DrainCtx,
 	abortSignal?: AbortSignal
 ): AsyncGenerator<RunEvent, StreamOutcome> {
-	// Buffers are created once and reused across retry attempts. Safe because a
-	// retry only fires when no output was emitted (shouldRetryAttempt requires
-	// !emittedOutput), so append() was never called and the buffers are empty.
-	// If retry conditions change (e.g. multi-step tool turns), revisit this.
-	const textBuf = createPartBuffer(deps.messageStore, assistantId, "text");
-	const reasoningBuf = createPartBuffer(
-		deps.messageStore,
-		assistantId,
-		"reasoning"
-	);
+	const bufs = {
+		text: createPartBuffer(deps.messageStore, ctx.assistantId, "text"),
+		reasoning: createPartBuffer(
+			deps.messageStore,
+			ctx.assistantId,
+			"reasoning"
+		),
+	};
 	const sleep = deps.sleep ?? defaultSleep;
 	const state: StreamOutcome = {
 		usage: null,
@@ -169,15 +147,7 @@ async function* streamAssistant(
 	};
 	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
 		resetOutcome(state);
-		yield* runAttempt(
-			model,
-			messages,
-			params,
-			textBuf,
-			reasoningBuf,
-			state,
-			abortSignal
-		);
+		yield* runAttempt(model, messages, params, bufs, state, ctx, abortSignal);
 		if (shouldRetryAttempt(state, attempt, abortSignal?.aborted ?? false)) {
 			await sleep(backoffMs(attempt));
 			continue;
@@ -186,15 +156,15 @@ async function* streamAssistant(
 	}
 	const partStatus: PartStatus =
 		state.status === "error" ? "error" : "complete";
-	await reasoningBuf.flush(partStatus);
-	await textBuf.flush(partStatus);
+	await bufs.reasoning.flush(partStatus);
+	await bufs.text.flush(partStatus);
 	return state;
 }
 
 async function* finalizeAssistant(
-	deps: SessionRuntimeDeps,
+	deps: Pick<SessionRuntimeDeps, "messageStore" | "sessionStore">,
 	assistantId: string,
-	assistantFallback: Message,
+	fallback: Message,
 	sessionId: string,
 	outcome: StreamOutcome
 ): AsyncGenerator<RunEvent, Message> {
@@ -219,53 +189,60 @@ async function* finalizeAssistant(
 			finishReason: outcome.finishReason,
 		};
 	}
-	return final ?? assistantFallback;
+	return final ?? fallback;
+}
+
+async function* executeTurn(
+	deps: SessionRuntimeDeps,
+	input: RunTurnInput
+): AsyncGenerator<RunEvent, Message> {
+	const { sessionId, text, abortSignal, tools } = input;
+	const { session, agent } = await loadContext(deps, sessionId);
+	await persistUserTurn(deps.messageStore, sessionId, text);
+	const messages = await buildTurnMessages(deps, agent, session, sessionId);
+	const assistant = await deps.messageStore.createMessage({
+		sessionId,
+		role: "assistant",
+		status: "streaming",
+		providerId: agent.providerId,
+		modelId: agent.modelId,
+	});
+	yield { type: "message-start", messageId: assistant.id };
+	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
+	const ctx: DrainCtx = {
+		agentId: agent.id,
+		assistantId: assistant.id,
+		messageStore: deps.messageStore,
+		sessionId,
+		toolDefs: tools ?? [],
+	};
+	const outcome = yield* streamAssistant(
+		deps,
+		model,
+		messages,
+		agent.params,
+		ctx,
+		abortSignal
+	);
+	return yield* finalizeAssistant(
+		deps,
+		assistant.id,
+		assistant,
+		sessionId,
+		outcome
+	);
 }
 
 export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 	return {
-		async *runTurn({ sessionId, text, abortSignal }) {
-			if (!deps.sessionLock.acquire(sessionId)) {
-				throw new SessionBusyError(sessionId);
+		async *runTurn(input) {
+			if (!deps.sessionLock.acquire(input.sessionId)) {
+				throw new SessionBusyError(input.sessionId);
 			}
 			try {
-				const { session, agent } = await loadContext(deps, sessionId);
-				await persistUserTurn(deps.messageStore, sessionId, text);
-				const messages = await buildTurnMessages(
-					deps,
-					agent,
-					session,
-					sessionId
-				);
-				const assistant = await deps.messageStore.createMessage({
-					sessionId,
-					role: "assistant",
-					status: "streaming",
-					providerId: agent.providerId,
-					modelId: agent.modelId,
-				});
-				yield { type: "message-start", messageId: assistant.id };
-				const model = await deps.modelFactory.create(
-					agent.providerId,
-					agent.modelId
-				);
-				const outcome = yield* streamAssistant(
-					deps,
-					model,
-					messages,
-					agent.params,
-					assistant.id,
-					abortSignal
-				);
-				return yield* finalizeAssistant(
-					deps,
-					assistant.id,
-					assistant,
-					sessionId,
-					outcome
-				);
+				return yield* executeTurn(deps, input);
 			} finally {
-				deps.sessionLock.release(sessionId);
+				deps.sessionLock.release(input.sessionId);
 			}
 		},
 	};
