@@ -2,17 +2,16 @@ import type { AgentClient } from "@better-agent/client";
 import { createAgentClient } from "@better-agent/client";
 import { env } from "@better-agent/env/web";
 import { Button } from "@better-agent/ui/components/button";
+import { Conversation } from "@better-agent/ui/components/chat/conversation";
+import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
+import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-
 import { GenerateTokenState } from "@/components/agents/agent-token-controls";
 import { TokenRevealDialog } from "@/components/agents/token-reveal-dialog";
-import { RevealText } from "@/components/reveal-text";
-import { Conversation } from "@/components/sessions/conversation";
-import { SessionPicker } from "@/components/sessions/session-picker";
 import type { AgentRow, SessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 

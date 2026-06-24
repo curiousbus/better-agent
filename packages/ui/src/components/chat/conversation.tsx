@@ -23,7 +23,7 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import { useState } from "react";
 
-import { RevealText } from "@/components/reveal-text";
+import { RevealText } from "./reveal-text";
 
 import { type ChatMessage, useChat } from "./use-chat";
 

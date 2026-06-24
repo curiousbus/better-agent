@@ -1,10 +1,10 @@
-import type { AgentClient } from "@better-agent/client";
+import type { AgentClient, MessageHistory } from "@better-agent/client";
 import { createStreamReveal } from "@better-agent/ui/lib/stream-reveal";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import type { SessionMessageRow } from "@/utils/api-types";
+type SessionMessageRow = MessageHistory[number];
 
 export interface ChatMessage {
 	id: string;

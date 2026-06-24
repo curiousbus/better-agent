@@ -1,9 +1,9 @@
 import { buttonVariants } from "@better-agent/ui/components/button";
+import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
 import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bot, PlusIcon } from "lucide-react";
-import { RevealText } from "@/components/reveal-text";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 

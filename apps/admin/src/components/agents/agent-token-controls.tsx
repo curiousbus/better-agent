@@ -1,4 +1,5 @@
 import { Button } from "@better-agent/ui/components/button";
+import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
 import {
 	Popover,
 	PopoverContent,
@@ -9,8 +10,6 @@ import { useMutation } from "@tanstack/react-query";
 import { RotateCwIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
-import { RevealText } from "@/components/reveal-text";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 

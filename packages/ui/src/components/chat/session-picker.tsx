@@ -6,9 +6,12 @@ import {
 	SelectValue,
 } from "@better-agent/ui/components/select";
 
-import type { SessionRow } from "@/utils/api-types";
-
 const SHORT_ID_LENGTH = 8;
+
+interface SessionRow {
+	id: string;
+	title: string | null;
+}
 
 function sessionLabel(session: SessionRow): string {
 	return session.title ?? `Session ${session.id.slice(0, SHORT_ID_LENGTH)}`;
