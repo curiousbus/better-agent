@@ -50,3 +50,12 @@ it("returns null when pricing is missing", () => {
 		computeCost(baseUsage, { inputPricePerM: null, outputPricePerM: null })
 	).toBeNull();
 });
+
+it("returns null when only one price is null", () => {
+	expect(
+		computeCost(baseUsage, { inputPricePerM: null, outputPricePerM: 15 })
+	).toBeNull();
+	expect(
+		computeCost(baseUsage, { inputPricePerM: 3, outputPricePerM: null })
+	).toBeNull();
+});
