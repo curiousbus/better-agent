@@ -14,9 +14,13 @@ export function buildTools(defs: ToolDef[], ctxBase: CtxBase): ToolSet {
 		tools[def.name] = tool({
 			description: def.description,
 			inputSchema: jsonSchema(def.parameters),
-			execute: async (args: unknown, options: { toolCallId: string }) => {
+			execute: async (
+				args: unknown,
+				options: { toolCallId: string; abortSignal?: AbortSignal }
+			) => {
 				const result = await def.execute(args, {
 					...ctxBase,
+					abortSignal: options.abortSignal ?? ctxBase.abortSignal,
 					callId: options.toolCallId,
 				});
 				return truncateOutput(result.output).output;
