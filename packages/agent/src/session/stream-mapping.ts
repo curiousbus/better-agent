@@ -1,11 +1,12 @@
 import type { FinishReason as AiFinishReason, LanguageModelUsage } from "ai";
 import type { FinishReason, MessageUsage } from "./types";
 
-/** 只读 totalUsage 的三字段；完整 LanguageModelUsage 可结构赋值到此。 */
+/** 读取 LanguageModelUsage 中所有需要的字段；完整类型可结构赋值到此。详细字段可选。 */
 type UsageInput = Pick<
 	LanguageModelUsage,
 	"inputTokens" | "outputTokens" | "totalTokens"
->;
+> &
+	Partial<Pick<LanguageModelUsage, "inputTokenDetails" | "outputTokenDetails">>;
 
 export function mapFinishReason(reason: AiFinishReason): FinishReason {
 	switch (reason) {
@@ -26,5 +27,9 @@ export function mapUsage(usage: UsageInput): MessageUsage {
 		inputTokens: usage.inputTokens ?? null,
 		outputTokens: usage.outputTokens ?? null,
 		totalTokens: usage.totalTokens ?? null,
+		reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? null,
+		cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens ?? null,
+		cacheWriteTokens: null,
+		costCents: null,
 	};
 }

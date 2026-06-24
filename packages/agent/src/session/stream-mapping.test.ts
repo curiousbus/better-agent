@@ -15,11 +15,19 @@ describe("mapFinishReason", () => {
 	});
 });
 
-describe("mapUsage", () => {
-	it("copies token counts", () => {
+describe("mapUsage basic token counts", () => {
+	it("copies token counts and defaults detail fields to null", () => {
 		expect(
 			mapUsage({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
-		).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+		).toEqual({
+			inputTokens: 10,
+			outputTokens: 5,
+			totalTokens: 15,
+			reasoningTokens: null,
+			cacheReadTokens: null,
+			cacheWriteTokens: null,
+			costCents: null,
+		});
 	});
 
 	it("maps undefined token counts to null", () => {
@@ -29,6 +37,60 @@ describe("mapUsage", () => {
 				outputTokens: undefined,
 				totalTokens: undefined,
 			})
-		).toEqual({ inputTokens: null, outputTokens: null, totalTokens: null });
+		).toEqual({
+			inputTokens: null,
+			outputTokens: null,
+			totalTokens: null,
+			reasoningTokens: null,
+			cacheReadTokens: null,
+			cacheWriteTokens: null,
+			costCents: null,
+		});
+	});
+});
+
+describe("mapUsage detail fields", () => {
+	it("maps cache-read and reasoning tokens from inputTokenDetails/outputTokenDetails", () => {
+		expect(
+			mapUsage({
+				inputTokens: 20,
+				outputTokens: 8,
+				totalTokens: 28,
+				inputTokenDetails: {
+					noCacheTokens: 15,
+					cacheReadTokens: 5,
+					cacheWriteTokens: 3,
+				},
+				outputTokenDetails: { textTokens: 6, reasoningTokens: 2 },
+			})
+		).toEqual({
+			inputTokens: 20,
+			outputTokens: 8,
+			totalTokens: 28,
+			reasoningTokens: 2,
+			cacheReadTokens: 5,
+			cacheWriteTokens: null,
+			costCents: null,
+		});
+	});
+
+	it("maps absent inputTokenDetails/outputTokenDetails to null", () => {
+		expect(
+			mapUsage({
+				inputTokens: 10,
+				outputTokens: 5,
+				totalTokens: 15,
+				inputTokenDetails: undefined,
+				outputTokenDetails: undefined,
+			})
+		).toEqual({
+			inputTokens: 10,
+			outputTokens: 5,
+			totalTokens: 15,
+			reasoningTokens: null,
+			cacheReadTokens: null,
+			cacheWriteTokens: null,
+			costCents: null,
+		});
 	});
 });

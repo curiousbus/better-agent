@@ -123,7 +123,15 @@ it("streams text and persists a complete assistant message", async () => {
 	expect(streamed).toBe("Hello world");
 	expect(events.find((e) => e.type === "done")).toEqual({
 		type: "done",
-		usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+		usage: {
+			inputTokens: 10,
+			outputTokens: 5,
+			totalTokens: 15,
+			reasoningTokens: null,
+			cacheReadTokens: null,
+			cacheWriteTokens: null,
+			costCents: null,
+		},
 		finishReason: "stop",
 	});
 
@@ -137,6 +145,10 @@ it("streams text and persists a complete assistant message", async () => {
 		inputTokens: 10,
 		outputTokens: 5,
 		totalTokens: 15,
+		reasoningTokens: null,
+		cacheReadTokens: null,
+		cacheWriteTokens: null,
+		costCents: null,
 	});
 	expect(assistant?.parts[0]?.content).toEqual({ text: "Hello world" });
 	expect(final.status).toBe("complete");

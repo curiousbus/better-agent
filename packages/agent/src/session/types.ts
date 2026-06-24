@@ -32,8 +32,12 @@ export type MessageStatus =
 export type FinishReason = "stop" | "length" | "tool-calls" | "error";
 
 export interface MessageUsage {
+	cacheReadTokens: number | null;
+	cacheWriteTokens: number | null;
+	costCents: number | null;
 	inputTokens: number | null;
 	outputTokens: number | null;
+	reasoningTokens: number | null;
 	totalTokens: number | null;
 }
 
