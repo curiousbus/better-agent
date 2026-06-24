@@ -15,3 +15,11 @@ export const agentProcedure = o.use(({ context, next }) => {
 	}
 	return next({ context: { authedAgent: agent } });
 });
+
+export const userProcedure = o.use(({ context, next }) => {
+	const user = context.authedUser;
+	if (!user) {
+		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
+	}
+	return next({ context: { authedUser: user } });
+});

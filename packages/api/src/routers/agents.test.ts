@@ -13,7 +13,11 @@ function buildClient() {
 		stores: { agent: agentStore },
 	};
 	const client = createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: null },
+		context: {
+			services: services as never,
+			authedAgent: null,
+			authedUser: null,
+		},
 	});
 	return { client, tokenService, agentStore };
 }

@@ -65,7 +65,11 @@ async function buildClient() {
 		stores: { agent: agentStore, session: sessionStore, message: messageStore },
 	};
 	const client = createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: agent },
+		context: {
+			services: services as never,
+			authedAgent: agent,
+			authedUser: null,
+		},
 	});
 	return { client, agentStore, agent, services };
 }
@@ -80,7 +84,11 @@ it("create derives the agent from the token and binds the session to it", async 
 it("rejects chat-plane calls without a token", async () => {
 	const { services } = await buildClient();
 	const anon = createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: null },
+		context: {
+			services: services as never,
+			authedAgent: null,
+			authedUser: null,
+		},
 	});
 	await expect(anon.sessions.create({})).rejects.toThrow();
 });
@@ -98,7 +106,11 @@ it("cannot read another agent's session (NOT_FOUND, not a crash)", async () => {
 		tokenHash: "hash-2",
 	});
 	const otherClient = createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: otherAgent },
+		context: {
+			services: services as never,
+			authedAgent: otherAgent,
+			authedUser: null,
+		},
 	});
 	await expect(
 		otherClient.sessions.listMessages({ sessionId: session.id })

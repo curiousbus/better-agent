@@ -1,5 +1,7 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
+import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
+import { createFakeUserStore } from "@better-agent/agent/testing/fake-auth-stores";
 import { expect, it } from "vitest";
 import { createContext } from "./context";
 import type { AgentServices } from "./services";
@@ -55,4 +57,32 @@ it("authedAgent is null for an unknown token", async () => {
 		services,
 	});
 	expect(ctx.authedAgent).toBeNull();
+});
+
+it("resolves authedUser from a valid access JWT", async () => {
+	const jwtService = createJwtService("a-test-secret-at-least-32-chars-long!!");
+	const userStore = createFakeUserStore();
+	const user = await userStore.findOrCreate("x@y.com");
+	const token = await jwtService.sign({ sub: user.id, email: user.email }, 900);
+	const services = {
+		jwtService,
+		stores: { user: userStore },
+	} as unknown as AgentServices;
+	const ctx = await createContext({
+		context: fakeHono(`Bearer ${token}`),
+		services,
+	});
+	expect(ctx.authedUser?.id).toBe(user.id);
+});
+
+it("authedUser is null for a non-JWT bearer token", async () => {
+	const services = {
+		jwtService: createJwtService("a-test-secret-at-least-32-chars-long!!"),
+		stores: { user: createFakeUserStore() },
+	} as unknown as AgentServices;
+	const ctx = await createContext({
+		context: fakeHono("Bearer ba_not_a_jwt"),
+		services,
+	});
+	expect(ctx.authedUser).toBeNull();
 });

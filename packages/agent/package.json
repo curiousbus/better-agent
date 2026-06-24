@@ -9,6 +9,7 @@
     "./session/*": "./src/session/*.ts",
     "./provider/*": "./src/provider/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
+    "./auth/*": "./src/auth/*.ts",
     "./testing/*": "./src/testing/*.ts"
   },
   "scripts": {

@@ -1,4 +1,5 @@
 import type { AgentConfig } from "@better-agent/agent/agent/types";
+import type { User } from "@better-agent/agent/auth/types";
 import type { Context as HonoContext } from "hono";
 import type { AgentServices } from "./services";
 
@@ -20,14 +21,38 @@ async function resolveAuthedAgent(
 	if (!token) {
 		return null;
 	}
-	const hash = options.services.tokenService.hash(token);
-	return await options.services.stores.agent.findByTokenHash(hash);
+	const { tokenService, stores } = options.services;
+	if (!(tokenService && stores.agent)) {
+		return null;
+	}
+	const hash = tokenService.hash(token);
+	return await stores.agent.findByTokenHash(hash);
+}
+
+async function resolveAuthedUser(
+	options: CreateContextOptions
+): Promise<User | null> {
+	const header = options.context.req.header("authorization");
+	if (!header?.startsWith(BEARER_PREFIX)) {
+		return null;
+	}
+	const token = header.slice(BEARER_PREFIX.length).trim();
+	const { jwtService, stores } = options.services;
+	if (!(jwtService && stores.user)) {
+		return null;
+	}
+	const claims = await jwtService.verify(token);
+	if (!claims) {
+		return null;
+	}
+	return stores.user.findById(claims.sub);
 }
 
 export async function createContext(options: CreateContextOptions) {
 	return {
 		services: options.services,
 		authedAgent: await resolveAuthedAgent(options),
+		authedUser: await resolveAuthedUser(options),
 	};
 }
 

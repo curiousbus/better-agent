@@ -35,7 +35,11 @@ function buildClient() {
 		stores: { providerCatalog, modelCache, providerCredential },
 	};
 	return createRouterClient(appRouter, {
-		context: { services: services as never, authedAgent: null },
+		context: {
+			services: services as never,
+			authedAgent: null,
+			authedUser: null,
+		},
 	});
 }
 
