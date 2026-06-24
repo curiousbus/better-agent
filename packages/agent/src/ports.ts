@@ -1,4 +1,5 @@
 import type { AgentConfig, AgentInput } from "./agent/types";
+import type { RefreshTokenRecord, User } from "./auth/types";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
@@ -79,4 +80,34 @@ export interface MessageStore {
 	listWithParts(sessionId: string): Promise<MessageWithParts[]>;
 	updateMessage(id: string, patch: MessagePatch): Promise<Message | null>;
 	updatePart(id: string, patch: MessagePartPatch): Promise<MessagePart | null>;
+}
+
+export interface UserStore {
+	findByEmail(email: string): Promise<User | null>;
+	findById(id: string): Promise<User | null>;
+	findOrCreate(email: string): Promise<User>;
+}
+
+export interface MagicLinkStore {
+	consume(tokenHash: string): Promise<{ email: string } | null>;
+	create(input: {
+		tokenHash: string;
+		email: string;
+		expiresAt: Date;
+	}): Promise<void>;
+}
+
+export interface RefreshTokenStore {
+	create(input: {
+		userId: string;
+		tokenHash: string;
+		expiresAt: Date;
+	}): Promise<void>;
+	find(tokenHash: string): Promise<RefreshTokenRecord | null>;
+	revoke(id: string): Promise<void>;
+	revokeAllForUser(userId: string): Promise<void>;
+}
+
+export interface EmailSender {
+	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 }
