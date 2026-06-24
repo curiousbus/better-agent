@@ -9,34 +9,39 @@ export interface CreateContextOptions {
 }
 
 const BEARER_PREFIX = "Bearer ";
+// A JWT is three dot-separated segments (header.payload.signature); agent
+// tokens are `ba_<base64url>` and never contain a dot — so the token shape
+// tells us which strategy to run, and a request pays for at most one.
+const JWT_SEGMENTS = 3;
 
-async function resolveAuthedAgent(
-	options: CreateContextOptions
-): Promise<AgentConfig | null> {
+function extractBearerToken(options: CreateContextOptions): string | null {
 	const header = options.context.req.header("authorization");
 	if (!header?.startsWith(BEARER_PREFIX)) {
 		return null;
 	}
 	const token = header.slice(BEARER_PREFIX.length).trim();
-	if (!token) {
-		return null;
-	}
+	return token === "" ? null : token;
+}
+
+function looksLikeJwt(token: string): boolean {
+	return token.split(".").length === JWT_SEGMENTS;
+}
+
+async function resolveAuthedAgent(
+	options: CreateContextOptions,
+	token: string
+): Promise<AgentConfig | null> {
 	const { tokenService, stores } = options.services;
 	if (!(tokenService && stores.agent)) {
 		return null;
 	}
-	const hash = tokenService.hash(token);
-	return await stores.agent.findByTokenHash(hash);
+	return await stores.agent.findByTokenHash(tokenService.hash(token));
 }
 
 async function resolveAuthedUser(
-	options: CreateContextOptions
+	options: CreateContextOptions,
+	token: string
 ): Promise<User | null> {
-	const header = options.context.req.header("authorization");
-	if (!header?.startsWith(BEARER_PREFIX)) {
-		return null;
-	}
-	const token = header.slice(BEARER_PREFIX.length).trim();
 	const { jwtService, stores } = options.services;
 	if (!(jwtService && stores.user)) {
 		return null;
@@ -49,10 +54,20 @@ async function resolveAuthedUser(
 }
 
 export async function createContext(options: CreateContextOptions) {
+	const token = extractBearerToken(options);
+	let authedAgent: AgentConfig | null = null;
+	let authedUser: User | null = null;
+	if (token) {
+		if (looksLikeJwt(token)) {
+			authedUser = await resolveAuthedUser(options, token);
+		} else {
+			authedAgent = await resolveAuthedAgent(options, token);
+		}
+	}
 	return {
 		services: options.services,
-		authedAgent: await resolveAuthedAgent(options),
-		authedUser: await resolveAuthedUser(options),
+		authedAgent,
+		authedUser,
 	};
 }
 
