@@ -39,12 +39,21 @@ export function createUserStore(db: Db): UserStore {
 			if (existing) {
 				return existing;
 			}
-			const rows = await db.insert(schema.users).values({ email }).returning();
-			const row = rows[0];
-			if (!row) {
+			const inserted = await db
+				.insert(schema.users)
+				.values({ email })
+				.onConflictDoNothing()
+				.returning();
+			const row = inserted[0];
+			if (row) {
+				return { id: row.id, email: row.email, createdAt: row.createdAt };
+			}
+			// Lost an insert race: another request created it concurrently.
+			const fallback = await this.findByEmail(email);
+			if (!fallback) {
 				throw new Error("Failed to create user");
 			}
-			return { id: row.id, email: row.email, createdAt: row.createdAt };
+			return fallback;
 		},
 	};
 }

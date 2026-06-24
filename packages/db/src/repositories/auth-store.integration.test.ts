@@ -54,4 +54,7 @@ it("refresh token find/revoke + revokeAllForUser", async () => {
 	expect(found?.userId).toBe(user.id);
 	await store.revoke(found?.id ?? "");
 	expect((await store.find("r1"))?.revokedAt).toBeInstanceOf(Date);
+	await store.create({ userId: user.id, tokenHash: "r2", expiresAt: FUTURE() });
+	await store.revokeAllForUser(user.id);
+	expect((await store.find("r2"))?.revokedAt).toBeInstanceOf(Date);
 });
