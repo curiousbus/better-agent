@@ -18,6 +18,7 @@ const promptInput = z.object({
 	sessionId: z.uuid(),
 	text: z.string().min(1),
 	tools: z.array(remoteToolSchema).optional(),
+	outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Loads the session and asserts it belongs to the authed agent. Returns
@@ -45,6 +46,20 @@ export async function drain(
 	return next.value;
 }
 
+export async function drainWithStructured(
+	gen: AsyncGenerator<RunEvent, Message>
+): Promise<Message & { structured: unknown }> {
+	let structured: unknown = null;
+	let next = await gen.next();
+	while (!next.done) {
+		if (next.value.type === "done") {
+			structured = next.value.structured ?? null;
+		}
+		next = await gen.next();
+	}
+	return { ...next.value, structured };
+}
+
 export function errorMessage(error: unknown): string {
 	if (error instanceof ORPCError) {
 		return error.message;
@@ -70,6 +85,7 @@ async function* streamTurn(
 			description: string;
 			parameters: Record<string, unknown>;
 		}>;
+		outputSchema?: Record<string, unknown>;
 	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
@@ -82,6 +98,7 @@ async function* streamTurn(
 			sessionId: input.sessionId,
 			text: input.text,
 			tools: toolDefs,
+			outputSchema: input.outputSchema,
 			abortSignal: signal,
 		});
 	} catch (error) {
@@ -130,11 +147,12 @@ export const sessionsRouter = {
 						context.services.pendingToolCallStore
 					)
 				: undefined;
-			return drain(
+			return drainWithStructured(
 				context.services.runtime.runTurn({
 					sessionId: input.sessionId,
 					text: input.text,
 					tools: toolDefs,
+					outputSchema: input.outputSchema,
 					abortSignal: signal,
 				})
 			);

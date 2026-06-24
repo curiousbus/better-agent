@@ -5,7 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { userProcedure } from "../index";
-import { drain, errorMessage } from "./sessions";
+import { drainWithStructured, errorMessage } from "./sessions";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -18,6 +18,7 @@ const promptInput = z.object({
 	sessionId: z.uuid(),
 	text: z.string().min(1),
 	tools: z.array(remoteToolSchema).optional(),
+	outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
 async function requireUserSession(
@@ -45,6 +46,7 @@ async function* streamUserTurn(
 			description: string;
 			parameters: Record<string, unknown>;
 		}>;
+		outputSchema?: Record<string, unknown>;
 	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
@@ -57,6 +59,7 @@ async function* streamUserTurn(
 			sessionId: input.sessionId,
 			text: input.text,
 			tools: toolDefs,
+			outputSchema: input.outputSchema,
 			abortSignal: signal,
 		});
 	} catch (error) {
@@ -105,11 +108,12 @@ export const userSessionsRouter = {
 						context.services.pendingToolCallStore
 					)
 				: undefined;
-			return drain(
+			return drainWithStructured(
 				context.services.runtime.runTurn({
 					sessionId: input.sessionId,
 					text: input.text,
 					tools: toolDefs,
+					outputSchema: input.outputSchema,
 					abortSignal: signal,
 				})
 			);

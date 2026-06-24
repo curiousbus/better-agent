@@ -34,6 +34,8 @@ export interface AgentClientConfig {
 }
 
 export interface RunOptions {
+	/** JSON Schema for structured output; the server will return a structured field. */
+	outputSchema?: Record<string, unknown>;
 	/** 继续指定会话；省略则自动新建一次性会话。 */
 	sessionId?: string;
 	/** 中止信号：用于取消进行中的 run/stream。 */
@@ -105,8 +107,11 @@ async function runWithTools(
 	options: RunOptions & { tools: ClientToolDef[] }
 ): Promise<Message> {
 	const sessionId = options.sessionId ?? (await client.sessions.create({})).id;
-	for await (const _event of stream(text, { ...options, sessionId })) {
-		// drain — dispatchToolCall fires inside stream
+	let structured: unknown = null;
+	for await (const event of stream(text, { ...options, sessionId })) {
+		if (event.type === "done") {
+			structured = (event as { structured?: unknown }).structured ?? null;
+		}
 	}
 	const history = await client.sessions.listMessages(
 		{ sessionId },
@@ -118,7 +123,7 @@ async function runWithTools(
 	if (!lastAssistant) {
 		throw new Error("No assistant message found after tool-assisted run");
 	}
-	return lastAssistant.message as Message;
+	return { ...lastAssistant.message, structured } as Message;
 }
 
 async function* streamTurn(
@@ -129,7 +134,7 @@ async function* streamTurn(
 ): AsyncGenerator<RunEvent> {
 	const toolDefs = options?.tools ? stripToolDefs(options.tools) : undefined;
 	const events = await client.sessions.prompt(
-		{ sessionId, text, tools: toolDefs },
+		{ sessionId, text, tools: toolDefs, outputSchema: options?.outputSchema },
 		{ signal: options?.signal }
 	);
 	const dispatches: Promise<void>[] = [];
@@ -173,7 +178,7 @@ export function createAgentClientFrom(client: Client): AgentClient {
 			}
 			const sessionId = await ensureSession(options?.sessionId);
 			return client.sessions.run(
-				{ sessionId, text },
+				{ sessionId, text, outputSchema: options?.outputSchema },
 				{ signal: options?.signal }
 			);
 		},
@@ -206,14 +211,14 @@ export function createUserSessionClientFrom(
 		async run(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
 			return client.userSessions.run(
-				{ sessionId, text },
+				{ sessionId, text, outputSchema: options?.outputSchema },
 				{ signal: options?.signal }
 			);
 		},
 		async *stream(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
 			const events = await client.userSessions.prompt(
-				{ sessionId, text },
+				{ sessionId, text, outputSchema: options?.outputSchema },
 				{ signal: options?.signal }
 			);
 			for await (const event of events) {
