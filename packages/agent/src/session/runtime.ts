@@ -171,6 +171,10 @@ async function* streamAssistant(
 	assistantId: string,
 	abortSignal?: AbortSignal
 ): AsyncGenerator<RunEvent, StreamOutcome> {
+	// Buffers are created once and reused across retry attempts. Safe because a
+	// retry only fires when no output was emitted (shouldRetryAttempt requires
+	// !emittedOutput), so append() was never called and the buffers are empty.
+	// If retry conditions change (e.g. multi-step tool turns), revisit this.
 	const textBuf = createPartBuffer(deps.messageStore, assistantId, "text");
 	const reasoningBuf = createPartBuffer(
 		deps.messageStore,
