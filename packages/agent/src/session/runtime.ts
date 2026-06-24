@@ -7,6 +7,7 @@ import type {
 	ModelCacheStore,
 	SessionStore,
 } from "../ports";
+import { computeCost } from "../provider/cost";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
 import type { ToolDef } from "../tool/types";
@@ -30,7 +31,7 @@ import {
 	loadContext,
 	persistUserTurn,
 } from "./turn-messages";
-import type { Message, PartStatus } from "./types";
+import type { Message, MessageUsage, PartStatus } from "./types";
 
 const DEFAULT_MAX_STEPS = 50;
 
@@ -160,16 +161,38 @@ async function* streamAssistant(
 	return state;
 }
 
+interface AgentIdentity {
+	modelId: string;
+	providerId: string;
+}
+
+async function withCost(
+	deps: Pick<SessionRuntimeDeps, "modelCacheStore">,
+	agent: AgentIdentity,
+	usage: MessageUsage | null
+): Promise<MessageUsage | null> {
+	if (usage === null) {
+		return null;
+	}
+	const entry = await deps.modelCacheStore.get(agent.providerId, agent.modelId);
+	return { ...usage, costCents: entry ? computeCost(usage, entry) : null };
+}
+
 async function* finalizeAssistant(
-	deps: Pick<SessionRuntimeDeps, "messageStore" | "sessionStore">,
+	deps: Pick<
+		SessionRuntimeDeps,
+		"messageStore" | "modelCacheStore" | "sessionStore"
+	>,
+	agent: AgentIdentity,
 	assistantId: string,
 	fallback: Message,
 	sessionId: string,
 	outcome: StreamOutcome
 ): AsyncGenerator<RunEvent, Message> {
+	const usage = await withCost(deps, agent, outcome.usage);
 	const final = await deps.messageStore.updateMessage(assistantId, {
 		status: outcome.status,
-		usage: outcome.usage,
+		usage,
 		finishReason: outcome.finishReason,
 		error: outcome.errorMessage
 			? {
@@ -184,7 +207,7 @@ async function* finalizeAssistant(
 	} else {
 		yield {
 			type: "done",
-			usage: outcome.usage,
+			usage,
 			finishReason: outcome.finishReason,
 		};
 	}
@@ -225,6 +248,7 @@ async function* executeTurn(
 	);
 	return yield* finalizeAssistant(
 		deps,
+		agent,
 		assistant.id,
 		assistant,
 		sessionId,
