@@ -276,13 +276,13 @@ async function* executeTurn(
 export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 	return {
 		async *runTurn(input) {
-			if (!deps.sessionLock.acquire(input.sessionId)) {
+			if (!(await deps.sessionLock.acquire(input.sessionId))) {
 				throw new SessionBusyError(input.sessionId);
 			}
 			try {
 				return yield* executeTurn(deps, input);
 			} finally {
-				deps.sessionLock.release(input.sessionId);
+				await deps.sessionLock.release(input.sessionId);
 			}
 		},
 	};

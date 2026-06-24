@@ -38,6 +38,7 @@ import { cors } from "hono/cors";
 import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
+import { createRedisSessionLock } from "./redis-session-lock";
 
 initLogger({
 	env: { service: "better-agent-server" },
@@ -97,6 +98,12 @@ function buildPendingToolCallStore() {
 		: createInMemoryPendingToolCallStore();
 }
 
+function buildSessionLock() {
+	return env.REDIS_URL
+		? createRedisSessionLock(new Redis(env.REDIS_URL))
+		: createInMemorySessionLock();
+}
+
 function buildRuntime(
 	deps: ReturnType<typeof buildProviderDeps>,
 	sessionStore: ReturnType<typeof createSessionStore>,
@@ -107,7 +114,7 @@ function buildRuntime(
 		messageStore,
 		agentStore: deps.agentStore,
 		modelFactory: deps.modelFactory,
-		sessionLock: createInMemorySessionLock(),
+		sessionLock: buildSessionLock(),
 		modelCacheStore: deps.modelCache,
 		providerCatalogStore: deps.providerCatalog,
 		summarizer: createModelSummarizer(deps.modelFactory),

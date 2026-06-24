@@ -1,7 +1,7 @@
 export interface SessionLock {
-	/** Try to take the lock for a session. Returns false if already held. */
-	acquire(sessionId: string): boolean;
-	release(sessionId: string): void;
+	/** Try to take the lock for a session. Resolves false if already held. */
+	acquire(sessionId: string): Promise<boolean>;
+	release(sessionId: string): Promise<void>;
 }
 
 export class SessionBusyError extends Error {
@@ -13,20 +13,21 @@ export class SessionBusyError extends Error {
 
 /**
  * Single-process lock. Multi-instance deployments swap this for a Redis-backed
- * implementation behind the same interface (gap-analysis decision #1).
+ * implementation behind the same interface; see apps/server/redis-session-lock.ts.
  */
 export function createInMemorySessionLock(): SessionLock {
 	const held = new Set<string>();
 	return {
 		acquire(sessionId) {
 			if (held.has(sessionId)) {
-				return false;
+				return Promise.resolve(false);
 			}
 			held.add(sessionId);
-			return true;
+			return Promise.resolve(true);
 		},
 		release(sessionId) {
 			held.delete(sessionId);
+			return Promise.resolve();
 		},
 	};
 }
