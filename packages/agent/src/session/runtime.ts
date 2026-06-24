@@ -6,17 +6,18 @@ import type { ModelFactory } from "../provider/model-factory";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { createPartBuffer } from "./part-buffer";
+import type { StreamOutcome } from "./retry-helpers";
+import {
+	backoffMs,
+	defaultSleep,
+	MAX_LLM_ATTEMPTS,
+	resetOutcome,
+	shouldRetryAttempt,
+} from "./retry-helpers";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
 import { toModelMessages } from "./to-model-messages";
-import type {
-	ErrorCategory,
-	FinishReason,
-	Message,
-	MessageUsage,
-	PartStatus,
-	Session,
-} from "./types";
+import type { Message, PartStatus, Session } from "./types";
 
 const MAX_STEPS = 1; // P1 无工具；工具阶段（P2）再调高
 
@@ -26,6 +27,7 @@ export interface SessionRuntimeDeps {
 	modelFactory: ModelFactory;
 	sessionLock: SessionLock;
 	sessionStore: SessionStore;
+	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface RunTurnInput {
@@ -38,17 +40,8 @@ export interface SessionRuntime {
 	runTurn(input: RunTurnInput): AsyncGenerator<RunEvent, Message>;
 }
 
-type StreamStatus = "complete" | "error" | "aborted";
 type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
 type PartBuf = ReturnType<typeof createPartBuffer>;
-
-interface StreamOutcome {
-	errorCategory: ErrorCategory | null;
-	errorMessage: string | null;
-	finishReason: FinishReason;
-	status: StreamStatus;
-	usage: MessageUsage | null;
-}
 
 function errorToMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -115,9 +108,11 @@ async function* drainStream(
 ): AsyncGenerator<RunEvent, void> {
 	for await (const chunk of result.fullStream) {
 		if (chunk.type === "text-delta") {
+			state.emittedOutput = true;
 			await textBuf.append(chunk.text);
 			yield { type: "text-delta", delta: chunk.text };
 		} else if (chunk.type === "reasoning-delta") {
+			state.emittedOutput = true;
 			await reasoningBuf.append(chunk.text);
 			yield { type: "reasoning-delta", delta: chunk.text };
 		} else if (chunk.type === "finish-step") {
@@ -136,6 +131,38 @@ async function* drainStream(
 	}
 }
 
+async function* runAttempt(
+	model: AiModel,
+	messages: ModelMessage[],
+	params: AgentParams | null,
+	textBuf: PartBuf,
+	reasoningBuf: PartBuf,
+	state: StreamOutcome,
+	abortSignal?: AbortSignal
+): AsyncGenerator<RunEvent, void> {
+	try {
+		const result = streamText({
+			model,
+			messages,
+			stopWhen: stepCountIs(MAX_STEPS),
+			tools: {},
+			abortSignal,
+			maxRetries: 0,
+			...buildSettings(params),
+		});
+		yield* drainStream(result, textBuf, reasoningBuf, state);
+	} catch (error) {
+		if (abortSignal?.aborted) {
+			state.status = "aborted";
+		} else {
+			state.status = "error";
+			state.finishReason = "error";
+			state.errorMessage = errorToMessage(error);
+			state.errorCategory = classifyError(error);
+		}
+	}
+}
+
 async function* streamAssistant(
 	deps: SessionRuntimeDeps,
 	model: AiModel,
@@ -150,38 +177,36 @@ async function* streamAssistant(
 		assistantId,
 		"reasoning"
 	);
+	const sleep = deps.sleep ?? defaultSleep;
 	const state: StreamOutcome = {
-		errorCategory: null,
-		errorMessage: null,
+		usage: null,
 		finishReason: "stop",
 		status: "complete",
-		usage: null,
+		errorMessage: null,
+		errorCategory: null,
+		emittedOutput: false,
 	};
-	try {
-		const result = streamText({
+	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
+		resetOutcome(state);
+		yield* runAttempt(
 			model,
 			messages,
-			stopWhen: stepCountIs(MAX_STEPS),
-			tools: {},
-			abortSignal,
-			...buildSettings(params),
-		});
-		yield* drainStream(result, textBuf, reasoningBuf, state);
-	} catch (error) {
-		if (abortSignal?.aborted) {
-			state.status = "aborted";
-		} else {
-			state.status = "error";
-			state.finishReason = "error";
-			state.errorMessage = errorToMessage(error);
-			state.errorCategory = classifyError(error);
+			params,
+			textBuf,
+			reasoningBuf,
+			state,
+			abortSignal
+		);
+		if (shouldRetryAttempt(state, attempt, abortSignal?.aborted ?? false)) {
+			await sleep(backoffMs(attempt));
+			continue;
 		}
-	} finally {
-		const partStatus: PartStatus =
-			state.status === "error" ? "error" : "complete";
-		await reasoningBuf.flush(partStatus);
-		await textBuf.flush(partStatus);
+		break;
 	}
+	const partStatus: PartStatus =
+		state.status === "error" ? "error" : "complete";
+	await reasoningBuf.flush(partStatus);
+	await textBuf.flush(partStatus);
 	return state;
 }
 
