@@ -10,6 +10,7 @@
     "./provider/*": "./src/provider/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
     "./auth/*": "./src/auth/*.ts",
+    "./tool/*": "./src/tool/*.ts",
     "./testing/*": "./src/testing/*.ts"
   },
   "scripts": {
