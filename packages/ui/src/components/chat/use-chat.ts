@@ -153,8 +153,11 @@ export async function streamPrompt(args: StreamArgs) {
 	// Reveal buffered deltas one chunk per frame (steady typing cadence) instead
 	// of a setState per network token, which is what made the output choppy.
 	const reveal = createStreamReveal({
-		onFrame: ({ text: revealedText, reasoning }) =>
-			setDraft([user, { ...assistant, text: revealedText, reasoning }]),
+		onFrame: ({ text: revealedText, reasoning }) => {
+			assistant.text = revealedText;
+			assistant.reasoning = reasoning;
+			setDraft([user, { ...assistant }]);
+		},
 	});
 	try {
 		for await (const event of agentClient.stream(text, { sessionId, signal })) {
