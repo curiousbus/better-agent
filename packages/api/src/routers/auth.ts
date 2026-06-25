@@ -13,6 +13,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { publicProcedure, userProcedure } from "../index";
+import { googleAuthRouter } from "./google-auth";
 
 const MS = 1000;
 
@@ -33,7 +34,7 @@ const passwordInput = z.object({
 	password: z.string().min(PASSWORD_MIN),
 });
 
-async function enforce(
+export async function enforce(
 	limiter: RateLimiter,
 	key: string,
 	limit: number
@@ -45,7 +46,7 @@ async function enforce(
 	}
 }
 
-async function issueTokens(
+export async function issueTokens(
 	context: Context,
 	user: { id: string; email: string }
 ) {
@@ -272,4 +273,6 @@ export const authRouter = {
 			await stores.refreshToken.revokeAllForUser(consumed.userId);
 			return { ok: true };
 		}),
+
+	...googleAuthRouter,
 };

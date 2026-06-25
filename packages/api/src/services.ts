@@ -5,6 +5,7 @@ import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
 	AgentStore,
 	EmailSender,
+	GoogleOAuth,
 	MagicLinkStore,
 	MessageStore,
 	ModelCacheStore,
@@ -34,6 +35,7 @@ export interface AgentServices {
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
 	emailSender: EmailSender;
+	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
 	modelFactory: ModelFactory;
 	pendingToolCallStore: PendingToolCallStore;

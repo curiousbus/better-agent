@@ -135,3 +135,15 @@ export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 	sendPasswordReset(input: { email: string; url: string }): Promise<void>;
 }
+
+export interface GoogleProfile {
+	email: string;
+	emailVerified: boolean;
+}
+
+export interface GoogleOAuth {
+	/** The Google consent URL to redirect the user to. */
+	authUrl(state: string): string;
+	/** Exchange the authorization code for the user's verified email. */
+	exchangeCode(code: string): Promise<GoogleProfile>;
+}
