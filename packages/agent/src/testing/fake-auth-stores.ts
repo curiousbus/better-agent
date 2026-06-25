@@ -1,115 +1,12 @@
-import type { RefreshTokenRecord, User } from "../auth/types";
+import type { RefreshTokenRecord } from "../auth/types";
 import type {
 	EmailSender,
 	MagicLinkStore,
 	PasswordResetStore,
 	RefreshTokenStore,
-	UserStore,
 } from "../ports";
 
-interface FakeUserRecord extends User {
-	passwordHash: string | null;
-}
-
-function toUser(record: FakeUserRecord): User {
-	return { id: record.id, email: record.email, createdAt: record.createdAt };
-}
-
-function makeUserRecord(
-	email: string,
-	passwordHash: string | null = null
-): FakeUserRecord {
-	return {
-		id: crypto.randomUUID(),
-		email,
-		createdAt: new Date(),
-		passwordHash,
-	};
-}
-
-function insertRecord(
-	byId: Map<string, FakeUserRecord>,
-	byEmail: Map<string, FakeUserRecord>,
-	record: FakeUserRecord
-): void {
-	byId.set(record.id, record);
-	byEmail.set(record.email, record);
-}
-
-function toCredential(record: FakeUserRecord) {
-	return {
-		id: record.id,
-		email: record.email,
-		passwordHash: record.passwordHash,
-	};
-}
-
-function fakeMarkEmailVerified(
-	verified: Set<string>,
-	userId: string
-): Promise<void> {
-	verified.add(userId);
-	return Promise.resolve();
-}
-
-function fakeIsEmailVerified(
-	verified: Set<string>,
-	userId: string
-): Promise<boolean> {
-	return Promise.resolve(verified.has(userId));
-}
-
-function lookupUser(
-	map: Map<string, FakeUserRecord>,
-	key: string
-): User | null {
-	const r = map.get(key);
-	return r ? toUser(r) : null;
-}
-
-function lookupCredential(byEmail: Map<string, FakeUserRecord>, email: string) {
-	const r = byEmail.get(email);
-	return r ? toCredential(r) : null;
-}
-
-export function createFakeUserStore(): UserStore {
-	const byId = new Map<string, FakeUserRecord>();
-	const byEmail = new Map<string, FakeUserRecord>();
-	const ins = (r: FakeUserRecord) => insertRecord(byId, byEmail, r);
-	const verified = new Set<string>();
-
-	return {
-		findById: (id) => Promise.resolve(lookupUser(byId, id)),
-		findByEmail: (email) => Promise.resolve(lookupUser(byEmail, email)),
-		findOrCreate(email) {
-			const existing = byEmail.get(email);
-			if (existing) {
-				return Promise.resolve(toUser(existing));
-			}
-			const record = makeUserRecord(email);
-			ins(record);
-			return Promise.resolve(toUser(record));
-		},
-		createWithPassword(email, passwordHash) {
-			const record = makeUserRecord(email, passwordHash);
-			ins(record);
-			return Promise.resolve(toUser(record));
-		},
-		setPasswordHash(userId, passwordHash) {
-			const record = byId.get(userId);
-			if (record) {
-				record.passwordHash = passwordHash;
-			}
-			return Promise.resolve();
-		},
-		findCredentialByEmail: (email) =>
-			Promise.resolve(lookupCredential(byEmail, email)),
-		hasPassword: (userId) =>
-			Promise.resolve(byId.get(userId)?.passwordHash != null),
-		markEmailVerified: (userId) => fakeMarkEmailVerified(verified, userId),
-		isEmailVerified: (userId) => fakeIsEmailVerified(verified, userId),
-	};
-}
+export { createFakeUserStore } from "./fake-user-store";
 
 interface FakeLink {
 	email: string;

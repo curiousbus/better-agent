@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
 	id: uuid("id").primaryKey().defaultRandom(),
@@ -11,6 +11,7 @@ export const users = pgTable("users", {
 	updatedAt: timestamp("updated_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
+	isAdmin: boolean("is_admin").notNull().default(false),
 });
 
 export const magicLinks = pgTable("magic_links", {

@@ -1,4 +1,5 @@
 import { SUPER_ADMIN_EMAIL } from "@better-agent/agent/auth/admin";
+import { createFakeUserStore } from "@better-agent/agent/testing/fake-auth-stores";
 import {
 	createFakeCatalogStore,
 	createFakeCredentialStore,
@@ -21,9 +22,10 @@ function buildClient(email: string | null) {
 	const providerCatalog = createFakeCatalogStore();
 	const modelCache = createFakeModelStore();
 	const providerCredential = createFakeCredentialStore();
+	const user = createFakeUserStore();
 	const services = {
 		authConfig: AUTH_CONFIG,
-		stores: { providerCatalog, modelCache, providerCredential },
+		stores: { providerCatalog, modelCache, providerCredential, user },
 	};
 	const authedUser = email
 		? { id: "uid-1", email, createdAt: new Date() }
@@ -63,9 +65,10 @@ it("allowlisted email passes the admin gate", async () => {
 	const providerCatalog = createFakeCatalogStore();
 	const modelCache = createFakeModelStore();
 	const providerCredential = createFakeCredentialStore();
+	const user = createFakeUserStore();
 	const services = {
 		authConfig: { ...AUTH_CONFIG, adminEmails: ["ops@example.com"] },
-		stores: { providerCatalog, modelCache, providerCredential },
+		stores: { providerCatalog, modelCache, providerCredential, user },
 	};
 	const client = createRouterClient(appRouter, {
 		context: {

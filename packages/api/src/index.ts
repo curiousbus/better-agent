@@ -25,12 +25,15 @@ export const userProcedure = o.use(({ context, next }) => {
 	return next({ context: { authedUser: user } });
 });
 
-export const adminProcedure = o.use(({ context, next }) => {
+export const adminProcedure = o.use(async ({ context, next }) => {
 	const user = context.authedUser;
 	if (!user) {
 		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
 	}
-	if (!isAdminEmail(user.email, context.services.authConfig.adminEmails)) {
+	const allowed =
+		isAdminEmail(user.email, context.services.authConfig.adminEmails) ||
+		(await context.services.stores.user.isAdmin(user.id));
+	if (!allowed) {
 		throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
 	}
 	return next({ context: { authedUser: user } });

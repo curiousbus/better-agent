@@ -1,5 +1,5 @@
 import type { AgentConfig, AgentInput } from "./agent/types";
-import type { RefreshTokenRecord, User } from "./auth/types";
+import type { AdminUserRow, RefreshTokenRecord, User } from "./auth/types";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
@@ -85,6 +85,7 @@ export interface MessageStore {
 
 export interface UserStore {
 	createWithPassword(email: string, passwordHash: string): Promise<User>;
+	deleteById(userId: string): Promise<void>;
 	findByEmail(email: string): Promise<User | null>;
 	findById(id: string): Promise<User | null>;
 	findCredentialByEmail(
@@ -92,8 +93,11 @@ export interface UserStore {
 	): Promise<{ id: string; email: string; passwordHash: string | null } | null>;
 	findOrCreate(email: string): Promise<User>;
 	hasPassword(userId: string): Promise<boolean>;
+	isAdmin(userId: string): Promise<boolean>;
 	isEmailVerified(userId: string): Promise<boolean>;
+	listAll(): Promise<AdminUserRow[]>;
 	markEmailVerified(userId: string): Promise<void>;
+	setAdmin(userId: string, isAdmin: boolean): Promise<void>;
 	setPasswordHash(userId: string, passwordHash: string): Promise<void>;
 }
 

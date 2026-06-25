@@ -1,0 +1,168 @@
+import type { UserStore } from "@better-agent/agent/ports";
+import { desc, eq } from "drizzle-orm";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+// biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
+import * as schema from "../schema";
+
+type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
+
+function toUserRow(row: { id: string; email: string; createdAt: Date }) {
+	return { id: row.id, email: row.email, createdAt: row.createdAt };
+}
+
+function toAdminUserRow(row: {
+	id: string;
+	email: string;
+	createdAt: Date;
+	emailVerifiedAt: Date | null;
+	passwordHash: string | null;
+	isAdmin: boolean;
+}) {
+	return {
+		id: row.id,
+		email: row.email,
+		createdAt: row.createdAt,
+		emailVerified: row.emailVerifiedAt !== null,
+		hasPassword: row.passwordHash !== null,
+		isAdmin: row.isAdmin,
+	};
+}
+
+async function dbFindUserByEmail(db: Db, email: string) {
+	const rows = await db
+		.select()
+		.from(schema.users)
+		.where(eq(schema.users.email, email))
+		.limit(1);
+	const row = rows[0];
+	return row ? toUserRow(row) : null;
+}
+
+async function dbFindOrCreate(db: Db, email: string) {
+	const existing = await dbFindUserByEmail(db, email);
+	if (existing) {
+		return existing;
+	}
+	const inserted = await db
+		.insert(schema.users)
+		.values({ email })
+		.onConflictDoNothing()
+		.returning();
+	const row = inserted[0];
+	if (row) {
+		return toUserRow(row);
+	}
+	// Lost an insert race: another request created it concurrently.
+	const fallback = await dbFindUserByEmail(db, email);
+	if (!fallback) {
+		throw new Error("Failed to create user");
+	}
+	return fallback;
+}
+
+async function dbCreateWithPassword(
+	db: Db,
+	email: string,
+	passwordHash: string
+) {
+	const inserted = await db
+		.insert(schema.users)
+		.values({ email, passwordHash })
+		.returning();
+	const row = inserted[0];
+	if (!row) {
+		throw new Error("Failed to create user");
+	}
+	return toUserRow(row);
+}
+
+async function dbFindCredentialByEmail(db: Db, email: string) {
+	const rows = await db
+		.select({
+			id: schema.users.id,
+			email: schema.users.email,
+			passwordHash: schema.users.passwordHash,
+		})
+		.from(schema.users)
+		.where(eq(schema.users.email, email))
+		.limit(1);
+	const row = rows[0];
+	return row
+		? { id: row.id, email: row.email, passwordHash: row.passwordHash }
+		: null;
+}
+
+async function dbHasPassword(db: Db, userId: string) {
+	const rows = await db
+		.select({ passwordHash: schema.users.passwordHash })
+		.from(schema.users)
+		.where(eq(schema.users.id, userId))
+		.limit(1);
+	return rows[0] ? rows[0].passwordHash !== null : false;
+}
+
+async function dbIsEmailVerified(db: Db, userId: string) {
+	const rows = await db
+		.select({ emailVerifiedAt: schema.users.emailVerifiedAt })
+		.from(schema.users)
+		.where(eq(schema.users.id, userId))
+		.limit(1);
+	return rows[0] ? rows[0].emailVerifiedAt !== null : false;
+}
+
+async function dbIsAdmin(db: Db, userId: string) {
+	const rows = await db
+		.select({ isAdmin: schema.users.isAdmin })
+		.from(schema.users)
+		.where(eq(schema.users.id, userId))
+		.limit(1);
+	return rows[0]?.isAdmin ?? false;
+}
+
+export function createUserStore(db: Db): UserStore {
+	return {
+		async findById(id) {
+			const rows = await db
+				.select()
+				.from(schema.users)
+				.where(eq(schema.users.id, id))
+				.limit(1);
+			return rows[0] ? toUserRow(rows[0]) : null;
+		},
+		findByEmail: (email) => dbFindUserByEmail(db, email),
+		findOrCreate: (email) => dbFindOrCreate(db, email),
+		createWithPassword: (email, hash) => dbCreateWithPassword(db, email, hash),
+		async setPasswordHash(userId, passwordHash) {
+			await db
+				.update(schema.users)
+				.set({ passwordHash, updatedAt: new Date() })
+				.where(eq(schema.users.id, userId));
+		},
+		findCredentialByEmail: (email) => dbFindCredentialByEmail(db, email),
+		hasPassword: (userId) => dbHasPassword(db, userId),
+		async markEmailVerified(userId) {
+			await db
+				.update(schema.users)
+				.set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+				.where(eq(schema.users.id, userId));
+		},
+		isEmailVerified: (userId) => dbIsEmailVerified(db, userId),
+		async listAll() {
+			const rows = await db
+				.select()
+				.from(schema.users)
+				.orderBy(desc(schema.users.createdAt));
+			return rows.map(toAdminUserRow);
+		},
+		async setAdmin(userId, isAdmin) {
+			await db
+				.update(schema.users)
+				.set({ isAdmin, updatedAt: new Date() })
+				.where(eq(schema.users.id, userId));
+		},
+		isAdmin: (userId) => dbIsAdmin(db, userId),
+		async deleteById(userId) {
+			await db.delete(schema.users).where(eq(schema.users.id, userId));
+		},
+	};
+}

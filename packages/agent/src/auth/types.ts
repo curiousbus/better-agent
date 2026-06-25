@@ -4,6 +4,15 @@ export interface User {
 	id: string;
 }
 
+export interface AdminUserRow {
+	createdAt: Date;
+	email: string;
+	emailVerified: boolean;
+	hasPassword: boolean;
+	id: string;
+	isAdmin: boolean;
+}
+
 export interface RefreshTokenRecord {
 	createdAt: Date;
 	expiresAt: Date;
