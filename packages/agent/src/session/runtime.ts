@@ -33,6 +33,8 @@ import {
 	buildStructuredOutputToolDef,
 	STRUCTURED_OUTPUT_TOOL_NAME,
 } from "./structured-output";
+import type { Titler } from "./titler";
+import { maybeTitle } from "./titler";
 import {
 	buildTurnMessages,
 	loadContext,
@@ -53,6 +55,7 @@ export interface SessionRuntimeDeps {
 	sessionStore: SessionStore;
 	sleep?: (ms: number) => Promise<void>;
 	summarizer: Summarizer;
+	titler?: Titler;
 }
 
 export interface RunTurnInput {
@@ -188,17 +191,17 @@ async function* streamAssistant(
 	return state;
 }
 
-async function* executeTurn(
+interface AssistantCtx {
+	assistant: Message;
+	ctx: DrainCtx;
+}
+
+async function buildAssistantCtx(
 	deps: SessionRuntimeDeps,
-	input: RunTurnInput
-): AsyncGenerator<RunEvent, Message> {
-	const { sessionId, text, abortSignal, tools } = input;
-	const { session, agent } = await loadContext(deps, sessionId);
-	await persistUserTurn(deps.messageStore, sessionId, text);
-	const rawMessages = await buildTurnMessages(deps, agent, session, sessionId);
-	const provider = await deps.providerCatalogStore.get(agent.providerId);
-	const policy = resolveCachePolicy(provider?.npm ?? null);
-	const cached = applyCachePolicy({ messages: rawMessages, sessionId }, policy);
+	agent: { id: string; providerId: string; modelId: string },
+	sessionId: string,
+	toolDefs: ToolDef[]
+): Promise<AssistantCtx> {
 	const assistant = await deps.messageStore.createMessage({
 		sessionId,
 		role: "assistant",
@@ -206,8 +209,42 @@ async function* executeTurn(
 		providerId: agent.providerId,
 		modelId: agent.modelId,
 	});
-	yield { type: "message-start", messageId: assistant.id };
-	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
+	return {
+		assistant,
+		ctx: {
+			agentId: agent.id,
+			assistantId: assistant.id,
+			messageStore: deps.messageStore,
+			sessionId,
+			toolDefs,
+		},
+	};
+}
+
+async function* settleTitleEvent(
+	sessionStore: SessionStore,
+	sessionId: string,
+	titlePromise: Promise<string | null>
+): AsyncGenerator<RunEvent, void> {
+	const title = await titlePromise;
+	if (title) {
+		await sessionStore.setTitle(sessionId, title);
+		yield { type: "title", title };
+	}
+}
+
+async function* executeTurn(
+	deps: SessionRuntimeDeps,
+	input: RunTurnInput
+): AsyncGenerator<RunEvent, Message> {
+	const { sessionId, text, abortSignal, tools } = input;
+	const { session, agent } = await loadContext(deps, sessionId);
+	await persistUserTurn(deps.messageStore, sessionId, text);
+	const titlePromise = maybeTitle(deps, session, agent, text);
+	const rawMessages = await buildTurnMessages(deps, agent, session, sessionId);
+	const provider = await deps.providerCatalogStore.get(agent.providerId);
+	const policy = resolveCachePolicy(provider?.npm ?? null);
+	const cached = applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 	const toolDefs = [...(tools ?? [])];
 	if (input.outputSchema) {
 		// Injected last so the model can call remote tools first, then submit.
@@ -217,13 +254,14 @@ async function* executeTurn(
 		// active set — benign since its result is an empty no-op.
 		toolDefs.push(buildStructuredOutputToolDef(input.outputSchema));
 	}
-	const ctx: DrainCtx = {
-		agentId: agent.id,
-		assistantId: assistant.id,
-		messageStore: deps.messageStore,
+	const { assistant, ctx } = await buildAssistantCtx(
+		deps,
+		agent,
 		sessionId,
-		toolDefs,
-	};
+		toolDefs
+	);
+	yield { type: "message-start", messageId: assistant.id };
+	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
 	const outcome = yield* streamAssistant(deps, {
 		model,
 		messages: cached.messages,
@@ -234,13 +272,15 @@ async function* executeTurn(
 		cacheToolDefs: cached.cacheToolDefs,
 		structuredOutput: input.outputSchema != null,
 	});
-	return yield* finalizeAssistant(deps, {
+	const message = yield* finalizeAssistant(deps, {
 		agent,
 		assistantId: assistant.id,
 		fallback: assistant,
 		sessionId,
 		outcome,
 	});
+	yield* settleTitleEvent(deps.sessionStore, sessionId, titlePromise);
+	return message;
 }
 
 export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {

@@ -14,4 +14,5 @@ export type RunEvent =
 	  }
 	| { type: "error"; message: string }
 	| { type: "tool-call"; callId: string; toolName: string; args: unknown }
-	| { type: "tool-result"; callId: string; result: unknown; isError: boolean };
+	| { type: "tool-result"; callId: string; result: unknown; isError: boolean }
+	| { type: "title"; title: string };

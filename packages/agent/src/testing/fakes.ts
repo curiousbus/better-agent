@@ -11,6 +11,7 @@ import type {
 	ProviderCredential,
 } from "../provider/types";
 import type { Summarizer } from "../session/compaction";
+import type { Titler } from "../session/titler";
 import type { Message, MessagePart, Session } from "../session/types";
 
 export function createFakeCatalogStore(): ProviderCatalogStore {
@@ -255,6 +256,21 @@ export function createFakeSummarizer(canned = "summary"): Summarizer & {
 		summarize(input) {
 			calls.push(input);
 			return Promise.resolve(canned);
+		},
+	};
+}
+
+export function createFakeTitler(
+	canned = "A Title"
+): Titler & { calls: number } {
+	const state = { calls: 0 };
+	return {
+		title() {
+			state.calls++;
+			return Promise.resolve(canned);
+		},
+		get calls() {
+			return state.calls;
 		},
 	};
 }

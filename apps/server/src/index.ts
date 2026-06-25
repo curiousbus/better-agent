@@ -6,6 +6,7 @@ import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
+import { createModelTitler } from "@better-agent/agent/session/model-titler";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
@@ -118,6 +119,7 @@ function buildRuntime(
 		modelCacheStore: deps.modelCache,
 		providerCatalogStore: deps.providerCatalog,
 		summarizer: createModelSummarizer(deps.modelFactory),
+		titler: createModelTitler(deps.modelFactory),
 	});
 }
 
