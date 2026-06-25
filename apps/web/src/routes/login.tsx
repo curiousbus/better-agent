@@ -9,7 +9,7 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
-type Mode = "signin" | "create" | "magic";
+type Mode = "signin" | "create" | "magic" | "forgot";
 
 interface ModeToggleProps {
 	mode: Mode;
@@ -81,10 +81,11 @@ function usePasswordForm(mode: PasswordMode) {
 
 interface PasswordFormProps {
 	mode: PasswordMode;
+	onForgot: () => void;
 	onSwitchToMagic: () => void;
 }
 
-function PasswordForm({ mode, onSwitchToMagic }: PasswordFormProps) {
+function PasswordForm({ mode, onForgot, onSwitchToMagic }: PasswordFormProps) {
 	const { email, error, isPending, password, setEmail, setPassword, submit } =
 		usePasswordForm(mode);
 	return (
@@ -120,6 +121,73 @@ function PasswordForm({ mode, onSwitchToMagic }: PasswordFormProps) {
 				type="button"
 			>
 				Email me a magic link instead
+			</button>
+			{mode === "signin" ? (
+				<button
+					className="text-muted-foreground text-sm hover:text-foreground"
+					onClick={onForgot}
+					type="button"
+				>
+					Forgot password?
+				</button>
+			) : null}
+		</form>
+	);
+}
+
+interface ForgotFormProps {
+	onBack: () => void;
+}
+
+function ForgotForm({ onBack }: ForgotFormProps) {
+	const [email, setEmail] = useState("");
+	const request = useMutation(orpc.auth.requestPasswordReset.mutationOptions());
+
+	if (request.isSuccess) {
+		return (
+			<div className="flex flex-col gap-3">
+				<p className="text-sm">
+					If that email has an account, we sent a reset link.
+				</p>
+				<button
+					className="self-start text-muted-foreground text-sm hover:text-foreground"
+					onClick={onBack}
+					type="button"
+				>
+					Back to sign in
+				</button>
+			</div>
+		);
+	}
+
+	const handleSubmit = (event: React.FormEvent) => {
+		event.preventDefault();
+		request.mutate({ email });
+	};
+
+	return (
+		<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+			<Input
+				aria-label="Email address"
+				autoComplete="email"
+				onChange={(event) => setEmail(event.target.value)}
+				placeholder="you@example.com"
+				required
+				type="email"
+				value={email}
+			/>
+			{request.error ? (
+				<p className="text-destructive text-sm">{request.error.message}</p>
+			) : null}
+			<Button disabled={request.isPending} type="submit">
+				Send reset link
+			</Button>
+			<button
+				className="text-muted-foreground text-sm hover:text-foreground"
+				onClick={onBack}
+				type="button"
+			>
+				Back to sign in
 			</button>
 		</form>
 	);
@@ -176,34 +244,53 @@ function MagicLinkForm({ onBack }: MagicLinkFormProps) {
 	);
 }
 
+const HEADINGS: Record<Mode, string> = {
+	create: "Sign in",
+	forgot: "Reset your password",
+	magic: "Sign in with email",
+	signin: "Sign in",
+};
+
+const SUBTITLES: Record<Mode, string> = {
+	create: "Use your email and password.",
+	forgot: "Enter your email and we'll send a reset link.",
+	magic: "We'll email you a magic link.",
+	signin: "Use your email and password.",
+};
+
+interface LoginFormBodyProps {
+	mode: Mode;
+	setMode: (m: Mode) => void;
+}
+
+function LoginFormBody({ mode, setMode }: LoginFormBodyProps) {
+	if (mode === "magic") {
+		return <MagicLinkForm onBack={() => setMode("signin")} />;
+	}
+	if (mode === "forgot") {
+		return <ForgotForm onBack={() => setMode("signin")} />;
+	}
+	return (
+		<PasswordForm
+			mode={mode}
+			onForgot={() => setMode("forgot")}
+			onSwitchToMagic={() => setMode("magic")}
+		/>
+	);
+}
+
 function LoginPage() {
 	const [mode, setMode] = useState<Mode>("signin");
-
-	const handleSetMode = (m: Mode) => {
-		setMode(m);
-	};
-
+	const showToggle = mode === "signin" || mode === "create";
 	return (
 		<div className="flex flex-1 items-center justify-center p-6">
 			<div className="flex w-full max-w-sm flex-col gap-4">
 				<div>
-					<h1 className="font-semibold text-lg">
-						{mode === "magic" ? "Sign in with email" : "Sign in"}
-					</h1>
-					<p className="text-muted-foreground text-sm">
-						{mode === "magic"
-							? "We'll email you a magic link."
-							: "Use your email and password."}
-					</p>
+					<h1 className="font-semibold text-lg">{HEADINGS[mode]}</h1>
+					<p className="text-muted-foreground text-sm">{SUBTITLES[mode]}</p>
 				</div>
-				{mode === "magic" ? null : (
-					<ModeToggle mode={mode} setMode={handleSetMode} />
-				)}
-				{mode === "magic" ? (
-					<MagicLinkForm onBack={() => setMode("signin")} />
-				) : (
-					<PasswordForm mode={mode} onSwitchToMagic={() => setMode("magic")} />
-				)}
+				{showToggle ? <ModeToggle mode={mode} setMode={setMode} /> : null}
+				<LoginFormBody mode={mode} setMode={setMode} />
 			</div>
 		</div>
 	);
