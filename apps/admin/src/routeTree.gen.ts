@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
@@ -16,6 +17,11 @@ import { Route as AgentsIndexRouteImport } from './routes/agents.index'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProvidersRoute = ProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/agents/': typeof AgentsIndexRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/agents': typeof AgentsIndexRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/agents/': typeof AgentsIndexRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
     | '/agents/'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
     | '/agents'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
     | '/agents/'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ProvidersRoute: typeof ProvidersRoute
+  UsersRoute: typeof UsersRoute
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
@@ -110,6 +123,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/providers': {
       id: '/providers'
       path: '/providers'
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ProvidersRoute: ProvidersRoute,
+  UsersRoute: UsersRoute,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   AuthVerifyRoute: AuthVerifyRoute,
   AgentsIndexRoute: AgentsIndexRoute,
