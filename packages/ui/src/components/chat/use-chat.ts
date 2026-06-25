@@ -6,12 +6,23 @@ import { useEffect, useRef, useState } from "react";
 
 type SessionMessageRow = MessageHistory[number];
 
+export interface ToolInvocation {
+	args: unknown;
+	callId: string;
+	isError: boolean;
+	result?: unknown;
+	status: "running" | "complete" | "error";
+	toolName: string;
+}
+
 export interface ChatMessage {
+	errorText?: string;
 	id: string;
 	reasoning: string;
 	role: "user" | "assistant" | "system";
 	status: "complete" | "streaming" | "error";
 	text: string;
+	tools: ToolInvocation[];
 }
 
 // Query key for a session's message history, fetched through the Agent SDK
@@ -32,7 +43,36 @@ function partStatus(status: SessionMessageRow["message"]["status"]) {
 	return "streaming" as const;
 }
 
-function toChatMessage(entry: SessionMessageRow): ChatMessage {
+function buildTools(parts: SessionMessageRow["parts"]): ToolInvocation[] {
+	const byId = new Map<string, ToolInvocation>();
+	const order: string[] = [];
+	for (const part of parts) {
+		if (part.type === "tool-call") {
+			const c = part.content;
+			byId.set(c.callId, {
+				callId: c.callId,
+				toolName: c.toolName,
+				args: c.args,
+				isError: false,
+				status: "running",
+			});
+			order.push(c.callId);
+		} else if (part.type === "tool-result") {
+			const c = part.content;
+			const inv = byId.get(c.callId);
+			if (inv) {
+				inv.result = c.result;
+				inv.isError = c.isError;
+				inv.status = c.isError ? "error" : "complete";
+			}
+		}
+	}
+	return order
+		.map((id) => byId.get(id))
+		.filter((x): x is ToolInvocation => x !== undefined);
+}
+
+export function toChatMessage(entry: SessionMessageRow): ChatMessage {
 	let text = "";
 	let reasoning = "";
 	for (const part of entry.parts) {
@@ -48,6 +88,7 @@ function toChatMessage(entry: SessionMessageRow): ChatMessage {
 		text,
 		reasoning,
 		status: partStatus(entry.message.status),
+		tools: buildTools(entry.parts),
 	};
 }
 
@@ -119,6 +160,7 @@ async function sendMessage(text: string, args: SendArgs) {
 		text,
 		reasoning: "",
 		status: "complete",
+		tools: [],
 	};
 	const assistant: ChatMessage = {
 		id: "draft-assistant",
@@ -126,6 +168,7 @@ async function sendMessage(text: string, args: SendArgs) {
 		text: "",
 		reasoning: "",
 		status: "streaming",
+		tools: [],
 	};
 	args.setDraft([user, assistant]);
 	try {
