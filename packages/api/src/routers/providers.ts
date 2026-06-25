@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure } from "../index";
+import { adminProcedure } from "../index";
 
 const upsertInput = z.object({
 	providerId: z.string().min(1),
@@ -9,33 +9,33 @@ const upsertInput = z.object({
 });
 
 export const providersRouter = {
-	catalogList: publicProcedure.handler(({ context }) =>
+	catalogList: adminProcedure.handler(({ context }) =>
 		context.services.stores.providerCatalog.list()
 	),
 
-	catalogRefresh: publicProcedure.handler(({ context }) =>
+	catalogRefresh: adminProcedure.handler(({ context }) =>
 		context.services.catalog.sync()
 	),
 
-	credentialsList: publicProcedure.handler(({ context }) =>
+	credentialsList: adminProcedure.handler(({ context }) =>
 		context.services.stores.providerCredential.listMasked()
 	),
 
-	credentialsUpsert: publicProcedure
+	credentialsUpsert: adminProcedure
 		.input(upsertInput)
 		.handler(async ({ input, context }) => {
 			await context.services.stores.providerCredential.upsert(input);
 			return { ok: true };
 		}),
 
-	credentialsDelete: publicProcedure
+	credentialsDelete: adminProcedure
 		.input(z.object({ providerId: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
 			await context.services.stores.providerCredential.delete(input.providerId);
 			return { ok: true };
 		}),
 
-	modelsList: publicProcedure
+	modelsList: adminProcedure
 		.input(z.object({ providerId: z.string().min(1) }))
 		.handler(({ input, context }) =>
 			context.services.stores.modelCache.listByProvider(input.providerId)

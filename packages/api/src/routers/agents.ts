@@ -1,7 +1,7 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { publicProcedure } from "../index";
+import { adminProcedure, userProcedure } from "../index";
 
 const paramsInput = z.object({
 	temperature: z.number().min(0).max(2).nullable().default(null),
@@ -31,11 +31,11 @@ async function assertValidAgent(
 }
 
 export const agentsRouter = {
-	list: publicProcedure.handler(({ context }) =>
+	list: userProcedure.handler(({ context }) =>
 		context.services.stores.agent.list()
 	),
 
-	get: publicProcedure
+	get: adminProcedure
 		.input(idInput)
 		.handler(({ input, context }) =>
 			context.services.stores.agent.get(input.id)
@@ -43,13 +43,13 @@ export const agentsRouter = {
 
 	// Returns the agent's current token so a trusted caller (the admin UI) can
 	// reuse it for chat instead of relying on a show-once copy.
-	getToken: publicProcedure
+	getToken: adminProcedure
 		.input(idInput)
 		.handler(({ input, context }) =>
 			context.services.stores.agent.getToken(input.id)
 		),
 
-	create: publicProcedure
+	create: adminProcedure
 		.input(agentInput)
 		.handler(async ({ input, context }) => {
 			await assertValidAgent(context.services.agentValidator, {
@@ -65,7 +65,7 @@ export const agentsRouter = {
 			return { agent, token };
 		}),
 
-	rotateToken: publicProcedure
+	rotateToken: adminProcedure
 		.input(idInput)
 		.handler(async ({ input, context }) => {
 			const { token, hash } = context.services.tokenService.generate();
@@ -82,7 +82,7 @@ export const agentsRouter = {
 			return { agent, token };
 		}),
 
-	update: publicProcedure
+	update: adminProcedure
 		.input(idInput.extend(agentInput.shape))
 		.handler(async ({ input, context }) => {
 			const { id, ...rest } = input;
@@ -97,7 +97,7 @@ export const agentsRouter = {
 			return updated;
 		}),
 
-	delete: publicProcedure.input(idInput).handler(async ({ input, context }) => {
+	delete: adminProcedure.input(idInput).handler(async ({ input, context }) => {
 		await context.services.stores.agent.delete(input.id);
 		return { ok: true };
 	}),

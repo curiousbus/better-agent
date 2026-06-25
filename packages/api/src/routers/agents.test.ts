@@ -1,14 +1,31 @@
+import { SUPER_ADMIN_EMAIL } from "@better-agent/agent/auth/admin";
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import { createRouterClient } from "@orpc/server";
 import { expect, it } from "vitest";
 import { appRouter } from "./index";
 
+const ADMIN_USER = {
+	id: "admin-uid",
+	email: SUPER_ADMIN_EMAIL,
+	createdAt: new Date(),
+};
+
+const AUTH_CONFIG = {
+	webUrl: "http://web.test",
+	adminUrl: "http://admin.test",
+	accessTtl: 900,
+	refreshTtl: 2_592_000,
+	magicLinkTtl: 900,
+	adminEmails: [] as string[],
+};
+
 function buildClient() {
 	const tokenService = createTokenService();
 	const agentStore = createFakeAgentStore();
 	const services = {
 		tokenService,
+		authConfig: AUTH_CONFIG,
 		agentValidator: { validate: () => Promise.resolve(null) },
 		stores: { agent: agentStore },
 	};
@@ -16,7 +33,7 @@ function buildClient() {
 		context: {
 			services: services as never,
 			authedAgent: null,
-			authedUser: null,
+			authedUser: ADMIN_USER,
 			clientIp: "127.0.0.1",
 			userAgent: null,
 		},

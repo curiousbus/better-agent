@@ -1,3 +1,4 @@
+import { isAdminEmail } from "@better-agent/agent/auth/admin";
 import { ORPCError, os } from "@orpc/server";
 
 import type { Context } from "./context";
@@ -20,6 +21,17 @@ export const userProcedure = o.use(({ context, next }) => {
 	const user = context.authedUser;
 	if (!user) {
 		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
+	}
+	return next({ context: { authedUser: user } });
+});
+
+export const adminProcedure = o.use(({ context, next }) => {
+	const user = context.authedUser;
+	if (!user) {
+		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
+	}
+	if (!isAdminEmail(user.email, context.services.authConfig.adminEmails)) {
+		throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
 	}
 	return next({ context: { authedUser: user } });
 });

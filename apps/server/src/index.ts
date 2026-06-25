@@ -65,9 +65,11 @@ function buildAuthServices() {
 		}),
 		authConfig: {
 			webUrl: env.WEB_URL,
+			adminUrl: env.ADMIN_URL,
 			accessTtl: ACCESS_TTL,
 			refreshTtl: REFRESH_TTL,
 			magicLinkTtl: MAGIC_LINK_TTL,
+			adminEmails: env.ADMIN_EMAILS,
 		},
 		authStores: {
 			user: createUserStore(db),

@@ -20,6 +20,16 @@ export const env = createEnv({
 		RESEND_API_KEY: z.string().optional(),
 		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
 		WEB_URL: z.url().default("http://localhost:3001"),
+		ADMIN_URL: z.url().default("http://localhost:3002"),
+		ADMIN_EMAILS: z
+			.string()
+			.default("")
+			.transform((value) =>
+				value
+					.split(",")
+					.map((e) => e.trim().toLowerCase())
+					.filter((e) => e !== "")
+			),
 		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),
 		/** 逗号分隔的「只同步这些 provider」白名单（避免把 models.dev 全部 145 个 provider 同步进来）。 */
 		CATALOG_PROVIDERS: z

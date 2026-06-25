@@ -1,3 +1,4 @@
+import { SUPER_ADMIN_EMAIL } from "@better-agent/agent/auth/admin";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import {
@@ -18,11 +19,27 @@ const SAMPLE = {
 	},
 };
 
+const ADMIN_USER = {
+	id: "admin-uid",
+	email: SUPER_ADMIN_EMAIL,
+	createdAt: new Date(),
+};
+
+const AUTH_CONFIG = {
+	webUrl: "http://web.test",
+	adminUrl: "http://admin.test",
+	accessTtl: 900,
+	refreshTtl: 2_592_000,
+	magicLinkTtl: 900,
+	adminEmails: [] as string[],
+};
+
 function buildClient() {
 	const providerCatalog = createFakeCatalogStore();
 	const modelCache = createFakeModelStore();
 	const providerCredential = createFakeCredentialStore();
 	const services = {
+		authConfig: AUTH_CONFIG,
 		catalog: createModelCatalog({
 			catalogStore: providerCatalog,
 			modelStore: modelCache,
@@ -38,7 +55,7 @@ function buildClient() {
 		context: {
 			services: services as never,
 			authedAgent: null,
-			authedUser: null,
+			authedUser: ADMIN_USER,
 			clientIp: "127.0.0.1",
 			userAgent: null,
 		},

@@ -24,9 +24,11 @@ export interface AgentServices {
 	agentValidator: AgentValidator;
 	authConfig: {
 		webUrl: string;
+		adminUrl: string;
 		accessTtl: number;
 		refreshTtl: number;
 		magicLinkTtl: number;
+		adminEmails: string[];
 	};
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;

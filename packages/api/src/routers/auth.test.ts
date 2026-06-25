@@ -19,9 +19,11 @@ function build() {
 		rateLimiter: createInMemoryRateLimiter(),
 		authConfig: {
 			webUrl: "http://web.test",
+			adminUrl: "http://admin.test",
 			accessTtl: 900,
 			refreshTtl: 2_592_000,
 			magicLinkTtl: 900,
+			adminEmails: [] as string[],
 		},
 		stores: {
 			user: createFakeUserStore(),
@@ -86,4 +88,18 @@ it("refresh rotates the token and rejects the reused old one", async () => {
 	await expect(
 		client.auth.refresh({ refreshToken: rotated.refreshToken })
 	).rejects.toThrow();
+});
+
+it("requestLink with audience=admin sends URL using adminUrl", async () => {
+	const { client, email } = build();
+	await client.auth.requestLink({ email: "x@y.com", audience: "admin" });
+	expect(email.sent[0]?.url).toContain(
+		"http://admin.test/auth/verify?token=ml_"
+	);
+});
+
+it("requestLink defaults to web audience", async () => {
+	const { client, email } = build();
+	await client.auth.requestLink({ email: "x@y.com" });
+	expect(email.sent[0]?.url).toContain("http://web.test/auth/verify?token=ml_");
 });

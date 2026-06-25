@@ -1,3 +1,4 @@
+import { isAdminEmail } from "@better-agent/agent/auth/admin";
 import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import {
 	generateToken,
@@ -49,7 +50,12 @@ async function issueTokens(
 
 export const authRouter = {
 	requestLink: publicProcedure
-		.input(z.object({ email: z.email() }))
+		.input(
+			z.object({
+				email: z.email(),
+				audience: z.enum(["web", "admin"]).default("web"),
+			})
+		)
 		.handler(async ({ input, context }) => {
 			const limiter = context.services.rateLimiter;
 			await enforce(limiter, `link:ip:${context.clientIp}`, LIMIT_LINK_IP);
@@ -61,7 +67,9 @@ export const authRouter = {
 				email: input.email,
 				expiresAt: new Date(Date.now() + authConfig.magicLinkTtl * MS),
 			});
-			const url = `${authConfig.webUrl}/auth/verify?token=${token}`;
+			const base =
+				input.audience === "admin" ? authConfig.adminUrl : authConfig.webUrl;
+			const url = `${base}/auth/verify?token=${token}`;
 			await emailSender.sendMagicLink({ email: input.email, url });
 			return { ok: true };
 		}),
@@ -124,7 +132,13 @@ export const authRouter = {
 			return issueTokens(context, user);
 		}),
 
-	me: userProcedure.handler(({ context }) => context.authedUser),
+	me: userProcedure.handler(({ context }) => ({
+		...context.authedUser,
+		isAdmin: isAdminEmail(
+			context.authedUser.email,
+			context.services.authConfig.adminEmails
+		),
+	})),
 
 	logout: publicProcedure
 		.input(z.object({ refreshToken: z.string().min(1) }))
