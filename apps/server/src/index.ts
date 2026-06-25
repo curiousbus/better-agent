@@ -42,6 +42,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
+import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisSessionLock } from "./redis-session-lock";
 
@@ -109,6 +110,12 @@ function buildSessionLock() {
 		: createInMemorySessionLock();
 }
 
+function buildCancellation() {
+	return env.REDIS_URL
+		? createRedisCancellationRegistry(new Redis(env.REDIS_URL))
+		: createInMemoryCancellationRegistry();
+}
+
 function buildRuntime(
 	deps: ReturnType<typeof buildProviderDeps>,
 	sessionStore: ReturnType<typeof createSessionStore>,
@@ -134,7 +141,7 @@ function buildServices() {
 	const deps = buildProviderDeps(secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
-	const cancellation = createInMemoryCancellationRegistry();
+	const cancellation = buildCancellation();
 	const runtime = buildRuntime(deps, sessionStore, messageStore, cancellation);
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
