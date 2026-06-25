@@ -1,5 +1,6 @@
 import { parseUserAgent } from "@better-agent/agent/auth/user-agent";
 import { hashToken } from "@better-agent/agent/crypto/auth-tokens";
+import { hashPassword } from "@better-agent/agent/crypto/password";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { userProcedure } from "../index";
@@ -49,5 +50,15 @@ export const accountRouter = {
 				exceptHash
 			);
 			return { ok: true as const };
+		}),
+
+	setPassword: userProcedure
+		.input(z.object({ password: z.string().min(8) }))
+		.handler(async ({ input, context }) => {
+			await context.services.stores.user.setPasswordHash(
+				context.authedUser.id,
+				hashPassword(input.password)
+			);
+			return { ok: true };
 		}),
 };

@@ -103,3 +103,100 @@ it("requestLink defaults to web audience", async () => {
 	await client.auth.requestLink({ email: "x@y.com" });
 	expect(email.sent[0]?.url).toContain("http://web.test/auth/verify?token=ml_");
 });
+
+it("registerWithPassword creates an account and returns tokens", async () => {
+	const { client } = build();
+	const result = await client.auth.registerWithPassword({
+		email: "new@test.com",
+		password: "securepass1",
+	});
+	expect(result.user.email).toBe("new@test.com");
+	expect(result.accessToken.length).toBeGreaterThan(0);
+	expect(result.refreshToken.startsWith("rt_")).toBe(true);
+});
+
+it("registerWithPassword rejects duplicate email with CONFLICT", async () => {
+	const { client } = build();
+	await client.auth.registerWithPassword({
+		email: "dup@test.com",
+		password: "securepass1",
+	});
+	await expect(
+		client.auth.registerWithPassword({
+			email: "dup@test.com",
+			password: "securepass1",
+		})
+	).rejects.toMatchObject({ code: "CONFLICT" });
+});
+
+it("loginWithPassword succeeds after registration with correct password", async () => {
+	const { client } = build();
+	await client.auth.registerWithPassword({
+		email: "login@test.com",
+		password: "mypassword9",
+	});
+	const result = await client.auth.loginWithPassword({
+		email: "login@test.com",
+		password: "mypassword9",
+	});
+	expect(result.user.email).toBe("login@test.com");
+	expect(result.accessToken.length).toBeGreaterThan(0);
+	expect(result.refreshToken.startsWith("rt_")).toBe(true);
+});
+
+it("loginWithPassword rejects wrong password with generic UNAUTHORIZED", async () => {
+	const { client } = build();
+	await client.auth.registerWithPassword({
+		email: "wrongpw@test.com",
+		password: "correctpass1",
+	});
+	await expect(
+		client.auth.loginWithPassword({
+			email: "wrongpw@test.com",
+			password: "wrongpassword",
+		})
+	).rejects.toMatchObject({
+		code: "UNAUTHORIZED",
+		message: "Invalid email or password",
+	});
+});
+
+it("loginWithPassword rejects unknown email with the same generic UNAUTHORIZED", async () => {
+	const { client } = build();
+	await expect(
+		client.auth.loginWithPassword({
+			email: "ghost@test.com",
+			password: "doesntmatter",
+		})
+	).rejects.toMatchObject({
+		code: "UNAUTHORIZED",
+		message: "Invalid email or password",
+	});
+});
+
+it("loginWithPassword rejects with TOO_MANY_REQUESTS after per-email limit", async () => {
+	const { client } = build();
+	const LIMIT_PASSWORD_EMAIL = 10;
+	// Register first so credential exists (counts as 1 hit toward per-email limit)
+	await client.auth.registerWithPassword({
+		email: "ratelimited@test.com",
+		password: "validpass1",
+	});
+	// Exhaust the remaining per-email budget with wrong-password attempts
+	for (let i = 1; i < LIMIT_PASSWORD_EMAIL; i++) {
+		await client.auth
+			.loginWithPassword({
+				email: "ratelimited@test.com",
+				password: "wrongpass1",
+			})
+			.catch(() => {
+				/* swallow UNAUTHORIZED — we only care about the rate counter */
+			});
+	}
+	await expect(
+		client.auth.loginWithPassword({
+			email: "ratelimited@test.com",
+			password: "validpass1",
+		})
+	).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+});

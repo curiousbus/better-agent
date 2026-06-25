@@ -84,9 +84,15 @@ export interface MessageStore {
 }
 
 export interface UserStore {
+	createWithPassword(email: string, passwordHash: string): Promise<User>;
 	findByEmail(email: string): Promise<User | null>;
 	findById(id: string): Promise<User | null>;
+	findCredentialByEmail(
+		email: string
+	): Promise<{ id: string; email: string; passwordHash: string | null } | null>;
 	findOrCreate(email: string): Promise<User>;
+	hasPassword(userId: string): Promise<boolean>;
+	setPasswordHash(userId: string, passwordHash: string): Promise<void>;
 }
 
 export interface MagicLinkStore {

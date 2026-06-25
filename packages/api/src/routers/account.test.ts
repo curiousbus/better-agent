@@ -1,4 +1,6 @@
+import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import { hashToken } from "@better-agent/agent/crypto/auth-tokens";
+import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import {
 	createFakeRefreshTokenStore,
 	createFakeUserStore,
@@ -141,6 +143,70 @@ it("revokeLogin ignores tokens belonging to another user", async () => {
 	// userA's sessions unchanged
 	const afterA = await makeClient(userA.id).account.listLogins({});
 	expect(afterA).toHaveLength(2);
+});
+
+function buildWithAuth() {
+	const userStore = createFakeUserStore();
+	const refreshToken = createFakeRefreshTokenStore();
+	const jwtService = createJwtService("a-test-secret-at-least-32-chars-long!!");
+	const services = {
+		jwtService,
+		rateLimiter: createInMemoryRateLimiter(),
+		authConfig: {
+			webUrl: "http://web.test",
+			adminUrl: "http://admin.test",
+			accessTtl: 900,
+			refreshTtl: 2_592_000,
+			magicLinkTtl: 900,
+			adminEmails: [] as string[],
+		},
+		stores: { user: userStore, refreshToken },
+	};
+	const makeAuthedClient = (userId: string, email: string) =>
+		createRouterClient(appRouter, {
+			context: {
+				services: services as never,
+				authedAgent: null,
+				authedUser: { id: userId, email, createdAt: new Date() },
+				clientIp: "127.0.0.1",
+				userAgent: null,
+			},
+		});
+	const publicClient = createRouterClient(appRouter, {
+		context: {
+			services: services as never,
+			authedAgent: null,
+			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
+		},
+	});
+	return { userStore, makeAuthedClient, publicClient };
+}
+
+it("me.hasPassword is false for a fresh user, true after setPassword", async () => {
+	const { userStore, makeAuthedClient } = buildWithAuth();
+	const user = await userStore.findOrCreate("pw@test.com");
+	const client = makeAuthedClient(user.id, user.email);
+	const before = await client.auth.me();
+	expect(before.hasPassword).toBe(false);
+	await client.account.setPassword({ password: "newpassword1" });
+	const after = await client.auth.me();
+	expect(after.hasPassword).toBe(true);
+});
+
+it("loginWithPassword succeeds after account.setPassword", async () => {
+	const { userStore, makeAuthedClient, publicClient } = buildWithAuth();
+	const user = await userStore.findOrCreate("setpw@test.com");
+	const authedClient = makeAuthedClient(user.id, user.email);
+	await authedClient.account.setPassword({ password: "setnewpass1" });
+	const result = await publicClient.auth.loginWithPassword({
+		email: "setpw@test.com",
+		password: "setnewpass1",
+	});
+	expect(result.user.email).toBe("setpw@test.com");
+	expect(result.accessToken.length).toBeGreaterThan(0);
+	expect(result.refreshToken.startsWith("rt_")).toBe(true);
 });
 
 it("revokeOthers leaves only the current session active", async () => {

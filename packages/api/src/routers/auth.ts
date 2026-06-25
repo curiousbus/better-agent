@@ -4,6 +4,11 @@ import {
 	generateToken,
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
+import {
+	DUMMY_PASSWORD_HASH,
+	hashPassword,
+	verifyPassword,
+} from "@better-agent/agent/crypto/password";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
@@ -16,6 +21,14 @@ const LIMIT_LINK_EMAIL = 5;
 const LIMIT_LINK_IP = 20;
 const LIMIT_VERIFY_IP = 10;
 const LIMIT_REFRESH_IP = 30;
+const LIMIT_PASSWORD_IP = 20;
+const LIMIT_PASSWORD_EMAIL = 10;
+
+const PASSWORD_MIN = 8;
+const passwordInput = z.object({
+	email: z.email(),
+	password: z.string().min(PASSWORD_MIN),
+});
 
 async function enforce(
 	limiter: RateLimiter,
@@ -132,11 +145,14 @@ export const authRouter = {
 			return issueTokens(context, user);
 		}),
 
-	me: userProcedure.handler(({ context }) => ({
+	me: userProcedure.handler(async ({ context }) => ({
 		...context.authedUser,
 		isAdmin: isAdminEmail(
 			context.authedUser.email,
 			context.services.authConfig.adminEmails
+		),
+		hasPassword: await context.services.stores.user.hasPassword(
+			context.authedUser.id
 		),
 	})),
 
@@ -150,5 +166,54 @@ export const authRouter = {
 				await context.services.stores.refreshToken.revoke(record.id);
 			}
 			return { ok: true };
+		}),
+
+	registerWithPassword: publicProcedure
+		.input(passwordInput)
+		.handler(async ({ input, context }) => {
+			const { email, password } = input;
+			const limiter = context.services.rateLimiter;
+			await enforce(
+				limiter,
+				`password:ip:${context.clientIp}`,
+				LIMIT_PASSWORD_IP
+			);
+			await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
+			const existing = await context.services.stores.user.findByEmail(email);
+			if (existing) {
+				throw new ORPCError("CONFLICT", {
+					message: "An account with this email already exists",
+				});
+			}
+			const user = await context.services.stores.user.createWithPassword(
+				email,
+				hashPassword(password)
+			);
+			return issueTokens(context, user);
+		}),
+
+	loginWithPassword: publicProcedure
+		.input(passwordInput)
+		.handler(async ({ input, context }) => {
+			const { email, password } = input;
+			const limiter = context.services.rateLimiter;
+			await enforce(
+				limiter,
+				`password:ip:${context.clientIp}`,
+				LIMIT_PASSWORD_IP
+			);
+			await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
+			const cred =
+				await context.services.stores.user.findCredentialByEmail(email);
+			const ok = verifyPassword(
+				password,
+				cred?.passwordHash ?? DUMMY_PASSWORD_HASH
+			);
+			if (!(cred?.passwordHash && ok)) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Invalid email or password",
+				});
+			}
+			return issueTokens(context, { id: cred.id, email: cred.email });
 		}),
 };

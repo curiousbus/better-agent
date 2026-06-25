@@ -6,29 +6,85 @@ import type {
 	UserStore,
 } from "../ports";
 
+interface FakeUserRecord extends User {
+	passwordHash: string | null;
+}
+
+function toUser(record: FakeUserRecord): User {
+	return { id: record.id, email: record.email, createdAt: record.createdAt };
+}
+
+function makeUserRecord(
+	email: string,
+	passwordHash: string | null = null
+): FakeUserRecord {
+	return {
+		id: crypto.randomUUID(),
+		email,
+		createdAt: new Date(),
+		passwordHash,
+	};
+}
+
+function insertRecord(
+	byId: Map<string, FakeUserRecord>,
+	byEmail: Map<string, FakeUserRecord>,
+	record: FakeUserRecord
+): void {
+	byId.set(record.id, record);
+	byEmail.set(record.email, record);
+}
+
+function toCredential(record: FakeUserRecord) {
+	return {
+		id: record.id,
+		email: record.email,
+		passwordHash: record.passwordHash,
+	};
+}
+
 export function createFakeUserStore(): UserStore {
-	const byId = new Map<string, User>();
-	const byEmail = new Map<string, User>();
+	const byId = new Map<string, FakeUserRecord>();
+	const byEmail = new Map<string, FakeUserRecord>();
+	const ins = (r: FakeUserRecord) => insertRecord(byId, byEmail, r);
+
 	return {
 		findById(id) {
-			return Promise.resolve(byId.get(id) ?? null);
+			const r = byId.get(id);
+			return Promise.resolve(r ? toUser(r) : null);
 		},
 		findByEmail(email) {
-			return Promise.resolve(byEmail.get(email) ?? null);
+			const r = byEmail.get(email);
+			return Promise.resolve(r ? toUser(r) : null);
 		},
 		findOrCreate(email) {
 			const existing = byEmail.get(email);
 			if (existing) {
-				return Promise.resolve(existing);
+				return Promise.resolve(toUser(existing));
 			}
-			const user: User = {
-				id: crypto.randomUUID(),
-				email,
-				createdAt: new Date(),
-			};
-			byId.set(user.id, user);
-			byEmail.set(email, user);
-			return Promise.resolve(user);
+			const record = makeUserRecord(email);
+			ins(record);
+			return Promise.resolve(toUser(record));
+		},
+		createWithPassword(email, passwordHash) {
+			const record = makeUserRecord(email, passwordHash);
+			ins(record);
+			return Promise.resolve(toUser(record));
+		},
+		setPasswordHash(userId, passwordHash) {
+			const record = byId.get(userId);
+			if (record) {
+				record.passwordHash = passwordHash;
+			}
+			return Promise.resolve();
+		},
+		findCredentialByEmail(email) {
+			const r = byEmail.get(email);
+			return Promise.resolve(r ? toCredential(r) : null);
+		},
+		hasPassword(userId) {
+			const r = byId.get(userId);
+			return Promise.resolve(r ? r.passwordHash !== null : false);
 		},
 	};
 }

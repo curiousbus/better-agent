@@ -10,6 +10,83 @@ import * as schema from "../schema";
 
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
+function toUserRow(row: { id: string; email: string; createdAt: Date }) {
+	return { id: row.id, email: row.email, createdAt: row.createdAt };
+}
+
+async function dbFindUserByEmail(db: Db, email: string) {
+	const rows = await db
+		.select()
+		.from(schema.users)
+		.where(eq(schema.users.email, email))
+		.limit(1);
+	const row = rows[0];
+	return row ? toUserRow(row) : null;
+}
+
+async function dbFindOrCreate(db: Db, email: string) {
+	const existing = await dbFindUserByEmail(db, email);
+	if (existing) {
+		return existing;
+	}
+	const inserted = await db
+		.insert(schema.users)
+		.values({ email })
+		.onConflictDoNothing()
+		.returning();
+	const row = inserted[0];
+	if (row) {
+		return toUserRow(row);
+	}
+	// Lost an insert race: another request created it concurrently.
+	const fallback = await dbFindUserByEmail(db, email);
+	if (!fallback) {
+		throw new Error("Failed to create user");
+	}
+	return fallback;
+}
+
+async function dbCreateWithPassword(
+	db: Db,
+	email: string,
+	passwordHash: string
+) {
+	const inserted = await db
+		.insert(schema.users)
+		.values({ email, passwordHash })
+		.returning();
+	const row = inserted[0];
+	if (!row) {
+		throw new Error("Failed to create user");
+	}
+	return toUserRow(row);
+}
+
+async function dbFindCredentialByEmail(db: Db, email: string) {
+	const rows = await db
+		.select({
+			id: schema.users.id,
+			email: schema.users.email,
+			passwordHash: schema.users.passwordHash,
+		})
+		.from(schema.users)
+		.where(eq(schema.users.email, email))
+		.limit(1);
+	const row = rows[0];
+	return row
+		? { id: row.id, email: row.email, passwordHash: row.passwordHash }
+		: null;
+}
+
+async function dbHasPassword(db: Db, userId: string) {
+	const rows = await db
+		.select({ passwordHash: schema.users.passwordHash })
+		.from(schema.users)
+		.where(eq(schema.users.id, userId))
+		.limit(1);
+	return rows[0] ? rows[0].passwordHash !== null : false;
+}
+
 export function createUserStore(db: Db): UserStore {
 	return {
 		async findById(id) {
@@ -18,43 +95,20 @@ export function createUserStore(db: Db): UserStore {
 				.from(schema.users)
 				.where(eq(schema.users.id, id))
 				.limit(1);
-			const row = rows[0];
-			return row
-				? { id: row.id, email: row.email, createdAt: row.createdAt }
-				: null;
+			return rows[0] ? toUserRow(rows[0]) : null;
 		},
-		async findByEmail(email) {
-			const rows = await db
-				.select()
-				.from(schema.users)
-				.where(eq(schema.users.email, email))
-				.limit(1);
-			const row = rows[0];
-			return row
-				? { id: row.id, email: row.email, createdAt: row.createdAt }
-				: null;
+		findByEmail: (email) => dbFindUserByEmail(db, email),
+		findOrCreate: (email) => dbFindOrCreate(db, email),
+		createWithPassword: (email, passwordHash) =>
+			dbCreateWithPassword(db, email, passwordHash),
+		async setPasswordHash(userId, passwordHash) {
+			await db
+				.update(schema.users)
+				.set({ passwordHash, updatedAt: new Date() })
+				.where(eq(schema.users.id, userId));
 		},
-		async findOrCreate(email) {
-			const existing = await this.findByEmail(email);
-			if (existing) {
-				return existing;
-			}
-			const inserted = await db
-				.insert(schema.users)
-				.values({ email })
-				.onConflictDoNothing()
-				.returning();
-			const row = inserted[0];
-			if (row) {
-				return { id: row.id, email: row.email, createdAt: row.createdAt };
-			}
-			// Lost an insert race: another request created it concurrently.
-			const fallback = await this.findByEmail(email);
-			if (!fallback) {
-				throw new Error("Failed to create user");
-			}
-			return fallback;
-		},
+		findCredentialByEmail: (email) => dbFindCredentialByEmail(db, email),
+		hasPassword: (userId) => dbHasPassword(db, userId),
 	};
 }
 

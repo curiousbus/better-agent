@@ -57,6 +57,13 @@
       "when": 1782358271021,
       "tag": "0007_silly_the_liberteens",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782365941556,
+      "tag": "0008_tense_cerebro",
+      "breakpoints": true
     }
   ]
 }
