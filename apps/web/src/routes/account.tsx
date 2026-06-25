@@ -1,6 +1,9 @@
 import { Button } from "@better-agent/ui/components/button";
+import { Input } from "@better-agent/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { clearTokens, loadRefreshToken } from "@/utils/auth";
 import { client, orpc } from "@/utils/orpc";
@@ -78,6 +81,62 @@ function SessionRow({ login, onRevoke }: SessionRowProps) {
 	);
 }
 
+interface PasswordSectionProps {
+	hasPassword: boolean;
+	onSaved: () => void;
+}
+
+function PasswordSection({ hasPassword, onSaved }: PasswordSectionProps) {
+	const [password, setPassword] = useState("");
+	const setPasswordMutation = useMutation({
+		...orpc.account.setPassword.mutationOptions(),
+		onSuccess: () => {
+			toast.success(hasPassword ? "Password updated." : "Password set.");
+			setPassword("");
+			onSaved();
+		},
+	});
+
+	const handleSubmit = (event: React.FormEvent) => {
+		event.preventDefault();
+		setPasswordMutation.mutate({ password });
+	};
+
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="text-muted-foreground text-sm">
+				{hasPassword ? "Change password" : "Set a password"}
+			</div>
+			<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
+				<Input
+					aria-label="New password"
+					autoComplete="new-password"
+					minLength={8}
+					onChange={(e) => setPassword(e.target.value)}
+					placeholder="New password"
+					required
+					type="password"
+					value={password}
+				/>
+				{setPasswordMutation.error ? (
+					<p className="text-destructive text-sm">
+						{setPasswordMutation.error.message}
+					</p>
+				) : null}
+				<div>
+					<Button
+						disabled={setPasswordMutation.isPending}
+						size="sm"
+						type="submit"
+					>
+						Save
+					</Button>
+				</div>
+			</form>
+		</div>
+	);
+}
+
 function useAccountPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -88,6 +147,8 @@ function useAccountPage() {
 	);
 	const invalidateLogins = () =>
 		queryClient.invalidateQueries({ queryKey: orpc.account.listLogins.key() });
+	const invalidateMe = () =>
+		queryClient.invalidateQueries({ queryKey: orpc.auth.me.key() });
 	const revokeLogin = useMutation({
 		...orpc.account.revokeLogin.mutationOptions(),
 		onSuccess: invalidateLogins,
@@ -106,6 +167,8 @@ function useAccountPage() {
 	return {
 		currentRefreshToken,
 		email: meQuery.data?.email,
+		hasPassword: meQuery.data?.hasPassword ?? false,
+		invalidateMe,
 		logins: loginsQuery.data ?? [],
 		revokeLogin,
 		revokeOthers,
@@ -117,6 +180,8 @@ function AccountPage() {
 	const {
 		currentRefreshToken,
 		email,
+		hasPassword,
+		invalidateMe,
 		logins,
 		revokeLogin,
 		revokeOthers,
@@ -128,6 +193,7 @@ function AccountPage() {
 				<div className="text-muted-foreground text-sm">Signed in as</div>
 				<div className="font-medium">{email}</div>
 			</div>
+			<PasswordSection hasPassword={hasPassword} onSaved={invalidateMe} />
 			<div className="flex flex-col gap-2">
 				<div className="text-muted-foreground text-sm">Active sessions</div>
 				{logins.map((s) => (
