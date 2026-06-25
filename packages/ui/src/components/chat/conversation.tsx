@@ -1,6 +1,5 @@
 import type { AgentClient } from "@better-agent/client";
 import { CopyAction } from "@better-agent/ui/components/actions";
-import { Badge } from "@better-agent/ui/components/badge";
 import {
 	ConversationContent,
 	Conversation as ConversationRoot,
@@ -21,14 +20,18 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
+import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { RevealText } from "./reveal-text";
-
+import { ToolGroup } from "./tool";
 import { type ChatMessage, useChat } from "./use-chat";
 
 function AssistantBody({ message }: { message: ChatMessage }) {
-	const streamingEmpty = message.status === "streaming" && message.text === "";
+	const streamingEmpty =
+		message.status === "streaming" &&
+		message.text === "" &&
+		message.tools.length === 0;
 	return (
 		<div className="flex flex-col gap-2">
 			{message.reasoning === "" ? null : (
@@ -37,6 +40,7 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 					<ReasoningContent>{message.reasoning}</ReasoningContent>
 				</Reasoning>
 			)}
+			<ToolGroup tools={message.tools} />
 			{streamingEmpty ? (
 				<Loader />
 			) : (
@@ -45,7 +49,12 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 				</Response>
 			)}
 			{message.status === "error" ? (
-				<Badge variant="destructive">error</Badge>
+				<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-destructive text-sm">
+					<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+					<span>
+						{message.errorText ?? "Something went wrong. Please try again."}
+					</span>
+				</div>
 			) : null}
 			{message.status === "complete" && message.text !== "" ? (
 				<CopyAction text={message.text} />
