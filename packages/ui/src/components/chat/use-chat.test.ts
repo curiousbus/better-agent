@@ -1,5 +1,85 @@
 import { describe, expect, it } from "vitest";
-import { toChatMessage } from "./use-chat";
+import type { ChatMessage } from "./use-chat";
+import { streamPrompt, toChatMessage } from "./use-chat";
+
+function fakeStream(events: unknown[]) {
+	return {
+		// biome-ignore lint/suspicious/useAwait: test async generator
+		async *stream() {
+			for (const e of events) {
+				yield e;
+			}
+		},
+	} as unknown as import("@better-agent/client").AgentClient;
+}
+
+it("streams tool-call then tool-result into the draft assistant", async () => {
+	const drafts: ChatMessage[][] = [];
+	const user: ChatMessage = {
+		id: "u",
+		role: "user",
+		text: "hi",
+		reasoning: "",
+		status: "complete",
+		tools: [],
+	};
+	const assistant: ChatMessage = {
+		id: "a",
+		role: "assistant",
+		text: "",
+		reasoning: "",
+		status: "streaming",
+		tools: [],
+	};
+	await streamPrompt({
+		agentClient: fakeStream([
+			{ type: "tool-call", callId: "c1", toolName: "search", args: { q: "x" } },
+			{ type: "tool-result", callId: "c1", result: "ok", isError: false },
+			{ type: "text-delta", delta: "answer" },
+		]),
+		assistant,
+		user,
+		sessionId: "s",
+		text: "hi",
+		signal: new AbortController().signal,
+		setDraft: (m) => drafts.push(m),
+	});
+	const last = drafts.at(-1)?.[1];
+	expect(last?.tools).toHaveLength(1);
+	expect(last?.tools[0]).toMatchObject({ callId: "c1", status: "complete" });
+});
+
+it("captures the error event message as errorText", async () => {
+	const drafts: ChatMessage[][] = [];
+	const user: ChatMessage = {
+		id: "u",
+		role: "user",
+		text: "hi",
+		reasoning: "",
+		status: "complete",
+		tools: [],
+	};
+	const assistant: ChatMessage = {
+		id: "a",
+		role: "assistant",
+		text: "",
+		reasoning: "",
+		status: "streaming",
+		tools: [],
+	};
+	await streamPrompt({
+		agentClient: fakeStream([{ type: "error", message: "rate limited" }]),
+		assistant,
+		user,
+		sessionId: "s",
+		text: "hi",
+		signal: new AbortController().signal,
+		setDraft: (m) => drafts.push(m),
+	});
+	const last = drafts.at(-1)?.[1];
+	expect(last?.status).toBe("error");
+	expect(last?.errorText).toBe("rate limited");
+});
 
 function part(over: Record<string, unknown>) {
 	return {

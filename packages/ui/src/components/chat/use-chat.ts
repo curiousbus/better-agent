@@ -102,7 +102,52 @@ interface StreamArgs {
 	user: ChatMessage;
 }
 
-async function streamPrompt(args: StreamArgs) {
+function applyEvent(
+	event: import("@better-agent/client").RunEvent,
+	ctx: {
+		assistant: ChatMessage;
+		reveal: ReturnType<typeof createStreamReveal>;
+		setDraft: (msgs: ChatMessage[]) => void;
+		user: ChatMessage;
+	}
+) {
+	const { assistant, reveal, setDraft, user } = ctx;
+	if (event.type === "text-delta") {
+		reveal.pushText(event.delta);
+	} else if (event.type === "reasoning-delta") {
+		reveal.pushReasoning(event.delta);
+	} else if (event.type === "tool-call") {
+		assistant.tools = [
+			...assistant.tools,
+			{
+				callId: event.callId,
+				toolName: event.toolName,
+				args: event.args,
+				isError: false,
+				status: "running" as const,
+			},
+		];
+		setDraft([user, { ...assistant }]);
+	} else if (event.type === "tool-result") {
+		assistant.tools = assistant.tools.map((t) =>
+			t.callId === event.callId
+				? {
+						...t,
+						result: event.result,
+						isError: event.isError,
+						status: event.isError ? ("error" as const) : ("complete" as const),
+					}
+				: t
+		);
+		setDraft([user, { ...assistant }]);
+	} else if (event.type === "error") {
+		assistant.status = "error";
+		assistant.errorText = event.message;
+		setDraft([user, { ...assistant }]);
+	}
+}
+
+export async function streamPrompt(args: StreamArgs) {
 	const { agentClient, sessionId, text, signal, user, assistant, setDraft } =
 		args;
 	// Reveal buffered deltas one chunk per frame (steady typing cadence) instead
@@ -113,13 +158,7 @@ async function streamPrompt(args: StreamArgs) {
 	});
 	try {
 		for await (const event of agentClient.stream(text, { sessionId, signal })) {
-			if (event.type === "text-delta") {
-				reveal.pushText(event.delta);
-			} else if (event.type === "reasoning-delta") {
-				reveal.pushReasoning(event.delta);
-			} else if (event.type === "error") {
-				assistant.status = "error";
-			}
+			applyEvent(event, { assistant, reveal, setDraft, user });
 		}
 		reveal.flush();
 	} catch (error) {
@@ -223,6 +262,9 @@ export function useChat(sessionId: string, agentClient: AgentClient) {
 
 	const stop = () => {
 		abortRef.current?.abort();
+		if (sessionId !== "") {
+			agentClient.cancel(sessionId).catch(() => undefined);
+		}
 	};
 
 	return { messages, streaming, send, stop };
