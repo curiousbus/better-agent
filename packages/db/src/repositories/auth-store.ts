@@ -1,5 +1,6 @@
 import type {
 	MagicLinkStore,
+	PasswordResetStore,
 	RefreshTokenStore,
 	UserStore,
 } from "@better-agent/agent/ports";
@@ -152,6 +153,36 @@ export function createMagicLinkStore(db: Db): MagicLinkStore {
 				.set({ usedAt: new Date() })
 				.where(eq(schema.magicLinks.id, row.id));
 			return { email: row.email };
+		},
+	};
+}
+
+export function createPasswordResetStore(db: Db): PasswordResetStore {
+	return {
+		async create(input) {
+			await db.insert(schema.passwordResetTokens).values(input);
+		},
+		async consume(tokenHash) {
+			const rows = await db
+				.select()
+				.from(schema.passwordResetTokens)
+				.where(
+					and(
+						eq(schema.passwordResetTokens.tokenHash, tokenHash),
+						isNull(schema.passwordResetTokens.usedAt),
+						gt(schema.passwordResetTokens.expiresAt, new Date())
+					)
+				)
+				.limit(1);
+			const row = rows[0];
+			if (!row) {
+				return null;
+			}
+			await db
+				.update(schema.passwordResetTokens)
+				.set({ usedAt: new Date() })
+				.where(eq(schema.passwordResetTokens.id, row.id));
+			return { userId: row.userId };
 		},
 	};
 }

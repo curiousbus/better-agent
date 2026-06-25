@@ -3,6 +3,7 @@ import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import {
 	createFakeEmailSender,
 	createFakeMagicLinkStore,
+	createFakePasswordResetStore,
 	createFakeRefreshTokenStore,
 	createFakeUserStore,
 } from "@better-agent/agent/testing/fake-auth-stores";
@@ -13,6 +14,8 @@ import { appRouter } from "./index";
 function build() {
 	const jwtService = createJwtService("a-test-secret-at-least-32-chars-long!!");
 	const email = createFakeEmailSender();
+	const passwordReset = createFakePasswordResetStore();
+	const refreshToken = createFakeRefreshTokenStore();
 	const services = {
 		jwtService,
 		emailSender: email,
@@ -28,7 +31,8 @@ function build() {
 		stores: {
 			user: createFakeUserStore(),
 			magicLink: createFakeMagicLinkStore(),
-			refreshToken: createFakeRefreshTokenStore(),
+			refreshToken,
+			passwordReset,
 		},
 	};
 	const client = createRouterClient(appRouter, {
@@ -50,7 +54,7 @@ function build() {
 				userAgent: null,
 			},
 		});
-	return { client, email, services, authedClient };
+	return { client, email, passwordReset, refreshToken, services, authedClient };
 }
 
 it("requestLink emails a verify URL carrying a token", async () => {
@@ -233,4 +237,63 @@ it("loginWithPassword rejects with TOO_MANY_REQUESTS after per-email limit", asy
 			password: "validpass1",
 		})
 	).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+});
+
+// ─── Password Reset ───────────────────────────────────────────────────────────
+type B = ReturnType<typeof build>;
+const PW = "oldpassword1";
+
+async function setupReset(b: B, addr: string): Promise<string> {
+	await b.client.auth.registerWithPassword({ email: addr, password: PW });
+	await b.client.auth.requestPasswordReset({ email: addr });
+	return b.email.resetSent.at(-1)?.url.split("token=")[1] ?? "";
+}
+
+it("requestPasswordReset: ok:true always; email only sent for known user", async () => {
+	const b = build();
+	const token = await setupReset(b, "reset@test.com");
+	expect(token.startsWith("pr_")).toBe(true);
+	await b.client.auth.requestPasswordReset({ email: "x@ghost.com" });
+	expect(b.email.resetSent).toHaveLength(1); // ghost sends nothing
+});
+
+it("resetPassword: new password works; old password rejected", async () => {
+	const b = build();
+	const token = await setupReset(b, "e2e@test.com");
+	await b.client.auth.resetPassword({ token, password: "newpassword2" });
+	const ok = await b.client.auth.loginWithPassword({
+		email: "e2e@test.com",
+		password: "newpassword2",
+	});
+	expect(ok.user.email).toBe("e2e@test.com");
+	await expect(
+		b.client.auth.loginWithPassword({ email: "e2e@test.com", password: PW })
+	).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+});
+
+it("resetPassword revokes all active refresh tokens", async () => {
+	const b = build();
+	const token = await setupReset(b, "revoke@test.com");
+	const { refreshToken: rt, user } = await b.client.auth.loginWithPassword({
+		email: "revoke@test.com",
+		password: PW,
+	});
+	const rotated = await b.client.auth.refresh({ refreshToken: rt });
+	await b.client.auth.resetPassword({ token, password: "newpassword2" });
+	await expect(
+		b.client.auth.refresh({ refreshToken: rotated.refreshToken })
+	).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+	expect(await b.refreshToken.listActiveByUser(user.id)).toHaveLength(0);
+});
+
+it("resetPassword rejects unknown and already-consumed tokens with BAD_REQUEST", async () => {
+	const b = build();
+	await expect(
+		b.client.auth.resetPassword({ token: "pr_bogus", password: "newpassword2" })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	const token = await setupReset(b, "single@test.com");
+	await b.client.auth.resetPassword({ token, password: "newpassword2" });
+	await expect(
+		b.client.auth.resetPassword({ token, password: "anothernewpw3" })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
 });

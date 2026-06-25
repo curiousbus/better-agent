@@ -121,6 +121,17 @@ export interface RefreshTokenStore {
 	revokeOthersForUser(userId: string, exceptTokenHash: string): Promise<void>;
 }
 
+export interface PasswordResetStore {
+	/** Single-use: returns the userId and marks it used; null if missing/used/expired. */
+	consume(tokenHash: string): Promise<{ userId: string } | null>;
+	create(input: {
+		userId: string;
+		tokenHash: string;
+		expiresAt: Date;
+	}): Promise<void>;
+}
+
 export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
+	sendPasswordReset(input: { email: string; url: string }): Promise<void>;
 }

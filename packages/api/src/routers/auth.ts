@@ -23,6 +23,9 @@ const LIMIT_VERIFY_IP = 10;
 const LIMIT_REFRESH_IP = 30;
 const LIMIT_PASSWORD_IP = 20;
 const LIMIT_PASSWORD_EMAIL = 10;
+const RESET_TTL_MS = 60 * 60 * 1000;
+const LIMIT_RESET_IP = 20;
+const LIMIT_RESET_EMAIL = 5;
 
 const PASSWORD_MIN = 8;
 const passwordInput = z.object({
@@ -219,5 +222,54 @@ export const authRouter = {
 				});
 			}
 			return issueTokens(context, { id: cred.id, email: cred.email });
+		}),
+
+	requestPasswordReset: publicProcedure
+		.input(z.object({ email: z.email() }))
+		.handler(async ({ input, context }) => {
+			const { email } = input;
+			const limiter = context.services.rateLimiter;
+			await enforce(limiter, `reset:ip:${context.clientIp}`, LIMIT_RESET_IP);
+			await enforce(limiter, `reset:email:${email}`, LIMIT_RESET_EMAIL);
+			const { authConfig, emailSender, stores } = context.services;
+			const user = await stores.user.findByEmail(email);
+			if (user) {
+				const token = generateToken("pr_");
+				await stores.passwordReset.create({
+					userId: user.id,
+					tokenHash: hashToken(token),
+					expiresAt: new Date(Date.now() + RESET_TTL_MS),
+				});
+				await emailSender.sendPasswordReset({
+					email,
+					url: `${authConfig.webUrl}/reset-password?token=${token}`,
+				});
+			}
+			return { ok: true };
+		}),
+
+	resetPassword: publicProcedure
+		.input(z.object({ token: z.string().min(1), password: z.string().min(8) }))
+		.handler(async ({ input, context }) => {
+			await enforce(
+				context.services.rateLimiter,
+				`reset:ip:${context.clientIp}`,
+				LIMIT_RESET_IP
+			);
+			const { stores } = context.services;
+			const consumed = await stores.passwordReset.consume(
+				hashToken(input.token)
+			);
+			if (!consumed) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "This reset link is invalid or has expired",
+				});
+			}
+			await stores.user.setPasswordHash(
+				consumed.userId,
+				hashPassword(input.password)
+			);
+			await stores.refreshToken.revokeAllForUser(consumed.userId);
+			return { ok: true };
 		}),
 };

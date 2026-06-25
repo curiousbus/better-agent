@@ -2,6 +2,7 @@ import type { RefreshTokenRecord, User } from "../auth/types";
 import type {
 	EmailSender,
 	MagicLinkStore,
+	PasswordResetStore,
 	RefreshTokenStore,
 	UserStore,
 } from "../ports";
@@ -230,14 +231,45 @@ export function createFakeRefreshTokenStore(): RefreshTokenStore {
 	};
 }
 
+interface FakeResetToken {
+	expiresAt: Date;
+	usedAt: Date | null;
+	userId: string;
+}
+
+export function createFakePasswordResetStore(): PasswordResetStore {
+	const tokens = new Map<string, FakeResetToken>();
+	return {
+		create({ userId, tokenHash, expiresAt }) {
+			tokens.set(tokenHash, { userId, expiresAt, usedAt: null });
+			return Promise.resolve();
+		},
+		consume(tokenHash) {
+			const token = tokens.get(tokenHash);
+			if (!token || token.usedAt || token.expiresAt < new Date()) {
+				return Promise.resolve(null);
+			}
+			token.usedAt = new Date();
+			return Promise.resolve({ userId: token.userId });
+		},
+	};
+}
+
 export function createFakeEmailSender(): EmailSender & {
 	sent: { email: string; url: string }[];
+	resetSent: { email: string; url: string }[];
 } {
 	const sent: { email: string; url: string }[] = [];
+	const resetSent: { email: string; url: string }[] = [];
 	return {
 		sent,
+		resetSent,
 		sendMagicLink(input) {
 			sent.push(input);
+			return Promise.resolve();
+		},
+		sendPasswordReset(input) {
+			resetSent.push(input);
 			return Promise.resolve();
 		},
 	};

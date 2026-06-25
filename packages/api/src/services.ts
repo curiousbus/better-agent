@@ -8,6 +8,7 @@ import type {
 	MagicLinkStore,
 	MessageStore,
 	ModelCacheStore,
+	PasswordResetStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
 	RefreshTokenStore,
@@ -47,6 +48,7 @@ export interface AgentServices {
 		message: MessageStore;
 		user: UserStore;
 		magicLink: MagicLinkStore;
+		passwordReset: PasswordResetStore;
 		refreshToken: RefreshTokenStore;
 	};
 	tokenService: TokenService;

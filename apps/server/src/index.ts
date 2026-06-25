@@ -21,6 +21,7 @@ import { db } from "@better-agent/db";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import {
 	createMagicLinkStore,
+	createPasswordResetStore,
 	createRefreshTokenStore,
 	createUserStore,
 } from "@better-agent/db/repositories/auth-store";
@@ -74,6 +75,7 @@ function buildAuthServices() {
 		authStores: {
 			user: createUserStore(db),
 			magicLink: createMagicLinkStore(db),
+			passwordReset: createPasswordResetStore(db),
 			refreshToken: createRefreshTokenStore(db),
 		},
 	};

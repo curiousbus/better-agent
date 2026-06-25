@@ -71,6 +71,13 @@
       "when": 1782369613887,
       "tag": "0009_unknown_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782370501532,
+      "tag": "0010_cheerful_randall_flagg",
+      "breakpoints": true
     }
   ]
 }
