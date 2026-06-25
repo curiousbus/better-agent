@@ -8,6 +8,7 @@ import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { RouteProgress } from "@/components/route-progress";
+import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
 import { client } from "@/utils/orpc";
@@ -54,7 +55,9 @@ function AuthedShell() {
 					<span className="font-medium text-sm">better-agent</span>
 				</header>
 				<div className="flex min-h-0 flex-1 flex-col overflow-auto">
-					<Outlet />
+					<RouteTransition>
+						<Outlet />
+					</RouteTransition>
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
