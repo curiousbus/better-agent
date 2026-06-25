@@ -57,22 +57,66 @@ export function createFakeMagicLinkStore(): MagicLinkStore {
 	};
 }
 
-export function createFakeRefreshTokenStore(): RefreshTokenStore {
-	const rows = new Map<string, RefreshTokenRecord & { tokenHash: string }>();
+function activeRows(
+	rows: Map<string, RefreshTokenRecord>,
+	userId: string
+): RefreshTokenRecord[] {
+	const now = new Date();
+	return [...rows.values()].filter(
+		(r) => r.userId === userId && r.revokedAt === null && r.expiresAt > now
+	);
+}
+
+function revokeMatching(
+	rows: Map<string, RefreshTokenRecord>,
+	pred: (r: RefreshTokenRecord) => boolean
+): void {
+	const now = new Date();
+	for (const row of rows.values()) {
+		if (pred(row)) {
+			row.revokedAt = now;
+		}
+	}
+}
+
+function makeRow(
+	userId: string,
+	tokenHash: string,
+	expiresAt: Date,
+	userAgent: string | null
+): RefreshTokenRecord {
 	return {
-		create({ userId, tokenHash, expiresAt }) {
-			const id = crypto.randomUUID();
-			rows.set(id, { id, userId, tokenHash, expiresAt, revokedAt: null });
+		id: crypto.randomUUID(),
+		userId,
+		tokenHash,
+		expiresAt,
+		revokedAt: null,
+		createdAt: new Date(),
+		userAgent,
+	};
+}
+
+function findByHash(
+	rows: Map<string, RefreshTokenRecord>,
+	tokenHash: string
+): RefreshTokenRecord | null {
+	for (const row of rows.values()) {
+		if (row.tokenHash === tokenHash) {
+			return row;
+		}
+	}
+	return null;
+}
+
+export function createFakeRefreshTokenStore(): RefreshTokenStore {
+	const rows = new Map<string, RefreshTokenRecord>();
+	return {
+		create({ userId, tokenHash, expiresAt, userAgent = null }) {
+			const row = makeRow(userId, tokenHash, expiresAt, userAgent);
+			rows.set(row.id, row);
 			return Promise.resolve();
 		},
-		find(tokenHash) {
-			for (const row of rows.values()) {
-				if (row.tokenHash === tokenHash) {
-					return Promise.resolve(row);
-				}
-			}
-			return Promise.resolve(null);
-		},
+		find: (tokenHash) => Promise.resolve(findByHash(rows, tokenHash)),
 		revoke(id) {
 			const row = rows.get(id);
 			if (row) {
@@ -80,12 +124,30 @@ export function createFakeRefreshTokenStore(): RefreshTokenStore {
 			}
 			return Promise.resolve();
 		},
-		revokeAllForUser(userId) {
-			for (const row of rows.values()) {
-				if (row.userId === userId) {
-					row.revokedAt = new Date();
-				}
+		revokeAllForUser: (userId) => {
+			revokeMatching(rows, (r) => r.userId === userId);
+			return Promise.resolve();
+		},
+		listActiveByUser(userId) {
+			const active = activeRows(rows, userId);
+			active.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+			return Promise.resolve(active);
+		},
+		revokeForUser(id, userId) {
+			const row = rows.get(id);
+			if (row && row.userId === userId) {
+				row.revokedAt = new Date();
 			}
+			return Promise.resolve();
+		},
+		revokeOthersForUser: (userId, exceptTokenHash) => {
+			revokeMatching(
+				rows,
+				(r) =>
+					r.userId === userId &&
+					r.tokenHash !== exceptTokenHash &&
+					r.revokedAt === null
+			);
 			return Promise.resolve();
 		},
 	};

@@ -80,6 +80,8 @@ async function buildClient() {
 			services: services as never,
 			authedAgent: agent,
 			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	return { client, agentStore, agent, services, pendingToolCallStore };
@@ -99,6 +101,8 @@ it("rejects chat-plane calls without a token", async () => {
 			services: services as never,
 			authedAgent: null,
 			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	await expect(anon.sessions.create({})).rejects.toThrow();
@@ -121,6 +125,8 @@ it("cannot read another agent's session (NOT_FOUND, not a crash)", async () => {
 			services: services as never,
 			authedAgent: otherAgent,
 			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	await expect(

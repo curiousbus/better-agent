@@ -35,6 +35,7 @@ function build() {
 			authedAgent: null,
 			authedUser: null,
 			clientIp: "ip",
+			userAgent: null,
 		},
 	});
 	return { client, email };

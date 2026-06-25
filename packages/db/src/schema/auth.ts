@@ -31,4 +31,5 @@ export const refreshTokens = pgTable("refresh_tokens", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
+	userAgent: text("user_agent"),
 });

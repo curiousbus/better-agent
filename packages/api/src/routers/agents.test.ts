@@ -17,6 +17,8 @@ function buildClient() {
 			services: services as never,
 			authedAgent: null,
 			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	return { client, tokenService, agentStore };

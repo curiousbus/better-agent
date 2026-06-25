@@ -42,6 +42,7 @@ async function issueTokens(
 		userId: user.id,
 		tokenHash: hashToken(refreshToken),
 		expiresAt: new Date(Date.now() + authConfig.refreshTtl * MS),
+		userAgent: context.userAgent,
 	});
 	return { accessToken, refreshToken, user };
 }

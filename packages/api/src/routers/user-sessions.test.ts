@@ -89,6 +89,8 @@ it("create binds the session to the authed user and the chosen agent", async () 
 			services: services as never,
 			authedAgent: null,
 			authedUser: { id: USER_ID_1, email: "x@y.com", createdAt: new Date() },
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	const session = await client.userSessions.create({ agentId: agent.id });
@@ -112,6 +114,8 @@ it("list returns only the authed user's own sessions", async () => {
 			services: services as never,
 			authedAgent: null,
 			authedUser: { id: USER_ID_1, email: "x@y.com", createdAt: new Date() },
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	const list = await client.userSessions.list();
@@ -130,6 +134,8 @@ it("get/listMessages reject another user's session as NOT_FOUND", async () => {
 			services: services as never,
 			authedAgent: null,
 			authedUser: { id: USER_ID_1, email: "x@y.com", createdAt: new Date() },
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	await expect(
@@ -147,6 +153,8 @@ it("create rejects an unknown agent", async () => {
 			services: services as never,
 			authedAgent: null,
 			authedUser: { id: USER_ID_1, email: "x@y.com", createdAt: new Date() },
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	await expect(
@@ -162,6 +170,8 @@ it("rejects unauthenticated callers", async () => {
 			services: services as never,
 			authedAgent: null,
 			authedUser: null,
+			clientIp: "127.0.0.1",
+			userAgent: null,
 		},
 	});
 	await expect(

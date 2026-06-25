@@ -58,6 +58,10 @@ function clientIp(options: CreateContextOptions): string {
 	return fwd?.split(",")[0]?.trim() || "unknown";
 }
 
+function userAgent(options: CreateContextOptions): string | null {
+	return options.context.req.header("user-agent") ?? null;
+}
+
 export async function createContext(options: CreateContextOptions) {
 	const token = extractBearerToken(options);
 	let authedAgent: AgentConfig | null = null;
@@ -74,6 +78,7 @@ export async function createContext(options: CreateContextOptions) {
 		authedAgent,
 		authedUser,
 		clientIp: clientIp(options),
+		userAgent: userAgent(options),
 	};
 }
 

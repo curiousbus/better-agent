@@ -3,7 +3,7 @@ import type {
 	RefreshTokenStore,
 	UserStore,
 } from "@better-agent/agent/ports";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, ne } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -88,27 +88,58 @@ export function createMagicLinkStore(db: Db): MagicLinkStore {
 	};
 }
 
+function rowToRecord(row: {
+	id: string;
+	userId: string;
+	tokenHash: string;
+	expiresAt: Date;
+	revokedAt: Date | null;
+	createdAt: Date;
+	userAgent: string | null;
+}) {
+	return {
+		id: row.id,
+		userId: row.userId,
+		tokenHash: row.tokenHash,
+		expiresAt: row.expiresAt,
+		revokedAt: row.revokedAt,
+		createdAt: row.createdAt,
+		userAgent: row.userAgent,
+	};
+}
+
+async function findRefreshToken(db: Db, tokenHash: string) {
+	const rows = await db
+		.select()
+		.from(schema.refreshTokens)
+		.where(eq(schema.refreshTokens.tokenHash, tokenHash))
+		.limit(1);
+	const row = rows[0];
+	return row ? rowToRecord(row) : null;
+}
+
+async function listActiveRefreshTokens(db: Db, userId: string) {
+	const rows = await db
+		.select()
+		.from(schema.refreshTokens)
+		.where(
+			and(
+				eq(schema.refreshTokens.userId, userId),
+				isNull(schema.refreshTokens.revokedAt),
+				gt(schema.refreshTokens.expiresAt, new Date())
+			)
+		)
+		.orderBy(desc(schema.refreshTokens.createdAt));
+	return rows.map(rowToRecord);
+}
+
 export function createRefreshTokenStore(db: Db): RefreshTokenStore {
 	return {
 		async create(input) {
 			await db.insert(schema.refreshTokens).values(input);
 		},
-		async find(tokenHash) {
-			const rows = await db
-				.select()
-				.from(schema.refreshTokens)
-				.where(eq(schema.refreshTokens.tokenHash, tokenHash))
-				.limit(1);
-			const row = rows[0];
-			return row
-				? {
-						id: row.id,
-						userId: row.userId,
-						expiresAt: row.expiresAt,
-						revokedAt: row.revokedAt,
-					}
-				: null;
-		},
+		find: (tokenHash) => findRefreshToken(db, tokenHash),
+		listActiveByUser: (userId) => listActiveRefreshTokens(db, userId),
 		async revoke(id) {
 			await db
 				.update(schema.refreshTokens)
@@ -120,6 +151,29 @@ export function createRefreshTokenStore(db: Db): RefreshTokenStore {
 				.update(schema.refreshTokens)
 				.set({ revokedAt: new Date() })
 				.where(eq(schema.refreshTokens.userId, userId));
+		},
+		async revokeForUser(id, userId) {
+			await db
+				.update(schema.refreshTokens)
+				.set({ revokedAt: new Date() })
+				.where(
+					and(
+						eq(schema.refreshTokens.id, id),
+						eq(schema.refreshTokens.userId, userId)
+					)
+				);
+		},
+		async revokeOthersForUser(userId, exceptTokenHash) {
+			await db
+				.update(schema.refreshTokens)
+				.set({ revokedAt: new Date() })
+				.where(
+					and(
+						eq(schema.refreshTokens.userId, userId),
+						isNull(schema.refreshTokens.revokedAt),
+						ne(schema.refreshTokens.tokenHash, exceptTokenHash)
+					)
+				);
 		},
 	};
 }

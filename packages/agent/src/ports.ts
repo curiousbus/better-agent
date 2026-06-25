@@ -103,10 +103,14 @@ export interface RefreshTokenStore {
 		userId: string;
 		tokenHash: string;
 		expiresAt: Date;
+		userAgent?: string | null;
 	}): Promise<void>;
 	find(tokenHash: string): Promise<RefreshTokenRecord | null>;
+	listActiveByUser(userId: string): Promise<RefreshTokenRecord[]>;
 	revoke(id: string): Promise<void>;
 	revokeAllForUser(userId: string): Promise<void>;
+	revokeForUser(id: string, userId: string): Promise<void>;
+	revokeOthersForUser(userId: string, exceptTokenHash: string): Promise<void>;
 }
 
 export interface EmailSender {
