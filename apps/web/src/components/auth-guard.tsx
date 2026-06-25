@@ -6,6 +6,7 @@ import {
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { RouteProgress } from "@/components/route-progress";
 import { WebSidebar } from "@/components/sidebar";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
 import { client } from "@/utils/orpc";
@@ -61,10 +62,34 @@ function AuthedShell() {
 
 function LoadingScreen() {
 	return (
-		<div className="flex h-svh items-center justify-center text-muted-foreground text-sm">
-			Loading…
+		<div className="flex h-svh items-center justify-center">
+			<span className="t-shimmer text-sm" data-text="Loading">
+				Loading
+			</span>
 		</div>
 	);
+}
+
+function BoundaryContent({
+	authed,
+	isPublic,
+	ready,
+}: {
+	authed: boolean;
+	isPublic: boolean;
+	ready: boolean;
+}) {
+	if (isPublic) {
+		return (
+			<main className="flex min-h-svh flex-col">
+				<Outlet />
+			</main>
+		);
+	}
+	if (!(ready && authed)) {
+		return <LoadingScreen />;
+	}
+	return <AuthedShell />;
 }
 
 export function AuthBoundary() {
@@ -82,18 +107,10 @@ export function AuthBoundary() {
 			navigate({ to: "/login" });
 		}
 	}, [isPublic, ready, authed, navigate]);
-	if (isPublic) {
-		return (
-			<main className="flex min-h-svh flex-col">
-				<Outlet />
-			</main>
-		);
-	}
-	if (!ready) {
-		return <LoadingScreen />;
-	}
-	if (!authed) {
-		return <LoadingScreen />;
-	}
-	return <AuthedShell />;
+	return (
+		<>
+			<RouteProgress active={!ready} />
+			<BoundaryContent authed={authed} isPublic={isPublic} ready={ready} />
+		</>
+	);
 }

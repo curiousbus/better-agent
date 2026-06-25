@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { ChatView } from "@/components/chat/chat-view";
 import { WebComposer } from "@/components/chat/web-composer";
+import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { userAgentClient } from "@/utils/chat-client";
 import { client, orpc } from "@/utils/orpc";
@@ -27,15 +28,26 @@ function useUserSessions(agentId: string | null): UserSessionRow[] {
 	);
 }
 
+const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"];
+
+function AgentGridSkeleton() {
+	return (
+		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+			<div className="skeleton-shimmer h-7 w-24" />
+			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				{SKELETON_KEYS.map((key) => (
+					<div className="skeleton-shimmer h-24" key={key} />
+				))}
+			</div>
+		</div>
+	);
+}
+
 function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
 	const agentsQuery = useQuery(orpc.agents.list.queryOptions());
 	const agents = agentsQuery.data ?? [];
 	if (agentsQuery.isPending) {
-		return (
-			<div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-				Loading agents…
-			</div>
-		);
+		return <AgentGridSkeleton />;
 	}
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
@@ -213,55 +225,55 @@ function ChatPanel({
 	);
 }
 
-function HomePage() {
-	const {
-		selectedAgent,
-		sessionId,
-		initialText,
-		sending,
-		agentClient,
-		sessions,
-		clearInitialText,
-		selectAgent,
-		closeComposer,
-		closeChat,
-		selectSession,
-		newSession,
-		send,
-	} = useHomeState();
+const STEP_GRID = 0;
+const STEP_COMPOSER = 1;
+const STEP_CHAT = 2;
 
+function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
+	const { selectedAgent, sessionId } = home;
 	if (!selectedAgent) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
-				<AgentGridView onSelect={selectAgent} />
+				<AgentGridView onSelect={home.selectAgent} />
 			</div>
 		);
 	}
-
 	if (sessionId === "") {
 		return (
 			<WebComposer
 				agent={selectedAgent}
-				onClose={closeComposer}
-				onSend={send}
-				onSessionSelect={selectSession}
-				sending={sending}
-				sessions={sessions}
+				onClose={home.closeComposer}
+				onSend={home.send}
+				onSessionSelect={home.selectSession}
+				sending={home.sending}
+				sessions={home.sessions}
 			/>
 		);
 	}
-
 	return (
 		<ChatPanel
 			agent={selectedAgent}
-			agentClient={agentClient}
-			initialText={initialText}
-			onClearInitialText={clearInitialText}
-			onClose={closeChat}
-			onNewSession={newSession}
-			onSessionChange={selectSession}
+			agentClient={home.agentClient}
+			initialText={home.initialText}
+			onClearInitialText={home.clearInitialText}
+			onClose={home.closeChat}
+			onNewSession={home.newSession}
+			onSessionChange={home.selectSession}
 			sessionId={sessionId}
-			sessions={sessions}
+			sessions={home.sessions}
 		/>
+	);
+}
+
+function HomePage() {
+	const home = useHomeState();
+	let step = STEP_GRID;
+	if (home.selectedAgent) {
+		step = home.sessionId === "" ? STEP_COMPOSER : STEP_CHAT;
+	}
+	return (
+		<StepTransition step={step}>
+			<HomeContent home={home} />
+		</StepTransition>
 	);
 }
