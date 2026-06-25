@@ -45,6 +45,8 @@ export interface RunOptions {
 }
 
 export interface AgentClient {
+	/** 取消进行中的会话回合（服务端 cancellation）。 */
+	cancel(sessionId: string): Promise<void>;
 	/** 新建一个绑定本 client agent 的会话。 */
 	createSession(): Promise<{ sessionId: string }>;
 	/** 回放会话全部消息及其 parts。 */
@@ -191,6 +193,10 @@ export function createAgentClientFrom(client: Client): AgentClient {
 		listMessages(sessionId) {
 			return client.sessions.listMessages({ sessionId });
 		},
+
+		async cancel(sessionId) {
+			await client.sessions.cancel({ sessionId });
+		},
 	};
 
 	return agentClient;
@@ -227,6 +233,10 @@ export function createUserSessionClientFrom(
 		},
 		listMessages(sessionId) {
 			return client.userSessions.listMessages({ sessionId });
+		},
+
+		async cancel(sessionId) {
+			await client.userSessions.cancel({ sessionId });
 		},
 	};
 }
