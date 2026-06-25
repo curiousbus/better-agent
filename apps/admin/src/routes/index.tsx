@@ -1,5 +1,4 @@
 import { buttonVariants } from "@better-agent/ui/components/button";
-import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
 import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -14,7 +13,7 @@ export const Route = createFileRoute("/")({
 function AgentCard({ agent }: { agent: AgentRow }) {
 	return (
 		<Link
-			className="flex items-start gap-3 rounded-xl border bg-card p-3 text-left transition-colors hover:bg-muted"
+			className="flex items-start gap-3 rounded-lg p-3 text-left transition-colors hover:bg-muted"
 			params={{ agentId: agent.id }}
 			to="/agents/$agentId"
 		>
@@ -37,21 +36,13 @@ function HomePage() {
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center overflow-auto p-6">
 			<div className="w-full max-w-2xl">
-				<RevealText>
-					<h1 className="t-stagger-line t-stagger-line--1 font-semibold text-3xl tracking-tight">
-						Hello there 👋
-					</h1>
-					<p className="t-stagger-line t-stagger-line--2 mt-1 text-lg text-muted-foreground">
-						Pick an agent to start chatting.
-					</p>
-				</RevealText>
-				<div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					{rows.map((agent) => (
 						<AgentCard agent={agent} key={agent.id} />
 					))}
 				</div>
 				{!agents.isLoading && rows.length === 0 ? (
-					<div className="mt-6 rounded-xl border border-dashed p-6 text-center">
+					<div className="mt-6 p-6 text-center">
 						<p className="text-muted-foreground text-sm">
 							No agents yet. Create one to start chatting.
 						</p>

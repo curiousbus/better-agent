@@ -1,11 +1,7 @@
+import { PageTransition } from "@better-agent/ui/components/page-transition";
 import { type ReactNode, useEffect, useRef } from "react";
 
-/**
- * Slides the entering step in by navigation direction (forward = from the
- * right, back = from the left). A keyed remount replays the CSS enter
- * animation; the previous step unmounts instantly, so the live chat never
- * mounts before it's shown.
- */
+/** Wraps the home flow (grid -> composer -> chat) in a directional slide. */
 export function StepTransition({
 	children,
 	step,
@@ -13,16 +9,14 @@ export function StepTransition({
 	children: ReactNode;
 	step: number;
 }) {
-	const prevStep = useRef(-1);
-	const dir = step >= prevStep.current ? "forward" : "back";
+	const prevStep = useRef(step);
+	const direction = step >= prevStep.current ? 1 : -1;
 	useEffect(() => {
 		prevStep.current = step;
 	});
 	return (
-		<div className="t-steps">
-			<div className="t-step t-step-enter" data-dir={dir} key={step}>
-				{children}
-			</div>
-		</div>
+		<PageTransition animationKey={step} direction={direction}>
+			{children}
+		</PageTransition>
 	);
 }

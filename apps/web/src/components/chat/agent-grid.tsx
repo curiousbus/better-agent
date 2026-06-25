@@ -9,7 +9,7 @@ function AgentCard({
 }) {
 	return (
 		<button
-			className="flex w-full flex-col gap-1 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className="flex w-full flex-col gap-1 rounded-lg p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			onClick={() => onSelect(agent)}
 			type="button"
 		>

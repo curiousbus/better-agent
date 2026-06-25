@@ -3,6 +3,7 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
+import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -63,9 +64,7 @@ function AuthedShell() {
 function LoadingScreen() {
 	return (
 		<div className="flex h-svh items-center justify-center">
-			<span className="t-shimmer text-sm" data-text="Loading">
-				Loading
-			</span>
+			<Skeleton className="h-8 w-32" />
 		</div>
 	);
 }

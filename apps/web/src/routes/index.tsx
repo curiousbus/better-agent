@@ -1,4 +1,5 @@
 import type { AgentClient } from "@better-agent/client";
+import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
@@ -33,10 +34,9 @@ const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"];
 function AgentGridSkeleton() {
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-			<div className="skeleton-shimmer h-7 w-24" />
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				{SKELETON_KEYS.map((key) => (
-					<div className="skeleton-shimmer h-24" key={key} />
+					<Skeleton className="h-24" key={key} />
 				))}
 			</div>
 		</div>
@@ -51,7 +51,6 @@ function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
 	}
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-			<h1 className="font-semibold text-xl">Agents</h1>
 			<AgentGrid agents={agents} onSelect={onSelect} />
 		</div>
 	);

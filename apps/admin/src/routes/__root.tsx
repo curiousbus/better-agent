@@ -12,6 +12,8 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 
+import { RouteProgress } from "@/components/route-progress";
+import { RouteTransition } from "@/components/route-transition";
 import { AdminSidebar } from "@/components/sidebar";
 import type { orpc } from "@/utils/orpc";
 
@@ -41,6 +43,7 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
+				<RouteProgress />
 				<SidebarProvider className="h-svh overflow-hidden">
 					<AdminSidebar />
 					<SidebarInset className="min-h-0 overflow-hidden">
@@ -49,7 +52,9 @@ function RootDocument() {
 							<span className="font-medium text-sm">better-agent</span>
 						</header>
 						<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-							<Outlet />
+							<RouteTransition>
+								<Outlet />
+							</RouteTransition>
 						</div>
 					</SidebarInset>
 				</SidebarProvider>

@@ -1,6 +1,5 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
 import { Button } from "@better-agent/ui/components/button";
-import { Card } from "@better-agent/ui/components/card";
 import {
 	Table,
 	TableBody,
@@ -218,7 +217,7 @@ export function AgentsCard() {
 		queryClient.invalidateQueries({ queryKey: orpc.agents.getToken.key() });
 	};
 	return (
-		<Card className="flex flex-col gap-3 p-4">
+		<div className="flex flex-col gap-3">
 			<ListToolbar
 				action={
 					<Button onClick={openAdd} size="sm">
@@ -249,6 +248,6 @@ export function AgentsCard() {
 				onClose={() => setRevealToken(null)}
 				token={revealToken}
 			/>
-		</Card>
+		</div>
 	);
 }
