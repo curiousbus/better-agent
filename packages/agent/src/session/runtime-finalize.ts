@@ -53,6 +53,8 @@ export async function* finalizeAssistant(
 		await deps.sessionStore.setStatus(sessionId, "error");
 		yield { type: "error", message: outcome.errorMessage ?? "stream error" };
 	} else {
+		// Reset to active so a session that previously errored recovers.
+		await deps.sessionStore.setStatus(sessionId, "active");
 		yield {
 			type: "done",
 			usage,

@@ -12,11 +12,12 @@ export interface ToModelMessagesInput {
 
 const NO_COMPACTION = -1;
 
-/** 拼接 text/reasoning parts 为字符串（忽略 tool-* parts）。 */
+/** 拼接 text parts 为字符串（忽略 reasoning 与 tool-* parts）。历史 reasoning
+ * 是模型的临时思考，回放会污染上下文并浪费 token，故不喂回。 */
 function joinTextParts(parts: MessagePart[]): string {
 	const texts: string[] = [];
 	for (const part of parts) {
-		if (part.type === "text" || part.type === "reasoning") {
+		if (part.type === "text") {
 			texts.push(part.content.text);
 		}
 	}
@@ -79,7 +80,7 @@ function collectToolParts(
 	const toolMessages: ModelMessage[] = [];
 
 	for (const part of parts) {
-		if (part.type === "text" || part.type === "reasoning") {
+		if (part.type === "text") {
 			if (part.content.text.length > 0) {
 				assistantContent.push({ type: "text", text: part.content.text });
 			}

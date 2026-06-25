@@ -240,14 +240,14 @@ describe("toModelMessages — text and compaction", () => {
 		expect(result).toEqual(BASIC_EXPECTED);
 	});
 
-	it("joins textual parts (text + reasoning) with newlines", () => {
+	it("replays only text parts, excluding reasoning", () => {
 		const result = toModelMessages({
 			systemPrompt: "S",
 			summary: null,
 			compactedThroughSeq: null,
 			history: [MULTI_PART_MSG],
 		});
-		expect(result[1]).toEqual({ role: "assistant", content: "line1\nline2" });
+		expect(result[1]).toEqual({ role: "assistant", content: "line2" });
 	});
 
 	it("with a summary, prepends it and drops messages at or before compactedThroughSeq", () => {

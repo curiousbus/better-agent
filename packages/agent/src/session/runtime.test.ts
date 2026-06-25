@@ -186,6 +186,13 @@ it("marks the assistant and session as error when the model fails", async () => 
 	expect(assistant?.message.status).toBe("error");
 });
 
+it("resets a previously errored session back to active on a successful turn", async () => {
+	const { runtime, sessionStore, session } = await setup(scriptedModel(HAPPY));
+	await sessionStore.setStatus(session.id, "error");
+	await collect(runtime.runTurn({ sessionId: session.id, text: "hi" }));
+	expect((await sessionStore.get(session.id))?.status).toBe("active");
+});
+
 it("throws when the session does not exist", async () => {
 	const { runtime } = await setup(scriptedModel(HAPPY));
 	await expect(
