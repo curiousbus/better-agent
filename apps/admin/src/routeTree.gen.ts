@@ -10,13 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProvidersRouteImport } from './routes/providers'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
+import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 
 const ProvidersRoute = ProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +36,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthVerifyRoute = AuthVerifyRouteImport.update({
+  id: '/auth/verify',
+  path: '/auth/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
   id: '/agents/$agentId',
   path: '/agents/$agentId',
@@ -37,35 +49,62 @@ const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/auth/verify': typeof AuthVerifyRoute
   '/agents/': typeof AgentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/auth/verify': typeof AuthVerifyRoute
   '/agents': typeof AgentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/auth/verify': typeof AuthVerifyRoute
   '/agents/': typeof AgentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/providers' | '/agents/$agentId' | '/agents/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/providers'
+    | '/agents/$agentId'
+    | '/auth/verify'
+    | '/agents/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/providers' | '/agents/$agentId' | '/agents'
-  id: '__root__' | '/' | '/providers' | '/agents/$agentId' | '/agents/'
+  to:
+    | '/'
+    | '/login'
+    | '/providers'
+    | '/agents/$agentId'
+    | '/auth/verify'
+    | '/agents'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/providers'
+    | '/agents/$agentId'
+    | '/auth/verify'
+    | '/agents/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
   ProvidersRoute: typeof ProvidersRoute
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
+  AuthVerifyRoute: typeof AuthVerifyRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
 }
 
@@ -76,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/providers'
       preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -92,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/verify': {
+      id: '/auth/verify'
+      path: '/auth/verify'
+      fullPath: '/auth/verify'
+      preLoaderRoute: typeof AuthVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/agents/$agentId': {
       id: '/agents/$agentId'
       path: '/agents/$agentId'
@@ -104,8 +157,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
   ProvidersRoute: ProvidersRoute,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
+  AuthVerifyRoute: AuthVerifyRoute,
   AgentsIndexRoute: AgentsIndexRoute,
 }
 export const routeTree = rootRouteImport
