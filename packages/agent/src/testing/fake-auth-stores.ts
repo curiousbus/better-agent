@@ -43,20 +43,43 @@ function toCredential(record: FakeUserRecord) {
 	};
 }
 
+function fakeMarkEmailVerified(
+	verified: Set<string>,
+	userId: string
+): Promise<void> {
+	verified.add(userId);
+	return Promise.resolve();
+}
+
+function fakeIsEmailVerified(
+	verified: Set<string>,
+	userId: string
+): Promise<boolean> {
+	return Promise.resolve(verified.has(userId));
+}
+
+function lookupUser(
+	map: Map<string, FakeUserRecord>,
+	key: string
+): User | null {
+	const r = map.get(key);
+	return r ? toUser(r) : null;
+}
+
+function lookupCredential(byEmail: Map<string, FakeUserRecord>, email: string) {
+	const r = byEmail.get(email);
+	return r ? toCredential(r) : null;
+}
+
 export function createFakeUserStore(): UserStore {
 	const byId = new Map<string, FakeUserRecord>();
 	const byEmail = new Map<string, FakeUserRecord>();
 	const ins = (r: FakeUserRecord) => insertRecord(byId, byEmail, r);
+	const verified = new Set<string>();
 
 	return {
-		findById(id) {
-			const r = byId.get(id);
-			return Promise.resolve(r ? toUser(r) : null);
-		},
-		findByEmail(email) {
-			const r = byEmail.get(email);
-			return Promise.resolve(r ? toUser(r) : null);
-		},
+		findById: (id) => Promise.resolve(lookupUser(byId, id)),
+		findByEmail: (email) => Promise.resolve(lookupUser(byEmail, email)),
 		findOrCreate(email) {
 			const existing = byEmail.get(email);
 			if (existing) {
@@ -78,14 +101,12 @@ export function createFakeUserStore(): UserStore {
 			}
 			return Promise.resolve();
 		},
-		findCredentialByEmail(email) {
-			const r = byEmail.get(email);
-			return Promise.resolve(r ? toCredential(r) : null);
-		},
-		hasPassword(userId) {
-			const r = byId.get(userId);
-			return Promise.resolve(r ? r.passwordHash !== null : false);
-		},
+		findCredentialByEmail: (email) =>
+			Promise.resolve(lookupCredential(byEmail, email)),
+		hasPassword: (userId) =>
+			Promise.resolve(byId.get(userId)?.passwordHash != null),
+		markEmailVerified: (userId) => fakeMarkEmailVerified(verified, userId),
+		isEmailVerified: (userId) => fakeIsEmailVerified(verified, userId),
 	};
 }
 

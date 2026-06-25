@@ -40,7 +40,17 @@ function build() {
 			userAgent: null,
 		},
 	});
-	return { client, email };
+	const authedClient = (userId: string, userEmail: string) =>
+		createRouterClient(appRouter, {
+			context: {
+				services: services as never,
+				authedAgent: null,
+				authedUser: { id: userId, email: userEmail, createdAt: new Date() },
+				clientIp: "ip",
+				userAgent: null,
+			},
+		});
+	return { client, email, services, authedClient };
 }
 
 it("requestLink emails a verify URL carrying a token", async () => {
@@ -172,6 +182,30 @@ it("loginWithPassword rejects unknown email with the same generic UNAUTHORIZED",
 		code: "UNAUTHORIZED",
 		message: "Invalid email or password",
 	});
+});
+
+it("after magic-link verify, me.emailVerified is true", async () => {
+	const { client, email, authedClient } = build();
+	await client.auth.requestLink({ email: "v@test.com" });
+	const token = email.sent[0]?.url.split("token=")[1] ?? "";
+	const result = await client.auth.verify({ token });
+	const me = await authedClient(result.user.id, result.user.email).auth.me();
+	expect(me.emailVerified).toBe(true);
+});
+
+it("registerWithPassword user has emailVerified false; true after magic-link verify", async () => {
+	const { client, email, authedClient } = build();
+	const reg = await client.auth.registerWithPassword({
+		email: "combo@test.com",
+		password: "validpass1",
+	});
+	const meBefore = await authedClient(reg.user.id, reg.user.email).auth.me();
+	expect(meBefore.emailVerified).toBe(false);
+	await client.auth.requestLink({ email: "combo@test.com" });
+	const token = email.sent[0]?.url.split("token=")[1] ?? "";
+	await client.auth.verify({ token });
+	const meAfter = await authedClient(reg.user.id, reg.user.email).auth.me();
+	expect(meAfter.emailVerified).toBe(true);
 });
 
 it("loginWithPassword rejects with TOO_MANY_REQUESTS after per-email limit", async () => {

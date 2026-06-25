@@ -109,6 +109,20 @@ export function createUserStore(db: Db): UserStore {
 		},
 		findCredentialByEmail: (email) => dbFindCredentialByEmail(db, email),
 		hasPassword: (userId) => dbHasPassword(db, userId),
+		async markEmailVerified(userId) {
+			await db
+				.update(schema.users)
+				.set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+				.where(eq(schema.users.id, userId));
+		},
+		async isEmailVerified(userId) {
+			const rows = await db
+				.select({ emailVerifiedAt: schema.users.emailVerifiedAt })
+				.from(schema.users)
+				.where(eq(schema.users.id, userId))
+				.limit(1);
+			return rows[0] ? rows[0].emailVerifiedAt !== null : false;
+		},
 	};
 }
 

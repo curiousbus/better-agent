@@ -92,6 +92,8 @@ export interface UserStore {
 	): Promise<{ id: string; email: string; passwordHash: string | null } | null>;
 	findOrCreate(email: string): Promise<User>;
 	hasPassword(userId: string): Promise<boolean>;
+	isEmailVerified(userId: string): Promise<boolean>;
+	markEmailVerified(userId: string): Promise<void>;
 	setPasswordHash(userId: string, passwordHash: string): Promise<void>;
 }
 

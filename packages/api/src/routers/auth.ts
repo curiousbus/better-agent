@@ -106,6 +106,7 @@ export const authRouter = {
 			const user = await context.services.stores.user.findOrCreate(
 				consumed.email
 			);
+			await context.services.stores.user.markEmailVerified(user.id);
 			return issueTokens(context, user);
 		}),
 
@@ -152,6 +153,9 @@ export const authRouter = {
 			context.services.authConfig.adminEmails
 		),
 		hasPassword: await context.services.stores.user.hasPassword(
+			context.authedUser.id
+		),
+		emailVerified: await context.services.stores.user.isEmailVerified(
 			context.authedUser.id
 		),
 	})),
