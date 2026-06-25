@@ -164,6 +164,18 @@ export const sessionsRouter = {
 			streamTurn(context, context.authedAgent.id, input, signal)
 		),
 
+	cancel: agentProcedure
+		.input(sessionIdInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedSession(
+				context,
+				context.authedAgent.id,
+				input.sessionId
+			);
+			await context.services.cancellation.cancel(input.sessionId);
+			return { ok: true };
+		}),
+
 	submitToolResult: agentProcedure
 		.input(
 			z.object({

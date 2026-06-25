@@ -125,6 +125,14 @@ export const userSessionsRouter = {
 			streamUserTurn(context, context.authedUser.id, input, signal)
 		),
 
+	cancel: userProcedure
+		.input(sessionIdInput)
+		.handler(async ({ input, context }) => {
+			await requireUserSession(context, context.authedUser.id, input.sessionId);
+			await context.services.cancellation.cancel(input.sessionId);
+			return { ok: true };
+		}),
+
 	submitToolResult: userProcedure
 		.input(
 			z.object({

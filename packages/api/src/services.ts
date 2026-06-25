@@ -15,6 +15,7 @@ import type {
 } from "@better-agent/agent/ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
+import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 
@@ -26,6 +27,7 @@ export interface AgentServices {
 		refreshTtl: number;
 		magicLinkTtl: number;
 	};
+	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
 	emailSender: EmailSender;
 	jwtService: JwtService;

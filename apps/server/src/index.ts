@@ -5,6 +5,10 @@ import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
+import {
+	type CancellationRegistry,
+	createInMemoryCancellationRegistry,
+} from "@better-agent/agent/session/cancellation";
 import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
 import { createModelTitler } from "@better-agent/agent/session/model-titler";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
@@ -108,7 +112,8 @@ function buildSessionLock() {
 function buildRuntime(
 	deps: ReturnType<typeof buildProviderDeps>,
 	sessionStore: ReturnType<typeof createSessionStore>,
-	messageStore: ReturnType<typeof createMessageStore>
+	messageStore: ReturnType<typeof createMessageStore>,
+	cancellation: CancellationRegistry
 ) {
 	return createSessionRuntime({
 		sessionStore,
@@ -120,6 +125,7 @@ function buildRuntime(
 		providerCatalogStore: deps.providerCatalog,
 		summarizer: createModelSummarizer(deps.modelFactory),
 		titler: createModelTitler(deps.modelFactory),
+		cancellation,
 	});
 }
 
@@ -128,7 +134,8 @@ function buildServices() {
 	const deps = buildProviderDeps(secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
-	const runtime = buildRuntime(deps, sessionStore, messageStore);
+	const cancellation = createInMemoryCancellationRegistry();
+	const runtime = buildRuntime(deps, sessionStore, messageStore, cancellation);
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
 	return {
@@ -145,6 +152,7 @@ function buildServices() {
 		jwtService,
 		emailSender,
 		authConfig,
+		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		stores: {
 			providerCatalog: deps.providerCatalog,

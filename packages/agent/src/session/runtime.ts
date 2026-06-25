@@ -13,6 +13,7 @@ import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
 import type { ToolDef } from "../tool/types";
+import type { CancellationRegistry } from "./cancellation";
 import type { Summarizer } from "./compaction";
 import { createDoomLoopGuard, type DoomLoopGuard } from "./doom-loop";
 import { classifyError } from "./error-classify";
@@ -48,6 +49,7 @@ const DEFAULT_MAX_STEPS = 50;
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
+	cancellation?: CancellationRegistry;
 	clock?: () => Date;
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
@@ -277,9 +279,15 @@ export function createSessionRuntime(deps: SessionRuntimeDeps): SessionRuntime {
 			if (!(await deps.sessionLock.acquire(input.sessionId))) {
 				throw new SessionBusyError(input.sessionId);
 			}
+			const controller = new AbortController();
+			const abortSignal = input.abortSignal
+				? AbortSignal.any([input.abortSignal, controller.signal])
+				: controller.signal;
+			deps.cancellation?.register(input.sessionId, controller);
 			try {
-				return yield* executeTurn(deps, input);
+				return yield* executeTurn(deps, { ...input, abortSignal });
 			} finally {
+				deps.cancellation?.unregister(input.sessionId);
 				await deps.sessionLock.release(input.sessionId);
 			}
 		},
