@@ -1,6 +1,11 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Session } from "@better-agent/agent/session/types";
+import {
+	buildComposioToolDefs,
+	type ComposioService,
+} from "@better-agent/agent/tool/composio-tools";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
+import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
@@ -20,6 +25,21 @@ const promptInput = z.object({
 	tools: z.array(remoteToolSchema).optional(),
 	outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
+
+export async function safeComposioDefs(
+	service: ComposioService | null,
+	userId: string
+): Promise<ToolDef[]> {
+	if (!service) {
+		return [];
+	}
+	try {
+		return await buildComposioToolDefs(service, userId);
+	} catch {
+		// Composio outage / bad key must not break the turn — degrade to no tools.
+		return [];
+	}
+}
 
 async function requireUserSession(
 	context: Context,
@@ -52,13 +72,18 @@ async function* streamUserTurn(
 ): AsyncGenerator<RunEvent, void> {
 	try {
 		await requireUserSession(context, userId, input.sessionId);
-		const toolDefs = input.tools
+		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
-			: undefined;
+			: [];
+		const composioDefs = await safeComposioDefs(
+			context.services.composio,
+			userId
+		);
+		const allDefs = [...remoteDefs, ...composioDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,
-			tools: toolDefs,
+			tools: allDefs.length > 0 ? allDefs : undefined,
 			outputSchema: input.outputSchema,
 			abortSignal: signal,
 		});

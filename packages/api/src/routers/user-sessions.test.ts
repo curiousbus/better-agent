@@ -12,11 +12,13 @@ import {
 	createFakeSessionStore,
 	createFakeSummarizer,
 } from "@better-agent/agent/testing/fakes";
+import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { createRouterClient } from "@orpc/server";
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { appRouter } from "./index";
+import { safeComposioDefs } from "./user-sessions";
 
 const HAPPY: LanguageModelV3StreamPart[] = [
 	{ type: "text-start", id: "0" },
@@ -177,4 +179,32 @@ it("rejects unauthenticated callers", async () => {
 	await expect(
 		client.userSessions.create({ agentId: agent.id })
 	).rejects.toThrow();
+});
+
+const okService: ComposioService = {
+	listTools: () =>
+		Promise.resolve([
+			{ name: "HACKERNEWS_SEARCH_POSTS", description: "d", parameters: {} },
+		]),
+	execute: () => Promise.resolve({ output: "ok" }),
+};
+
+describe("safeComposioDefs", () => {
+	it("returns [] when composio is null", async () => {
+		expect(await safeComposioDefs(null, "u1")).toEqual([]);
+	});
+
+	it("returns built tool defs when composio is present", async () => {
+		const defs = await safeComposioDefs(okService, "u1");
+		expect(defs).toHaveLength(1);
+		expect(defs[0]?.name).toBe("HACKERNEWS_SEARCH_POSTS");
+	});
+
+	it("swallows a composio failure and returns []", async () => {
+		const boom: ComposioService = {
+			listTools: () => Promise.reject(new Error("composio down")),
+			execute: () => Promise.resolve({ output: "" }),
+		};
+		expect(await safeComposioDefs(boom, "u1")).toEqual([]);
+	});
 });
