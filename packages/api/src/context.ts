@@ -53,6 +53,11 @@ async function resolveAuthedUser(
 	return stores.user.findById(claims.sub);
 }
 
+function clientIp(options: CreateContextOptions): string {
+	const fwd = options.context.req.header("x-forwarded-for");
+	return fwd?.split(",")[0]?.trim() || "unknown";
+}
+
 export async function createContext(options: CreateContextOptions) {
 	const token = extractBearerToken(options);
 	let authedAgent: AgentConfig | null = null;
@@ -68,6 +73,7 @@ export async function createContext(options: CreateContextOptions) {
 		services: options.services,
 		authedAgent,
 		authedUser,
+		clientIp: clientIp(options),
 	};
 }
 

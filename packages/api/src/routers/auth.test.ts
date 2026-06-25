@@ -1,3 +1,4 @@
+import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import {
 	createFakeEmailSender,
@@ -15,6 +16,7 @@ function build() {
 	const services = {
 		jwtService,
 		emailSender: email,
+		rateLimiter: createInMemoryRateLimiter(),
 		authConfig: {
 			webUrl: "http://web.test",
 			accessTtl: 900,
@@ -32,6 +34,7 @@ function build() {
 			services: services as never,
 			authedAgent: null,
 			authedUser: null,
+			clientIp: "ip",
 		},
 	});
 	return { client, email };
@@ -53,6 +56,17 @@ it("verify consumes the link and issues a token pair", async () => {
 	expect(result.accessToken.length).toBeGreaterThan(0);
 	expect(result.refreshToken.startsWith("rt_")).toBe(true);
 	await expect(client.auth.verify({ token })).rejects.toThrow();
+});
+
+it("requestLink rejects with TOO_MANY_REQUESTS after per-email limit", async () => {
+	const { client } = build();
+	const LIMIT_LINK_EMAIL = 5;
+	for (let i = 0; i < LIMIT_LINK_EMAIL; i++) {
+		await client.auth.requestLink({ email: "rate@test.com" });
+	}
+	await expect(
+		client.auth.requestLink({ email: "rate@test.com" })
+	).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
 });
 
 it("refresh rotates the token and rejects the reused old one", async () => {

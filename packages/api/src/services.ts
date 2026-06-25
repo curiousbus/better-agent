@@ -1,4 +1,5 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
+import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
@@ -33,6 +34,7 @@ export interface AgentServices {
 	jwtService: JwtService;
 	modelFactory: ModelFactory;
 	pendingToolCallStore: PendingToolCallStore;
+	rateLimiter: RateLimiter;
 	runtime: SessionRuntime;
 	stores: {
 		providerCatalog: ProviderCatalogStore;

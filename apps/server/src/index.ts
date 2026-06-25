@@ -1,4 +1,5 @@
 import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
+import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
 import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
@@ -161,6 +162,7 @@ function buildServices() {
 		authConfig,
 		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
+		rateLimiter: createInMemoryRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,
 			modelCache: deps.modelCache,

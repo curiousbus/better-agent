@@ -1,3 +1,4 @@
+import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import {
 	generateToken,
 	hashToken,
@@ -8,6 +9,24 @@ import type { Context } from "../context";
 import { publicProcedure, userProcedure } from "../index";
 
 const MS = 1000;
+
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const LIMIT_LINK_EMAIL = 5;
+const LIMIT_LINK_IP = 20;
+const LIMIT_VERIFY_IP = 10;
+const LIMIT_REFRESH_IP = 30;
+
+async function enforce(
+	limiter: RateLimiter,
+	key: string,
+	limit: number
+): Promise<void> {
+	if (!(await limiter.hit(key, limit, RATE_WINDOW_MS))) {
+		throw new ORPCError("TOO_MANY_REQUESTS", {
+			message: "Too many requests. Try again later.",
+		});
+	}
+}
 
 async function issueTokens(
 	context: Context,
@@ -31,6 +50,9 @@ export const authRouter = {
 	requestLink: publicProcedure
 		.input(z.object({ email: z.email() }))
 		.handler(async ({ input, context }) => {
+			const limiter = context.services.rateLimiter;
+			await enforce(limiter, `link:ip:${context.clientIp}`, LIMIT_LINK_IP);
+			await enforce(limiter, `link:email:${input.email}`, LIMIT_LINK_EMAIL);
 			const { authConfig, emailSender, stores } = context.services;
 			const token = generateToken("ml_");
 			await stores.magicLink.create({
@@ -46,6 +68,11 @@ export const authRouter = {
 	verify: publicProcedure
 		.input(z.object({ token: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
+			await enforce(
+				context.services.rateLimiter,
+				`verify:ip:${context.clientIp}`,
+				LIMIT_VERIFY_IP
+			);
 			const consumed = await context.services.stores.magicLink.consume(
 				hashToken(input.token)
 			);
@@ -63,6 +90,11 @@ export const authRouter = {
 	refresh: publicProcedure
 		.input(z.object({ refreshToken: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
+			await enforce(
+				context.services.rateLimiter,
+				`refresh:ip:${context.clientIp}`,
+				LIMIT_REFRESH_IP
+			);
 			const { stores } = context.services;
 			const record = await stores.refreshToken.find(
 				hashToken(input.refreshToken)
