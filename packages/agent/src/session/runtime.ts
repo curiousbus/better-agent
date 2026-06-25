@@ -14,6 +14,7 @@ import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
 import type { ToolDef } from "../tool/types";
 import type { Summarizer } from "./compaction";
+import { createDoomLoopGuard, type DoomLoopGuard } from "./doom-loop";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import { buildSettings } from "./model-settings";
@@ -77,6 +78,7 @@ interface AttemptArgs {
 	abortSignal?: AbortSignal;
 	cacheToolDefs?: boolean;
 	ctx: DrainCtx;
+	guard?: DoomLoopGuard;
 	messages: ModelMessage[];
 	model: AiModel;
 	params: AgentParams | null;
@@ -102,7 +104,7 @@ async function* runAttempt(
 				agentId: ctx.agentId,
 				abortSignal: abortSignal ?? new AbortController().signal,
 			},
-			{ cacheLastToolDef: args.cacheToolDefs === true }
+			{ cacheLastToolDef: args.cacheToolDefs === true, guard: args.guard }
 		);
 		const result = streamText({
 			model,
@@ -245,6 +247,7 @@ async function* executeTurn(
 	);
 	yield { type: "message-start", messageId: assistant.id };
 	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
+	const guard = createDoomLoopGuard();
 	const outcome = yield* streamAssistant(deps, {
 		model,
 		messages: cached.messages,
@@ -253,6 +256,7 @@ async function* executeTurn(
 		ctx,
 		abortSignal,
 		cacheToolDefs: cached.cacheToolDefs,
+		guard,
 		structuredOutput: input.outputSchema != null,
 	});
 	const message = yield* finalizeAssistant(deps, {
