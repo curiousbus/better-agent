@@ -45,6 +45,7 @@ import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
+import { createRedisRateLimiter } from "./redis-rate-limiter";
 import { createRedisSessionLock } from "./redis-session-lock";
 
 initLogger({
@@ -117,6 +118,12 @@ function buildCancellation() {
 		: createInMemoryCancellationRegistry();
 }
 
+function buildRateLimiter() {
+	return env.REDIS_URL
+		? createRedisRateLimiter(new Redis(env.REDIS_URL))
+		: createInMemoryRateLimiter();
+}
+
 function buildRuntime(
 	deps: ReturnType<typeof buildProviderDeps>,
 	sessionStore: ReturnType<typeof createSessionStore>,
@@ -162,7 +169,7 @@ function buildServices() {
 		authConfig,
 		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
-		rateLimiter: createInMemoryRateLimiter(),
+		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,
 			modelCache: deps.modelCache,
