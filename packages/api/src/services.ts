@@ -20,6 +20,7 @@ import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
+import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 
 export interface AgentServices {
@@ -34,6 +35,7 @@ export interface AgentServices {
 	};
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
+	composio: ComposioService | null;
 	emailSender: EmailSender;
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;

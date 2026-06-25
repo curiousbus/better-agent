@@ -30,6 +30,17 @@ export const env = createEnv({
 					.map((e) => e.trim().toLowerCase())
 					.filter((e) => e !== "")
 			),
+		COMPOSIO_API_KEY: z.string().optional(),
+		/** 逗号分隔的 composio toolkit slugs（默认 hackernews：免授权，可只用 app key 冒烟）。 */
+		COMPOSIO_TOOLKITS: z
+			.string()
+			.default("hackernews")
+			.transform((value) =>
+				value
+					.split(",")
+					.map((s) => s.trim().toLowerCase())
+					.filter((s) => s !== "")
+			),
 		GOOGLE_CLIENT_ID: z.string().optional(),
 		GOOGLE_CLIENT_SECRET: z.string().optional(),
 		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),

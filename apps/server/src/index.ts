@@ -44,7 +44,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
-import { createGoogleOAuth } from "./google-oauth";
+import { buildComposio, buildGoogleOAuth } from "./optional-services";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
@@ -123,17 +123,6 @@ function buildCancellation() {
 		: createInMemoryCancellationRegistry();
 }
 
-function buildGoogleOAuth() {
-	if (!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)) {
-		return null;
-	}
-	return createGoogleOAuth({
-		clientId: env.GOOGLE_CLIENT_ID,
-		clientSecret: env.GOOGLE_CLIENT_SECRET,
-		redirectUri: `${env.WEB_URL}/auth/google/callback`,
-	});
-}
-
 function buildRateLimiter() {
 	return env.REDIS_URL
 		? createRedisRateLimiter(new Redis(env.REDIS_URL))
@@ -186,6 +175,7 @@ function buildServices() {
 		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
+		composio: buildComposio(),
 		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,
