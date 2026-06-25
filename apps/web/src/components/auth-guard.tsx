@@ -14,7 +14,12 @@ import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
 import { client } from "@/utils/orpc";
 
-const PUBLIC_PATHS = ["/login", "/auth/verify", "/reset-password"];
+const PUBLIC_PATHS = [
+	"/login",
+	"/auth/verify",
+	"/auth/google/callback",
+	"/reset-password",
+];
 
 // On load, mint a fresh access token from the stored refresh token (if any)
 // before deciding whether the user is signed in. Returns whether bootstrap

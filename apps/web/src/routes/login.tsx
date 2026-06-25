@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { GoogleButton } from "@/components/google-button";
 import { setTokens } from "@/utils/auth";
 import { orpc } from "@/utils/orpc";
 
@@ -45,9 +46,7 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
 	);
 }
 
-type PasswordMode = "signin" | "create";
-
-function usePasswordForm(mode: PasswordMode) {
+function usePasswordForm(mode: "signin" | "create") {
 	const navigate = useNavigate();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -80,7 +79,7 @@ function usePasswordForm(mode: PasswordMode) {
 }
 
 interface PasswordFormProps {
-	mode: PasswordMode;
+	mode: "signin" | "create";
 	onForgot: () => void;
 	onSwitchToMagic: () => void;
 }
@@ -271,11 +270,14 @@ function LoginFormBody({ mode, setMode }: LoginFormBodyProps) {
 		return <ForgotForm onBack={() => setMode("signin")} />;
 	}
 	return (
-		<PasswordForm
-			mode={mode}
-			onForgot={() => setMode("forgot")}
-			onSwitchToMagic={() => setMode("magic")}
-		/>
+		<>
+			<PasswordForm
+				mode={mode}
+				onForgot={() => setMode("forgot")}
+				onSwitchToMagic={() => setMode("magic")}
+			/>
+			<GoogleButton />
+		</>
 	);
 }
 
