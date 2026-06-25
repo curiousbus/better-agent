@@ -63,6 +63,7 @@ export interface SessionStore {
 	create(input: SessionInput): Promise<Session>;
 	get(id: string): Promise<Session | null>;
 	list(): Promise<Session[]>;
+	listByAgent(agentId: string): Promise<Session[]>;
 	listByUser(userId: string): Promise<Session[]>;
 	setStatus(id: string, status: SessionStatus): Promise<void>;
 	/** 📐 P2 compaction 写入。 */

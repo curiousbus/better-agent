@@ -74,6 +74,13 @@ export function createSessionStore(db: Db): SessionStore {
 			const rows = await db.select().from(schema.sessions);
 			return rows.map(toSession);
 		},
+		async listByAgent(agentId) {
+			const rows = await db
+				.select()
+				.from(schema.sessions)
+				.where(eq(schema.sessions.agentId, agentId));
+			return rows.map(toSession);
+		},
 		async listByUser(userId) {
 			const rows = await db
 				.select()

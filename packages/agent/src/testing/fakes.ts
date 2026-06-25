@@ -138,6 +138,11 @@ export function createFakeSessionStore(): SessionStore {
 		list() {
 			return Promise.resolve([...map.values()]);
 		},
+		listByAgent(agentId) {
+			return Promise.resolve(
+				[...map.values()].filter((s) => s.agentId === agentId)
+			);
+		},
 		listByUser(userId) {
 			return Promise.resolve(
 				[...map.values()].filter((s) => s.userId === userId)

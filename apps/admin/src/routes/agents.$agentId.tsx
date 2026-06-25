@@ -124,13 +124,15 @@ function ChatHeader({
 // Lists the agent's sessions (newest first), tracks the selected one, and
 // auto-selects the latest on load so the chat opens to a conversation.
 function useAgentSessions(agentClient: AgentClient, agentId: string) {
-	const sessions = useQuery(orpc.sessions.list.queryOptions());
+	const sessions = useQuery(
+		orpc.sessions.list.queryOptions({ input: { agentId } })
+	);
 	const agentSessions = useMemo(
 		() =>
-			(sessions.data ?? [])
-				.filter((session) => session.agentId === agentId)
-				.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-		[sessions.data, agentId]
+			(sessions.data ?? []).sort((a, b) =>
+				a.createdAt < b.createdAt ? 1 : -1
+			),
+		[sessions.data]
 	);
 	const [sessionId, setSessionId] = useState("");
 	const create = useCreateSession(agentClient, setSessionId);

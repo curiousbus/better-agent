@@ -4,7 +4,7 @@ import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
-import { agentProcedure, publicProcedure } from "../index";
+import { adminProcedure, agentProcedure } from "../index";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -118,9 +118,11 @@ export const sessionsRouter = {
 		return context.services.stores.session.get(input.id);
 	}),
 
-	list: publicProcedure.handler(({ context }) =>
-		context.services.stores.session.list()
-	),
+	list: adminProcedure
+		.input(z.object({ agentId: z.uuid() }))
+		.handler(({ input, context }) =>
+			context.services.stores.session.listByAgent(input.agentId)
+		),
 
 	listMessages: agentProcedure
 		.input(sessionIdInput)
