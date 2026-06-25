@@ -16,6 +16,7 @@ import type { ToolDef } from "../tool/types";
 import type { Summarizer } from "./compaction";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
+import { buildSettings } from "./model-settings";
 import { createPartBuffer } from "./part-buffer";
 import type { StreamOutcome } from "./retry-helpers";
 import {
@@ -81,24 +82,6 @@ interface AttemptArgs {
 	params: AgentParams | null;
 	providerOptions: SharedV3ProviderOptions;
 	structuredOutput?: boolean;
-}
-
-function buildSettings(params: AgentParams | null) {
-	const settings: {
-		temperature?: number;
-		topP?: number;
-		maxOutputTokens?: number;
-	} = {};
-	if (params?.temperature != null) {
-		settings.temperature = params.temperature;
-	}
-	if (params?.topP != null) {
-		settings.topP = params.topP;
-	}
-	if (params?.maxOutputTokens != null) {
-		settings.maxOutputTokens = params.maxOutputTokens;
-	}
-	return settings;
 }
 
 async function* runAttempt(
@@ -279,6 +262,7 @@ async function* executeTurn(
 		sessionId,
 		outcome,
 	});
+	// Settles on done AND error: title derives from the persisted user message.
 	yield* settleTitleEvent(deps.sessionStore, sessionId, titlePromise);
 	return message;
 }
