@@ -57,6 +57,8 @@ export function createComposioService(config: {
 			const result = (await composio.tools.execute(toolName, {
 				userId,
 				arguments: (args ?? {}) as Record<string, unknown>,
+				// We don't pin tool versions; skip the SDK's version-match check
+				// so execute always runs against composio's current tool version.
 				dangerouslySkipVersionCheck: true,
 			})) as ComposioResult;
 			return mapComposioResult(result);
