@@ -1,0 +1,10 @@
+name = "better-agent-server"
+main = "apps/server/src/worker.ts"
+compatibility_date = "2025-09-23"
+compatibility_flags = ["nodejs_compat", "fetch_iterable_type_support"]
+
+# Non-secret vars with safe defaults for the test environment. Secrets
+# (DATABASE_URL, AUTH_JWT_SECRET, CREDENTIALS_SECRET, CORS_ORIGIN, …) are NOT
+# here — the deploy Action uploads them from GitHub repo secrets.
+[env.test.vars]
+NODE_ENV = "production"
