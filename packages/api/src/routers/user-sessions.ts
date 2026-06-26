@@ -28,13 +28,14 @@ const promptInput = z.object({
 
 export async function safeComposioDefs(
 	service: ComposioService | null,
-	userId: string
+	userId: string,
+	toolkits: string[]
 ): Promise<ToolDef[]> {
 	if (!service) {
 		return [];
 	}
 	try {
-		return await buildComposioToolDefs(service, userId);
+		return await buildComposioToolDefs(service, userId, toolkits);
 	} catch {
 		// Composio outage / bad key must not break the turn — degrade to no tools.
 		return [];
@@ -71,13 +72,15 @@ async function* streamUserTurn(
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
 	try {
-		await requireUserSession(context, userId, input.sessionId);
+		const session = await requireUserSession(context, userId, input.sessionId);
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
+		const agent = await context.services.stores.agent.get(session.agentId);
 		const composioDefs = await safeComposioDefs(
 			context.services.composio,
-			userId
+			userId,
+			agent?.composioToolkits ?? []
 		);
 		const allDefs = [...remoteDefs, ...composioDefs];
 		yield* context.services.runtime.runTurn({

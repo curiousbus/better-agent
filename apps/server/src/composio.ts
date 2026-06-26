@@ -47,10 +47,12 @@ export function createComposioService(config: {
 }): ComposioService {
 	const composio = new Composio({ apiKey: config.apiKey });
 	return {
-		async listTools(userId) {
-			const tools = await composio.tools.get(userId, {
-				toolkits: config.toolkits,
-			});
+		async listTools(userId, toolkits) {
+			const resolved = toolkits.length > 0 ? toolkits : config.toolkits;
+			if (resolved.length === 0) {
+				return [];
+			}
+			const tools = await composio.tools.get(userId, { toolkits: resolved });
 			return (tools as OpenAiTool[]).map(mapOpenAiTool);
 		},
 		async execute({ userId, toolName, args }) {

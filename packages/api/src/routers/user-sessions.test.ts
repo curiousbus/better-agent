@@ -182,7 +182,7 @@ it("rejects unauthenticated callers", async () => {
 });
 
 const okService: ComposioService = {
-	listTools: () =>
+	listTools: (_userId, _toolkits) =>
 		Promise.resolve([
 			{ name: "HACKERNEWS_SEARCH_POSTS", description: "d", parameters: {} },
 		]),
@@ -191,11 +191,11 @@ const okService: ComposioService = {
 
 describe("safeComposioDefs", () => {
 	it("returns [] when composio is null", async () => {
-		expect(await safeComposioDefs(null, "u1")).toEqual([]);
+		expect(await safeComposioDefs(null, "u1", [])).toEqual([]);
 	});
 
 	it("returns built tool defs when composio is present", async () => {
-		const defs = await safeComposioDefs(okService, "u1");
+		const defs = await safeComposioDefs(okService, "u1", ["hackernews"]);
 		expect(defs).toHaveLength(1);
 		expect(defs[0]?.name).toBe("HACKERNEWS_SEARCH_POSTS");
 	});
@@ -205,6 +205,19 @@ describe("safeComposioDefs", () => {
 			listTools: () => Promise.reject(new Error("composio down")),
 			execute: () => Promise.resolve({ output: "" }),
 		};
-		expect(await safeComposioDefs(boom, "u1")).toEqual([]);
+		expect(await safeComposioDefs(boom, "u1", [])).toEqual([]);
+	});
+
+	it("forwards toolkits to the underlying service", async () => {
+		const captured: string[][] = [];
+		const service: ComposioService = {
+			listTools: (_userId, toolkits) => {
+				captured.push(toolkits);
+				return Promise.resolve([]);
+			},
+			execute: () => Promise.resolve({ output: "" }),
+		};
+		await safeComposioDefs(service, "u1", ["hackernews"]);
+		expect(captured).toEqual([["hackernews"]]);
 	});
 });
