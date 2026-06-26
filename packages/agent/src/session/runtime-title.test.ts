@@ -66,6 +66,7 @@ async function setup(
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
+		composioToolkits: [],
 		tokenHash: "hash-title",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

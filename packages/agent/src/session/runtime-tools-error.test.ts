@@ -48,6 +48,7 @@ async function setup(model: LanguageModelV3) {
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
+		composioToolkits: [],
 		tokenHash: "hash-tools-err",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });
@@ -80,7 +81,6 @@ interface ToolResultEvent {
 	result: unknown;
 	type: "tool-result";
 }
-
 async function assertToolErrorPersisted(
 	messageStore: ReturnType<typeof createFakeMessageStore>,
 	sessionId: string,

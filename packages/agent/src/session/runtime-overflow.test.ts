@@ -99,6 +99,7 @@ async function overflowSetup() {
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
+		composioToolkits: [],
 		tokenHash: "hash-overflow",
 	});
 	await modelCacheStore.replaceAll([

@@ -19,6 +19,7 @@ function toAgentConfig(row: AgentRow) {
 		providerId: row.providerId,
 		modelId: row.modelId,
 		params: row.params ?? null,
+		composioToolkits: row.composioToolkits ?? [],
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

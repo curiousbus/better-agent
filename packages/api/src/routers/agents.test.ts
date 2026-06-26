@@ -62,6 +62,21 @@ it("create returns the agent plus a one-time ba_ token", async () => {
 	expect(found?.id).toBe(result.agent.id);
 });
 
+it("round-trips composioToolkits on create and update", async () => {
+	const { client } = buildClient();
+	const { agent } = await client.agents.create({
+		...INPUT,
+		composioToolkits: ["hackernews"],
+	});
+	expect(agent.composioToolkits).toEqual(["hackernews"]);
+	const updated = await client.agents.update({
+		id: agent.id,
+		...INPUT,
+		composioToolkits: ["github", "gmail"],
+	});
+	expect(updated.composioToolkits).toEqual(["github", "gmail"]);
+});
+
 it("rotateToken issues a new token and invalidates the old one", async () => {
 	const { client, tokenService, agentStore } = buildClient();
 	const created = await client.agents.create(INPUT);
