@@ -8,14 +8,34 @@ import type { ExecuteResult } from "@better-agent/agent/tool/types";
 import { Composio } from "@composio/core";
 import { log } from "evlog";
 
+const MAX_CAUSE_DEPTH = 4;
+
+// composio wraps real errors as `new XError(msg, { cause: realError })`, so the
+// HTTP status / network reason lives in the cause chain — unwrap it.
+function errorDetail(error: unknown, depth = 0): string {
+	if (depth > MAX_CAUSE_DEPTH) {
+		return "…";
+	}
+	if (!(error instanceof Error)) {
+		try {
+			return JSON.stringify(error);
+		} catch {
+			return String(error);
+		}
+	}
+	const e = error as Error & { status?: unknown; statusCode?: unknown };
+	const status = e.status ?? e.statusCode;
+	const head = `${e.name}: ${e.message}${status === undefined ? "" : ` (status=${String(status)})`}`;
+	return e.cause ? `${head} <- ${errorDetail(e.cause, depth + 1)}` : head;
+}
+
 // Surface composio failures (the routers swallow them to keep the UI graceful),
 // so a misconfigured key / SDK error is diagnosable from the server logs.
 async function withLog<T>(op: string, fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn();
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		log.error("composio", `${op} failed: ${message}`);
+		log.error("composio", `${op} failed: ${errorDetail(error)}`);
 		throw error;
 	}
 }
