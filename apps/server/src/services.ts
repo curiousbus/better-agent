@@ -45,6 +45,15 @@ const ACCESS_TTL = 900;
 const REFRESH_TTL = 2_592_000;
 const MAGIC_LINK_TTL = 900;
 
+// The secret box derives its key with scrypt (~tens of ms), so it must not be
+// rebuilt per request. It depends only on the (process-wide) secret, so memoize
+// it per isolate even though the rest of the services are built per request.
+let cachedSecretBox: ReturnType<typeof createSecretBox> | null = null;
+function getSecretBox() {
+	cachedSecretBox ??= createSecretBox(env.CREDENTIALS_SECRET);
+	return cachedSecretBox;
+}
+
 function buildAuthServices(db: Db) {
 	return {
 		jwtService: createJwtService(env.AUTH_JWT_SECRET),
@@ -140,7 +149,7 @@ function buildRuntime(
 }
 
 export function buildServices(db: Db) {
-	const secretBox = createSecretBox(env.CREDENTIALS_SECRET);
+	const secretBox = getSecretBox();
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);

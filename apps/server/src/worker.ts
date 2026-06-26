@@ -7,30 +7,25 @@
 // binding into a config object and pass it explicitly to buildServices/env.
 // The human iterates this via `wrangler dev` — do not over-engineer here.
 import { createNeonDb } from "@better-agent/db/neon-db";
-import type { EvlogVariables } from "evlog/hono";
-import type { Hono } from "hono";
 import { buildApp } from "./app";
 import { buildServices } from "./services";
 
 // Secrets injected by Cloudflare at runtime (set via `wrangler secret put`).
 type WorkerEnv = { DATABASE_URL: string } & Record<string, string>;
 
-let cached: Hono<EvlogVariables> | null = null;
-
-function getApp(environment: WorkerEnv): Hono<EvlogVariables> {
-	if (!cached) {
-		const db = createNeonDb(environment.DATABASE_URL);
-		const services = buildServices(db);
-		cached = buildApp(services);
-	}
-	return cached;
-}
-
 export default {
 	fetch(
 		request: Request,
 		environment: WorkerEnv
 	): Response | Promise<Response> {
-		return getApp(environment).fetch(request);
+		// Build the DB connection (and the cheap closures around it) PER REQUEST.
+		// Cloudflare Workers forbid reusing an I/O object (here, the Neon
+		// WebSocket connection) across requests — a memoized connection from an
+		// earlier request throws an uncaught exception ("Cannot perform I/O on
+		// behalf of a different request", surfaced as a 1101). The one expensive
+		// piece (the scrypt-derived secret box) is memoized inside buildServices.
+		const db = createNeonDb(environment.DATABASE_URL);
+		const services = buildServices(db);
+		return buildApp(services).fetch(request);
 	},
 };
