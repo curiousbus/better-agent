@@ -1,3 +1,5 @@
+import type { SettingsStore } from "@better-agent/agent/ports";
+import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import { env } from "@better-agent/env/server";
 
 import { createComposioService } from "./composio";
@@ -16,12 +18,24 @@ export function buildGoogleOAuth() {
 	});
 }
 
-export function buildComposio() {
-	if (!env.COMPOSIO_API_KEY) {
-		return null;
-	}
-	return createComposioService({
-		apiKey: env.COMPOSIO_API_KEY,
-		toolkits: env.COMPOSIO_TOOLKITS,
-	});
+export function buildComposioResolver(settings: SettingsStore) {
+	let cache: { key: string; service: ComposioService } | null = null;
+	return async (): Promise<ComposioService | null> => {
+		const key =
+			(await settings.get("COMPOSIO_API_KEY")) ?? env.COMPOSIO_API_KEY ?? null;
+		if (!key) {
+			cache = null;
+			return null;
+		}
+		if (cache?.key !== key) {
+			cache = {
+				key,
+				service: createComposioService({
+					apiKey: key,
+					toolkits: env.COMPOSIO_TOOLKITS,
+				}),
+			};
+		}
+		return cache.service;
+	};
 }

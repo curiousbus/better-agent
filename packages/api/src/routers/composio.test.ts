@@ -40,7 +40,11 @@ function buildClient(
 	authedUser: typeof SUPER_ADMIN_USER | null = SUPER_ADMIN_USER
 ) {
 	const user = createFakeUserStore();
-	const services = { authConfig: AUTH_CONFIG, composio, stores: { user } };
+	const services = {
+		authConfig: AUTH_CONFIG,
+		composio: () => Promise.resolve(composio),
+		stores: { user },
+	};
 	const client = createRouterClient(appRouter, {
 		context: {
 			services: services as never,
@@ -93,7 +97,7 @@ it("listToolkits is FORBIDDEN for a non-admin caller", async () => {
 	const regular = await user.findOrCreate("regular@example.com");
 	const services = {
 		authConfig: AUTH_CONFIG,
-		composio: fakeComposio,
+		composio: () => Promise.resolve(fakeComposio),
 		stores: { user },
 	};
 	const client = createRouterClient(appRouter, {
@@ -122,7 +126,11 @@ const PLAIN_USER = {
 
 function buildUserClient(composio: ComposioService | null) {
 	const user = createFakeUserStore();
-	const services = { authConfig: AUTH_CONFIG, composio, stores: { user } };
+	const services = {
+		authConfig: AUTH_CONFIG,
+		composio: () => Promise.resolve(composio),
+		stores: { user },
+	};
 	const client = createRouterClient(appRouter, {
 		context: {
 			services: services as never,

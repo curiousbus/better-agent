@@ -45,7 +45,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
-import { buildComposio, buildGoogleOAuth } from "./optional-services";
+import { buildComposioResolver, buildGoogleOAuth } from "./optional-services";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
@@ -159,6 +159,7 @@ function buildServices() {
 	const runtime = buildRuntime(deps, sessionStore, messageStore, cancellation);
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices();
+	const settings = createSettingsStore(db, secretBox);
 	return {
 		catalog: createModelCatalog({
 			catalogStore: deps.providerCatalog,
@@ -176,7 +177,7 @@ function buildServices() {
 		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
-		composio: buildComposio(),
+		composio: buildComposioResolver(settings),
 		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,
@@ -185,7 +186,7 @@ function buildServices() {
 			agent: deps.agentStore,
 			session: sessionStore,
 			message: messageStore,
-			settings: createSettingsStore(db, secretBox),
+			settings,
 			...authStores,
 		},
 	};

@@ -77,8 +77,9 @@ async function* streamUserTurn(
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
 		const agent = await context.services.stores.agent.get(session.agentId);
+		const composioSvc = await context.services.composio();
 		const composioDefs = await safeComposioDefs(
-			context.services.composio,
+			composioSvc,
 			userId,
 			agent?.composioToolkits ?? []
 		);

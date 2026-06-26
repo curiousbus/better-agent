@@ -6,7 +6,7 @@ export const composioRouter = {
 	// The composio toolkit catalog, admin-only. Graceful: not configured when no
 	// COMPOSIO_API_KEY; empty when the upstream call fails (never breaks the page).
 	listToolkits: adminProcedure.handler(async ({ context }) => {
-		const svc = context.services.composio;
+		const svc = await context.services.composio();
 		if (!svc) {
 			return { configured: false, toolkits: [] };
 		}
@@ -18,7 +18,7 @@ export const composioRouter = {
 	}),
 
 	connectableToolkits: userProcedure.handler(async ({ context }) => {
-		const svc = context.services.composio;
+		const svc = await context.services.composio();
 		if (!svc) {
 			return { configured: false, toolkits: [] };
 		}
@@ -31,7 +31,7 @@ export const composioRouter = {
 	}),
 
 	connections: userProcedure.handler(async ({ context }) => {
-		const svc = context.services.composio;
+		const svc = await context.services.composio();
 		if (!svc) {
 			return [];
 		}
@@ -45,7 +45,7 @@ export const composioRouter = {
 	connect: userProcedure
 		.input(z.object({ toolkit: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			const svc = context.services.composio;
+			const svc = await context.services.composio();
 			if (!svc) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Composio is not configured",
@@ -63,7 +63,7 @@ export const composioRouter = {
 	disconnect: userProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			const svc = context.services.composio;
+			const svc = await context.services.composio();
 			if (!svc) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Composio is not configured",
