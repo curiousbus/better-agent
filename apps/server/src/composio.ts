@@ -29,11 +29,35 @@ function errorDetail(error: unknown, depth = 0): string {
 	return e.cause ? `${head} <- ${errorDetail(e.cause, depth + 1)}` : head;
 }
 
+// Composio calls go over the network; if its API is slow/unreachable a request
+// can hang, which would keep client queries pending forever (a spinning UI). Cap
+// every call so it fails fast and the routers can degrade gracefully.
+const COMPOSIO_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(fn: () => Promise<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(
+			() => reject(new Error(`timed out after ${COMPOSIO_TIMEOUT_MS}ms`)),
+			COMPOSIO_TIMEOUT_MS
+		);
+		fn().then(
+			(value) => {
+				clearTimeout(timer);
+				resolve(value);
+			},
+			(error) => {
+				clearTimeout(timer);
+				reject(error);
+			}
+		);
+	});
+}
+
 // Surface composio failures (the routers swallow them to keep the UI graceful),
 // so a misconfigured key / SDK error is diagnosable from the server logs.
 async function withLog<T>(op: string, fn: () => Promise<T>): Promise<T> {
 	try {
-		return await fn();
+		return await withTimeout(fn);
 	} catch (error) {
 		log.error("composio", `${op} failed: ${errorDetail(error)}`);
 		throw error;
