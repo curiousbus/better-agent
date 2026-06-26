@@ -8,7 +8,6 @@ import { authRouter } from "./auth";
 import { composioRouter } from "./composio";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
-import { settingsRouter } from "./settings";
 import { userSessionsRouter } from "./user-sessions";
 
 export const appRouter = {
@@ -18,7 +17,6 @@ export const appRouter = {
 	admin: adminRouter,
 	composio: composioRouter,
 	providers: providersRouter,
-	settings: settingsRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,
 	userSessions: userSessionsRouter,
