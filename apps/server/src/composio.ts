@@ -139,17 +139,18 @@ export function mapComposioResult(result: ComposioResult): ExecuteResult {
 }
 
 function buildToolMethods(
-	composio: Composio,
-	config: { toolkits: string[] }
+	composio: Composio
 ): Pick<ComposioService, "listTools" | "execute" | "listToolkits"> {
 	return {
 		listTools(userId, toolkits) {
-			const resolved = toolkits.length > 0 ? toolkits : config.toolkits;
-			if (resolved.length === 0) {
+			// No toolkits selected for this agent → no composio tools, and crucially
+			// no composio network call (so agents that don't use composio never pay
+			// for it / never hang on it).
+			if (toolkits.length === 0) {
 				return Promise.resolve([]);
 			}
 			return withLog("listTools", async () => {
-				const tools = await composio.tools.get(userId, { toolkits: resolved });
+				const tools = await composio.tools.get(userId, { toolkits });
 				return (tools as OpenAiTool[]).map(mapOpenAiTool);
 			});
 		},
@@ -202,11 +203,10 @@ function buildConnectionMethods(
 
 export function createComposioService(config: {
 	apiKey: string;
-	toolkits: string[];
 }): ComposioService {
 	const composio = new Composio({ apiKey: config.apiKey });
 	return {
-		...buildToolMethods(composio, config),
+		...buildToolMethods(composio),
 		...buildConnectionMethods(composio),
 	};
 }

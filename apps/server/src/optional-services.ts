@@ -28,13 +28,7 @@ export function buildComposioResolver(settings: SettingsStore) {
 			return null;
 		}
 		if (cache?.key !== key) {
-			cache = {
-				key,
-				service: createComposioService({
-					apiKey: key,
-					toolkits: env.COMPOSIO_TOOLKITS,
-				}),
-			};
+			cache = { key, service: createComposioService({ apiKey: key }) };
 		}
 		return cache.service;
 	};
