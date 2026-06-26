@@ -1,7 +1,7 @@
 name: Deploy test (Workers)
 
-# Per the project workflow: pushing to `dev` deploys the server to the
-# Cloudflare Workers TEST environment (Postgres on Neon). No local deploys.
+# Pushing to `dev` deploys the server + web + admin to Cloudflare Workers
+# (test env, Postgres on Neon). No local deploys.
 on:
   push:
     branches: [dev]
@@ -11,32 +11,27 @@ concurrency:
   group: deploy-test
   cancel-in-progress: true
 
+env:
+  SERVER_URL: https://better-agent-server.jacksonwen001.workers.dev
+
 jobs:
-  deploy:
+  server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
       - name: Typecheck
         run: pnpm check-types
-
-      # Keep the Neon test DB in sync with the committed migrations.
       - name: Migrate test database
         run: pnpm -F @better-agent/db exec drizzle-kit migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      # Bundles apps/server/src/worker.ts, uploads the runtime secrets, deploys.
-      - name: Deploy to Cloudflare Workers (test)
+      - name: Deploy server
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -52,3 +47,28 @@ jobs:
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
           CREDENTIALS_SECRET: ${{ secrets.CREDENTIALS_SECRET }}
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+
+  frontends:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [web, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build ${{ matrix.app }} (cloudflare preset)
+        run: pnpm -F ${{ matrix.app }} build
+        env:
+          NITRO_PRESET: cloudflare_module
+          VITE_SERVER_URL: ${{ env.SERVER_URL }}
+      - name: Deploy ${{ matrix.app }}
+        run: pnpm exec wrangler deploy
+        working-directory: apps/${{ matrix.app }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
