@@ -201,7 +201,14 @@ const app = new Hono<EvlogVariables>();
 // conflicts with oRPC event-iterator streams and throws "ReadableStream is
 // locked". Skip it for the streaming prompt endpoint; log everything else.
 const evlogMiddleware = evlog();
-const STREAMING_PATHS = new Set(["/rpc/sessions/prompt"]);
+// Streaming (event-iterator) endpoints must skip the logging middleware: it
+// buffers the response, which locks the body stream and makes the streamed
+// response throw "ReadableStream is locked". Both the agent plane
+// (sessions/prompt) and the user/web plane (userSessions/prompt) stream.
+const STREAMING_PATHS = new Set([
+	"/rpc/sessions/prompt",
+	"/rpc/userSessions/prompt",
+]);
 app.use("/*", (c, next) =>
 	STREAMING_PATHS.has(c.req.path) ? next() : evlogMiddleware(c, next)
 );
