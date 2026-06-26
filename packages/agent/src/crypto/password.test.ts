@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "./password";
+import { dummyPasswordHash, hashPassword, verifyPassword } from "./password";
 
 describe("hashPassword / verifyPassword", () => {
 	it("round-trips: correct password verifies true", () => {
@@ -32,7 +32,7 @@ describe("hashPassword / verifyPassword", () => {
 	});
 
 	it("DUMMY_PASSWORD_HASH is a valid scrypt hash format", () => {
-		const parts = DUMMY_PASSWORD_HASH.split(":");
+		const parts = dummyPasswordHash().split(":");
 		expect(parts[0]).toBe("scrypt");
 		expect(parts).toHaveLength(3);
 	});

@@ -19,8 +19,15 @@ export function verifyPassword(plain: string, stored: string): boolean {
 	return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
+let cachedDummyHash: string | null = null;
+
 // A valid scrypt hash for an unguessable secret — used to equalize timing on
 // the "no such user / no password" path so login can't be used to enumerate.
-export const DUMMY_PASSWORD_HASH = hashPassword(
-	randomBytes(32).toString("hex")
-);
+// Computed lazily (NOT at module load): Workers forbid generating random values
+// in global scope, so this must run inside a request handler.
+export function dummyPasswordHash(): string {
+	if (cachedDummyHash === null) {
+		cachedDummyHash = hashPassword(randomBytes(32).toString("hex"));
+	}
+	return cachedDummyHash;
+}

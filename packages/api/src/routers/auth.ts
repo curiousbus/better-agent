@@ -5,7 +5,7 @@ import {
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
 import {
-	DUMMY_PASSWORD_HASH,
+	dummyPasswordHash,
 	hashPassword,
 	verifyPassword,
 } from "@better-agent/agent/crypto/password";
@@ -215,7 +215,7 @@ export const authRouter = {
 				await context.services.stores.user.findCredentialByEmail(email);
 			const ok = verifyPassword(
 				password,
-				cred?.passwordHash ?? DUMMY_PASSWORD_HASH
+				cred?.passwordHash ?? dummyPasswordHash()
 			);
 			if (!(cred?.passwordHash && ok)) {
 				throw new ORPCError("UNAUTHORIZED", {
