@@ -31,6 +31,12 @@ jobs:
         run: pnpm -F @better-agent/db exec drizzle-kit migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Seed built-in admin
+        run: pnpm -F server exec tsx src/seed-admin.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
       - name: Deploy server
         uses: cloudflare/wrangler-action@v3
         with:

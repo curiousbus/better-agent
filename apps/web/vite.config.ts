@@ -11,5 +11,14 @@ export default defineConfig({
 	resolve: {
 		tsconfigPaths: true,
 	},
-	plugins: [tailwindcss(), tanstackStart(), nitro(), viteReact()],
+	plugins: [
+		tailwindcss(),
+		// SPA mode: prerender a static shell and let the client do all data
+		// fetching. The frontends run as their own Cloudflare Worker and cannot
+		// reach the API Worker via a server-to-server fetch during SSR, so we
+		// avoid SSR data loading entirely.
+		tanstackStart({ spa: { enabled: true } }),
+		nitro(),
+		viteReact(),
+	],
 });
