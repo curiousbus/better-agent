@@ -26,12 +26,12 @@ function CopyTokenButton({ token }: { token: string }) {
 		);
 	};
 	return (
-		<Button onClick={copy} size="sm" type="button" variant="outline">
+		<Button onClick={copy} type="button" variant="outline">
 			<span className="t-icon-swap" data-state={copied ? "b" : "a"}>
 				<CopyIcon className="t-icon size-3.5" data-icon="a" />
 				<CheckIcon className="t-icon size-3.5" data-icon="b" />
 			</span>
-			{copied ? "Copied" : "Copy"}
+			{copied ? "Copied" : "Copy token"}
 		</Button>
 	);
 }
@@ -56,7 +56,7 @@ export function TokenRevealDialog({
 			}}
 			open={token !== null}
 		>
-			<DialogContent>
+			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>Agent token</DialogTitle>
 					<DialogDescription>
@@ -65,13 +65,12 @@ export function TokenRevealDialog({
 						agent — regenerate to revoke the old one.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex items-center gap-2">
-					<code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-2 py-1.5 font-mono text-xs">
-						{token}
-					</code>
+				<code className="block w-full overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-2 py-1.5 font-mono text-xs">
+					{token}
+				</code>
+				<DialogFooter showCloseButton>
 					{token ? <CopyTokenButton token={token} /> : null}
-				</div>
-				<DialogFooter showCloseButton />
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);
