@@ -14,6 +14,9 @@ function invalidateComposioKeys(
 	queryClient.invalidateQueries({
 		queryKey: orpc.composio.connectableToolkits.key(),
 	});
+	queryClient.invalidateQueries({
+		queryKey: orpc.composio.connections.key(),
+	});
 }
 
 function useSetKey(onSuccess: () => void) {
