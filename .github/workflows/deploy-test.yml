@@ -57,6 +57,7 @@ jobs:
   frontends:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         app: [web, admin]
     steps:
@@ -67,11 +68,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build ${{ matrix.app }} (cloudflare preset)
+      - name: Build ${{ matrix.app }} (SPA shell)
         run: pnpm -F ${{ matrix.app }} build
         env:
-          NITRO_PRESET: cloudflare_module
           VITE_SERVER_URL: ${{ env.SERVER_URL }}
+      - name: Promote shell to index.html (SPA fallback)
+        run: cp .output/public/_shell.html .output/public/index.html
+        working-directory: apps/${{ matrix.app }}
       - name: Deploy ${{ matrix.app }}
         run: pnpm exec wrangler deploy
         working-directory: apps/${{ matrix.app }}

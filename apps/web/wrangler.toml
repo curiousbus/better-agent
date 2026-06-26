@@ -1,3 +1,8 @@
 name = "better-agent-web"
 compatibility_date = "2025-09-23"
-compatibility_flags = ["nodejs_compat"]
+
+# Pure SPA: serve the prerendered static shell + client assets. Any route that
+# isn't a real file falls back to index.html so the client router handles it.
+[assets]
+directory = ".output/public"
+not_found_handling = "single-page-application"
