@@ -1,0 +1,54 @@
+name: Deploy test (Workers)
+
+# Per the project workflow: pushing to `dev` deploys the server to the
+# Cloudflare Workers TEST environment (Postgres on Neon). No local deploys.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check-types
+
+      # Keep the Neon test DB in sync with the committed migrations.
+      - name: Migrate test database
+        run: pnpm -F @better-agent/db exec drizzle-kit migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Bundles apps/server/src/worker.ts, uploads the runtime secrets, deploys.
+      - name: Deploy to Cloudflare Workers (test)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env test
+          secrets: |
+            DATABASE_URL
+            AUTH_JWT_SECRET
+            CREDENTIALS_SECRET
+            CORS_ORIGIN
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+          CREDENTIALS_SECRET: ${{ secrets.CREDENTIALS_SECRET }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
