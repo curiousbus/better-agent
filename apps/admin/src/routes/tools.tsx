@@ -50,9 +50,9 @@ function ToolkitList({ toolkits }: { toolkits: ToolkitRow[] }) {
 			: toolkits.filter((t) => {
 					const q = search.toLowerCase();
 					return (
-						t.name.toLowerCase().includes(q) ??
-						t.slug.toLowerCase().includes(q) ??
-						(t.description ?? "").toLowerCase().includes(q)
+						t.name.toLowerCase().includes(q) ||
+						t.slug.toLowerCase().includes(q) ||
+						t.description.toLowerCase().includes(q)
 					);
 				});
 
