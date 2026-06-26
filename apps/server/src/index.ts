@@ -178,7 +178,6 @@ function buildServices() {
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioResolver(settings),
-		envSecretKeys: env.COMPOSIO_API_KEY ? ["COMPOSIO_API_KEY"] : [],
 		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,

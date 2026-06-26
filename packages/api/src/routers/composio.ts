@@ -1,24 +1,32 @@
+import { composioKeyName } from "@better-agent/agent/tool/composio-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { adminProcedure, userProcedure } from "../index";
+import { userProcedure } from "../index";
 
 export const composioRouter = {
-	// The composio toolkit catalog, admin-only. Graceful: not configured when no
-	// COMPOSIO_API_KEY; empty when the upstream call fails (never breaks the page).
-	listToolkits: adminProcedure.handler(async ({ context }) => {
-		const svc = await context.services.composio();
-		if (!svc) {
-			return { configured: false, toolkits: [] };
-		}
-		try {
-			return { configured: true, toolkits: await svc.listToolkits() };
-		} catch {
-			return { configured: true, toolkits: [] };
-		}
+	keyStatus: userProcedure.handler(async ({ context }) => {
+		const key = await context.services.stores.settings.get(
+			composioKeyName(context.authedUser.id)
+		);
+		return { configured: key !== null };
 	}),
-
+	setKey: userProcedure
+		.input(z.object({ apiKey: z.string().min(1) }))
+		.handler(async ({ input, context }) => {
+			await context.services.stores.settings.set(
+				composioKeyName(context.authedUser.id),
+				input.apiKey
+			);
+			return { ok: true };
+		}),
+	clearKey: userProcedure.handler(async ({ context }) => {
+		await context.services.stores.settings.delete(
+			composioKeyName(context.authedUser.id)
+		);
+		return { ok: true };
+	}),
 	connectableToolkits: userProcedure.handler(async ({ context }) => {
-		const svc = await context.services.composio();
+		const svc = await context.services.composio(context.authedUser.id);
 		if (!svc) {
 			return { configured: false, toolkits: [] };
 		}
@@ -29,9 +37,8 @@ export const composioRouter = {
 			return { configured: true, toolkits: [] };
 		}
 	}),
-
 	connections: userProcedure.handler(async ({ context }) => {
-		const svc = await context.services.composio();
+		const svc = await context.services.composio(context.authedUser.id);
 		if (!svc) {
 			return [];
 		}
@@ -41,11 +48,10 @@ export const composioRouter = {
 			return [];
 		}
 	}),
-
 	connect: userProcedure
 		.input(z.object({ toolkit: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			const svc = await context.services.composio();
+			const svc = await context.services.composio(context.authedUser.id);
 			if (!svc) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Composio is not configured",
@@ -59,11 +65,10 @@ export const composioRouter = {
 				});
 			}
 		}),
-
 	disconnect: userProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			const svc = await context.services.composio();
+			const svc = await context.services.composio(context.authedUser.id);
 			if (!svc) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Composio is not configured",
@@ -74,6 +79,6 @@ export const composioRouter = {
 				throw new ORPCError("NOT_FOUND", { message: "Connection not found" });
 			}
 			await svc.disconnect(input.id);
-			return { ok: true as const };
+			return { ok: true };
 		}),
 };

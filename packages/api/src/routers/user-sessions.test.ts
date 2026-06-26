@@ -189,47 +189,64 @@ const okService: ComposioService = {
 		]),
 	execute: () => Promise.resolve({ output: "ok" }),
 	connect: () => Promise.resolve({ redirectUrl: "" }),
-	listConnections: () => Promise.resolve([]),
+	listConnections: () =>
+		Promise.resolve([
+			{ id: "c1", toolkitSlug: "hackernews", status: "ACTIVE", active: true },
+		]),
 	disconnect: () => Promise.resolve(),
+};
+
+const boomService: ComposioService = {
+	listToolkits: () => Promise.resolve([]),
+	listTools: () => Promise.reject(new Error("composio down")),
+	execute: () => Promise.resolve({ output: "" }),
+	connect: () => Promise.resolve({ redirectUrl: "" }),
+	listConnections: () => Promise.reject(new Error("composio down")),
+	disconnect: () => Promise.resolve(),
+};
+
+const mixedConnectionsService: ComposioService = {
+	...okService,
+	listConnections: () =>
+		Promise.resolve([
+			{ id: "c1", toolkitSlug: "hackernews", status: "ACTIVE", active: true },
+			{ id: "c2", toolkitSlug: "gmail", status: "INACTIVE", active: false },
+		]),
 };
 
 describe("safeComposioDefs", () => {
 	it("returns [] when composio is null", async () => {
-		expect(await safeComposioDefs(null, "u1", [])).toEqual([]);
+		expect(await safeComposioDefs(null, "u1")).toEqual([]);
 	});
 
-	it("returns built tool defs when composio is present", async () => {
-		const defs = await safeComposioDefs(okService, "u1", ["hackernews"]);
+	it("returns built tool defs derived from active connections", async () => {
+		const defs = await safeComposioDefs(okService, "u1");
 		expect(defs).toHaveLength(1);
 		expect(defs[0]?.name).toBe("HACKERNEWS_SEARCH_POSTS");
 	});
 
-	it("swallows a composio failure and returns []", async () => {
-		const boom: ComposioService = {
-			listToolkits: () => Promise.resolve([]),
-			listTools: () => Promise.reject(new Error("composio down")),
-			execute: () => Promise.resolve({ output: "" }),
-			connect: () => Promise.resolve({ redirectUrl: "" }),
+	it("returns [] when there are no active connections", async () => {
+		const svc: ComposioService = {
+			...okService,
 			listConnections: () => Promise.resolve([]),
-			disconnect: () => Promise.resolve(),
 		};
-		expect(await safeComposioDefs(boom, "u1", [])).toEqual([]);
+		expect(await safeComposioDefs(svc, "u1")).toEqual([]);
 	});
 
-	it("forwards toolkits to the underlying service", async () => {
+	it("swallows a composio failure and returns []", async () => {
+		expect(await safeComposioDefs(boomService, "u1")).toEqual([]);
+	});
+
+	it("derives toolkits from active connections only", async () => {
 		const captured: string[][] = [];
 		const service: ComposioService = {
-			listToolkits: () => Promise.resolve([]),
+			...mixedConnectionsService,
 			listTools: (_userId, toolkits) => {
 				captured.push(toolkits);
 				return Promise.resolve([]);
 			},
-			execute: () => Promise.resolve({ output: "" }),
-			connect: () => Promise.resolve({ redirectUrl: "" }),
-			listConnections: () => Promise.resolve([]),
-			disconnect: () => Promise.resolve(),
 		};
-		await safeComposioDefs(service, "u1", ["hackernews"]);
+		await safeComposioDefs(service, "u1");
 		expect(captured).toEqual([["hackernews"]]);
 	});
 });

@@ -1,5 +1,7 @@
 import type { ExecuteResult, JsonSchema, ToolDef } from "./types";
 
+export const composioKeyName = (userId: string) => `composio:${userId}`;
+
 export interface ComposioToolMeta {
 	description: string;
 	name: string;

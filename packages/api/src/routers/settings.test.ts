@@ -21,14 +21,12 @@ const AUTH_CONFIG = {
 };
 
 function buildClient(
-	envSecretKeys: string[],
 	authedUser: typeof SUPER_ADMIN_USER | null = SUPER_ADMIN_USER
 ) {
 	const user = createFakeUserStore();
 	const settings = createFakeSettingsStore();
 	const services = {
 		authConfig: AUTH_CONFIG,
-		envSecretKeys,
 		stores: { user, settings },
 	};
 	const client = createRouterClient(appRouter, {
@@ -43,8 +41,8 @@ function buildClient(
 	return { client, settings };
 }
 
-it("list returns source:none and configured:false when key is not in db or env", async () => {
-	const { client } = buildClient([]);
+it("list returns source:none and configured:false when key is not in db", async () => {
+	const { client } = buildClient();
 	const result = await client.settings.list();
 	expect(result).toHaveLength(1);
 	const entry = result[0];
@@ -56,20 +54,8 @@ it("list returns source:none and configured:false when key is not in db or env",
 	expect(entry).not.toHaveProperty("value");
 });
 
-it("list returns source:env and configured:true when key is in envSecretKeys", async () => {
-	const { client } = buildClient(["COMPOSIO_API_KEY"]);
-	const result = await client.settings.list();
-	const entry = result[0];
-	expect(entry).toMatchObject({
-		key: "COMPOSIO_API_KEY",
-		configured: true,
-		source: "env",
-	});
-	expect(entry).not.toHaveProperty("value");
-});
-
 it("list returns source:db after set, and never includes the value", async () => {
-	const { client } = buildClient([]);
+	const { client } = buildClient();
 	await client.settings.set({ key: "COMPOSIO_API_KEY", value: "sk-x" });
 	const result = await client.settings.list();
 	const entry = result[0];
@@ -81,16 +67,8 @@ it("list returns source:db after set, and never includes the value", async () =>
 	expect(entry).not.toHaveProperty("value");
 });
 
-it("list returns source:env after clear when envSecretKeys has the key", async () => {
-	const { client } = buildClient(["COMPOSIO_API_KEY"]);
-	await client.settings.set({ key: "COMPOSIO_API_KEY", value: "sk-x" });
-	await client.settings.clear({ key: "COMPOSIO_API_KEY" });
-	const result = await client.settings.list();
-	expect(result[0]).toMatchObject({ source: "env", configured: true });
-});
-
-it("list returns source:none after clear when envSecretKeys is empty", async () => {
-	const { client } = buildClient([]);
+it("list returns source:none after clear", async () => {
+	const { client } = buildClient();
 	await client.settings.set({ key: "COMPOSIO_API_KEY", value: "sk-x" });
 	await client.settings.clear({ key: "COMPOSIO_API_KEY" });
 	const result = await client.settings.list();
@@ -98,7 +76,7 @@ it("list returns source:none after clear when envSecretKeys is empty", async () 
 });
 
 it("list is FORBIDDEN for a non-admin caller", async () => {
-	const { client } = buildClient([], {
+	const { client } = buildClient({
 		id: "plain-user-uid",
 		email: "user@example.com",
 		createdAt: new Date(),
@@ -109,7 +87,7 @@ it("list is FORBIDDEN for a non-admin caller", async () => {
 });
 
 it("set is FORBIDDEN for a non-admin caller", async () => {
-	const { client } = buildClient([], {
+	const { client } = buildClient({
 		id: "plain-user-uid",
 		email: "user@example.com",
 		createdAt: new Date(),
@@ -120,7 +98,7 @@ it("set is FORBIDDEN for a non-admin caller", async () => {
 });
 
 it("clear is FORBIDDEN for a non-admin caller", async () => {
-	const { client } = buildClient([], {
+	const { client } = buildClient({
 		id: "plain-user-uid",
 		email: "user@example.com",
 		createdAt: new Date(),

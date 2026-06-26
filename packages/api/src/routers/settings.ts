@@ -21,15 +21,7 @@ export const settingsRouter = {
 		}[] = [];
 		for (const s of SECRET_SETTINGS) {
 			const dbVal = await context.services.stores.settings.get(s.key);
-			const inEnv = context.services.envSecretKeys.includes(s.key);
-			let source: string;
-			if (dbVal) {
-				source = "db";
-			} else if (inEnv) {
-				source = "env";
-			} else {
-				source = "none";
-			}
+			const source = dbVal ? "db" : "none";
 			out.push({
 				key: s.key,
 				label: s.label,

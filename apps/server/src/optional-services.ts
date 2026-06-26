@@ -1,5 +1,6 @@
 import type { SettingsStore } from "@better-agent/agent/ports";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
+import { composioKeyName } from "@better-agent/agent/tool/composio-tools";
 import { env } from "@better-agent/env/server";
 
 import { createComposioService } from "./composio";
@@ -19,17 +20,20 @@ export function buildGoogleOAuth() {
 }
 
 export function buildComposioResolver(settings: SettingsStore) {
-	let cache: { key: string; service: ComposioService } | null = null;
-	return async (): Promise<ComposioService | null> => {
-		const key =
-			(await settings.get("COMPOSIO_API_KEY")) ?? env.COMPOSIO_API_KEY ?? null;
+	const cache = new Map<string, { key: string; service: ComposioService }>();
+	return async (userId: string): Promise<ComposioService | null> => {
+		const key = await settings.get(composioKeyName(userId));
 		if (!key) {
-			cache = null;
+			cache.delete(userId);
 			return null;
 		}
-		if (cache?.key !== key) {
-			cache = { key, service: createComposioService({ apiKey: key }) };
+		const cached = cache.get(userId);
+		if (cached?.key !== key) {
+			cache.set(userId, {
+				key,
+				service: createComposioService({ apiKey: key }),
+			});
 		}
-		return cache.service;
+		return cache.get(userId)?.service ?? null;
 	};
 }

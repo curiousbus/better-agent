@@ -28,16 +28,21 @@ const promptInput = z.object({
 
 export async function safeComposioDefs(
 	service: ComposioService | null,
-	userId: string,
-	toolkits: string[]
+	userId: string
 ): Promise<ToolDef[]> {
 	if (!service) {
 		return [];
 	}
 	try {
+		const connections = await service.listConnections(userId);
+		const toolkits = [
+			...new Set(connections.filter((c) => c.active).map((c) => c.toolkitSlug)),
+		];
+		if (toolkits.length === 0) {
+			return [];
+		}
 		return await buildComposioToolDefs(service, userId, toolkits);
 	} catch {
-		// Composio outage / bad key must not break the turn — degrade to no tools.
 		return [];
 	}
 }
@@ -72,17 +77,12 @@ async function* streamUserTurn(
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
 	try {
-		const session = await requireUserSession(context, userId, input.sessionId);
+		await requireUserSession(context, userId, input.sessionId);
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
-		const agent = await context.services.stores.agent.get(session.agentId);
-		const composioSvc = await context.services.composio();
-		const composioDefs = await safeComposioDefs(
-			composioSvc,
-			userId,
-			agent?.composioToolkits ?? []
-		);
+		const composioSvc = await context.services.composio(userId);
+		const composioDefs = await safeComposioDefs(composioSvc, userId);
 		const allDefs = [...remoteDefs, ...composioDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,

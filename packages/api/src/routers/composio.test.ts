@@ -1,18 +1,13 @@
-import { SUPER_ADMIN_EMAIL } from "@better-agent/agent/auth/admin";
 import { createFakeUserStore } from "@better-agent/agent/testing/fake-auth-stores";
+import { createFakeSettingsStore } from "@better-agent/agent/testing/fakes";
 import type {
 	ComposioConnectionMeta,
 	ComposioService,
 } from "@better-agent/agent/tool/composio-tools";
+import { composioKeyName } from "@better-agent/agent/tool/composio-tools";
 import { createRouterClient } from "@orpc/server";
 import { expect, it, vi } from "vitest";
 import { appRouter } from "./index";
-
-const SUPER_ADMIN_USER = {
-	id: "super-admin-uid",
-	email: SUPER_ADMIN_EMAIL,
-	createdAt: new Date(),
-};
 
 const AUTH_CONFIG = {
 	webUrl: "http://web.test",
@@ -35,89 +30,6 @@ const fakeComposio: ComposioService = {
 	disconnect: () => Promise.resolve(),
 };
 
-function buildClient(
-	composio: ComposioService | null,
-	authedUser: typeof SUPER_ADMIN_USER | null = SUPER_ADMIN_USER
-) {
-	const user = createFakeUserStore();
-	const services = {
-		authConfig: AUTH_CONFIG,
-		composio: () => Promise.resolve(composio),
-		stores: { user },
-	};
-	const client = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser,
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
-	});
-	return { client, user };
-}
-
-it("listToolkits returns the catalog for an admin when composio is configured", async () => {
-	const { client } = buildClient(fakeComposio);
-	const result = await client.composio.listToolkits();
-	expect(result).toEqual({
-		configured: true,
-		toolkits: [
-			{ slug: "github", name: "GitHub", description: "d", needsAuth: true },
-		],
-	});
-});
-
-it("listToolkits reports not-configured when composio is null", async () => {
-	const { client } = buildClient(null);
-	expect(await client.composio.listToolkits()).toEqual({
-		configured: false,
-		toolkits: [],
-	});
-});
-
-it("listToolkits degrades to an empty catalog when the upstream call fails", async () => {
-	const boom: ComposioService = {
-		listToolkits: () => Promise.reject(new Error("composio down")),
-		listTools: () => Promise.resolve([]),
-		execute: () => Promise.resolve({ output: "" }),
-		connect: () => Promise.resolve({ redirectUrl: "" }),
-		listConnections: () => Promise.resolve([]),
-		disconnect: () => Promise.resolve(),
-	};
-	const { client } = buildClient(boom);
-	expect(await client.composio.listToolkits()).toEqual({
-		configured: true,
-		toolkits: [],
-	});
-});
-
-it("listToolkits is FORBIDDEN for a non-admin caller", async () => {
-	const user = createFakeUserStore();
-	const regular = await user.findOrCreate("regular@example.com");
-	const services = {
-		authConfig: AUTH_CONFIG,
-		composio: () => Promise.resolve(fakeComposio),
-		stores: { user },
-	};
-	const client = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: {
-				id: regular.id,
-				email: regular.email,
-				createdAt: regular.createdAt,
-			},
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
-	});
-	await expect(client.composio.listToolkits()).rejects.toMatchObject({
-		code: "FORBIDDEN",
-	});
-});
-
 const PLAIN_USER = {
 	id: "plain-user-uid",
 	email: "user@example.com",
@@ -126,10 +38,11 @@ const PLAIN_USER = {
 
 function buildUserClient(composio: ComposioService | null) {
 	const user = createFakeUserStore();
+	const settings = createFakeSettingsStore();
 	const services = {
 		authConfig: AUTH_CONFIG,
-		composio: () => Promise.resolve(composio),
-		stores: { user },
+		composio: (_userId: string) => Promise.resolve(composio),
+		stores: { user, settings },
 	};
 	const client = createRouterClient(appRouter, {
 		context: {
@@ -140,8 +53,33 @@ function buildUserClient(composio: ComposioService | null) {
 			userAgent: null,
 		},
 	});
-	return { client };
+	return { client, settings };
 }
+
+it("keyStatus returns configured:false when no key is set", async () => {
+	const { client } = buildUserClient(null);
+	expect(await client.composio.keyStatus()).toEqual({ configured: false });
+});
+
+it("setKey then keyStatus returns configured:true", async () => {
+	const { client } = buildUserClient(null);
+	await client.composio.setKey({ apiKey: "sk-test" });
+	expect(await client.composio.keyStatus()).toEqual({ configured: true });
+});
+
+it("clearKey after setKey returns configured:false", async () => {
+	const { client } = buildUserClient(null);
+	await client.composio.setKey({ apiKey: "sk-test" });
+	await client.composio.clearKey();
+	expect(await client.composio.keyStatus()).toEqual({ configured: false });
+});
+
+it("keyStatus never leaks the key value", async () => {
+	const { client } = buildUserClient(null);
+	await client.composio.setKey({ apiKey: "sk-secret" });
+	const status = await client.composio.keyStatus();
+	expect(JSON.stringify(status)).not.toContain("sk-secret");
+});
 
 it("connect returns the redirect URL from the service", async () => {
 	const svc: ComposioService = {
@@ -237,4 +175,11 @@ it("connectableToolkits filters to needsAuth:true toolkits only", async () => {
 			{ slug: "github", name: "GitHub", description: "d", needsAuth: true },
 		],
 	});
+});
+
+it("setKey stores the key under composioKeyName for the caller", async () => {
+	const { client, settings } = buildUserClient(null);
+	await client.composio.setKey({ apiKey: "sk-xyz" });
+	const stored = await settings.get(composioKeyName(PLAIN_USER.id));
+	expect(stored).toBe("sk-xyz");
 });
