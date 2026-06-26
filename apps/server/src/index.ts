@@ -32,6 +32,7 @@ import {
 	createProviderCredentialStore,
 } from "@better-agent/db/repositories/provider-stores";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
+import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { env } from "@better-agent/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -184,6 +185,7 @@ function buildServices() {
 			agent: deps.agentStore,
 			session: sessionStore,
 			message: messageStore,
+			settings: createSettingsStore(db, secretBox),
 			...authStores,
 		},
 	};

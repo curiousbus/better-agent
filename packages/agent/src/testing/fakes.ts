@@ -4,6 +4,7 @@ import type {
 	ProviderCatalogStore,
 	ProviderCredentialStore,
 	SessionStore,
+	SettingsStore,
 } from "../ports";
 import type {
 	ModelEntry,
@@ -261,6 +262,23 @@ export function createFakeSummarizer(canned = "summary"): Summarizer & {
 		summarize(input) {
 			calls.push(input);
 			return Promise.resolve(canned);
+		},
+	};
+}
+
+export function createFakeSettingsStore(): SettingsStore {
+	const map = new Map<string, string>();
+	return {
+		get(key) {
+			return Promise.resolve(map.get(key) ?? null);
+		},
+		set(key, value) {
+			map.set(key, value);
+			return Promise.resolve();
+		},
+		delete(key) {
+			map.delete(key);
+			return Promise.resolve();
 		},
 	};
 }

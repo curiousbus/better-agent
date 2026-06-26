@@ -136,6 +136,12 @@ export interface PasswordResetStore {
 	}): Promise<void>;
 }
 
+export interface SettingsStore {
+	delete(key: string): Promise<void>;
+	get(key: string): Promise<string | null>;
+	set(key: string, value: string): Promise<void>;
+}
+
 export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 	sendPasswordReset(input: { email: string; url: string }): Promise<void>;

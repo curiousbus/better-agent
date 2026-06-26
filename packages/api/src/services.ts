@@ -14,6 +14,7 @@ import type {
 	ProviderCredentialStore,
 	RefreshTokenStore,
 	SessionStore,
+	SettingsStore,
 	UserStore,
 } from "@better-agent/agent/ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
@@ -54,6 +55,7 @@ export interface AgentServices {
 		magicLink: MagicLinkStore;
 		passwordReset: PasswordResetStore;
 		refreshToken: RefreshTokenStore;
+		settings: SettingsStore;
 	};
 	tokenService: TokenService;
 }
