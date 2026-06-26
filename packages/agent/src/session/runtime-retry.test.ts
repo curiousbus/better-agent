@@ -62,7 +62,7 @@ async function drainTurn(
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
-		composioToolkits: [],
+		composioAccountIds: [],
 		tokenHash: "hash-retry",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

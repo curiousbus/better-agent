@@ -26,25 +26,44 @@ const promptInput = z.object({
 	outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
+// `scope` is the composio "user" scope — here a composio account id. Builds the
+// tool defs for every authenticated toolkit of that account.
 export async function safeComposioDefs(
 	service: ComposioService | null,
-	userId: string
+	scope: string
 ): Promise<ToolDef[]> {
 	if (!service) {
 		return [];
 	}
 	try {
-		const connections = await service.listConnections(userId);
+		const connections = await service.listConnections(scope);
 		const toolkits = [
 			...new Set(connections.filter((c) => c.active).map((c) => c.toolkitSlug)),
 		];
 		if (toolkits.length === 0) {
 			return [];
 		}
-		return await buildComposioToolDefs(service, userId, toolkits);
+		return await buildComposioToolDefs(service, scope, toolkits);
 	} catch {
 		return [];
 	}
+}
+
+// An agent integrates every authenticated toolkit of each composio account it
+// links. Resolves each linked account's service and merges their tool defs.
+async function agentComposioDefs(
+	context: Context,
+	agentId: string
+): Promise<ToolDef[]> {
+	const agent = await context.services.stores.agent.get(agentId);
+	const accountIds = agent?.composioAccountIds ?? [];
+	const perAccount = await Promise.all(
+		accountIds.map(async (accountId) => {
+			const service = await context.services.composio(accountId);
+			return safeComposioDefs(service, accountId);
+		})
+	);
+	return perAccount.flat();
 }
 
 async function requireUserSession(
@@ -77,12 +96,11 @@ async function* streamUserTurn(
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
 	try {
-		await requireUserSession(context, userId, input.sessionId);
+		const session = await requireUserSession(context, userId, input.sessionId);
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
-		const composioSvc = await context.services.composio(userId);
-		const composioDefs = await safeComposioDefs(composioSvc, userId);
+		const composioDefs = await agentComposioDefs(context, session.agentId);
 		const allDefs = [...remoteDefs, ...composioDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,

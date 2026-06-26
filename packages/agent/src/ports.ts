@@ -142,6 +142,23 @@ export interface SettingsStore {
 	set(key: string, value: string): Promise<void>;
 }
 
+/** A composio account as exposed to clients: never includes the key cipher. */
+export interface ComposioAccountRow {
+	apiKeyLast4: string;
+	createdAt: Date;
+	id: string;
+	name: string;
+}
+
+export interface ComposioAccountStore {
+	create(input: { name: string; apiKey: string }): Promise<ComposioAccountRow>;
+	delete(id: string): Promise<void>;
+	/** Decrypted key — server-side only, for building a ComposioService. */
+	getApiKey(id: string): Promise<string | null>;
+	getById(id: string): Promise<ComposioAccountRow | null>;
+	list(): Promise<ComposioAccountRow[]>;
+}
+
 export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 	sendPasswordReset(input: { email: string; url: string }): Promise<void>;

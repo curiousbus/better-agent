@@ -1,6 +1,5 @@
-import type { SettingsStore } from "@better-agent/agent/ports";
+import type { ComposioAccountStore } from "@better-agent/agent/ports";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
-import { composioKeyName } from "@better-agent/agent/tool/composio-tools";
 import { env } from "@better-agent/env/server";
 
 import { createComposioService } from "./composio";
@@ -19,21 +18,25 @@ export function buildGoogleOAuth() {
 	});
 }
 
-export function buildComposioResolver(settings: SettingsStore) {
+// Resolves a ComposioService for an admin-managed composio account. The account
+// id is also the composio "user" scope: an account's connections, auth, and
+// tools all live under its id. Memoized by (accountId, key) so a key rotation
+// rebuilds the client.
+export function buildComposioAccountResolver(accounts: ComposioAccountStore) {
 	const cache = new Map<string, { key: string; service: ComposioService }>();
-	return async (userId: string): Promise<ComposioService | null> => {
-		const key = await settings.get(composioKeyName(userId));
+	return async (accountId: string): Promise<ComposioService | null> => {
+		const key = await accounts.getApiKey(accountId);
 		if (!key) {
-			cache.delete(userId);
+			cache.delete(accountId);
 			return null;
 		}
-		const cached = cache.get(userId);
+		const cached = cache.get(accountId);
 		if (cached?.key !== key) {
-			cache.set(userId, {
+			cache.set(accountId, {
 				key,
 				service: createComposioService({ apiKey: key }),
 			});
 		}
-		return cache.get(userId)?.service ?? null;
+		return cache.get(accountId)?.service ?? null;
 	};
 }

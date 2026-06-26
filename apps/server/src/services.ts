@@ -22,6 +22,7 @@ import {
 	createRefreshTokenStore,
 	createUserStore,
 } from "@better-agent/db/repositories/auth-store";
+import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import {
 	createModelCacheStore,
@@ -33,7 +34,10 @@ import { createSettingsStore } from "@better-agent/db/repositories/settings-stor
 import { env } from "@better-agent/env/server";
 import Redis from "ioredis";
 import { createEmailSender } from "./email-sender";
-import { buildComposioResolver, buildGoogleOAuth } from "./optional-services";
+import {
+	buildComposioAccountResolver,
+	buildGoogleOAuth,
+} from "./optional-services";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
@@ -158,6 +162,7 @@ export function buildServices(db: Db) {
 	const { jwtService, emailSender, authConfig, authStores } =
 		buildAuthServices(db);
 	const settings = createSettingsStore(db, secretBox);
+	const composioAccount = createComposioAccountStore(db, secretBox);
 	return {
 		catalog: createModelCatalog({
 			catalogStore: deps.providerCatalog,
@@ -175,7 +180,7 @@ export function buildServices(db: Db) {
 		cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
-		composio: buildComposioResolver(settings),
+		composio: buildComposioAccountResolver(composioAccount),
 		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,
@@ -185,6 +190,7 @@ export function buildServices(db: Db) {
 			session: sessionStore,
 			message: messageStore,
 			settings,
+			composioAccount,
 			...authStores,
 		},
 	};

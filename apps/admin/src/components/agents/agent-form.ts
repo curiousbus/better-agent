@@ -1,7 +1,7 @@
 import type { AgentRow } from "@/utils/api-types";
 
 export interface AgentForm {
-	composioToolkits: string[];
+	composioAccountIds: string[];
 	description: string;
 	maxOutputTokens: string;
 	modelId: string;
@@ -13,7 +13,7 @@ export interface AgentForm {
 }
 
 export const EMPTY_AGENT_FORM: AgentForm = {
-	composioToolkits: [],
+	composioAccountIds: [],
 	name: "",
 	description: "",
 	systemPrompt: "",
@@ -69,7 +69,7 @@ function toParams(form: AgentForm) {
 
 export function toAgentInput(form: AgentForm) {
 	return {
-		composioToolkits: form.composioToolkits,
+		composioAccountIds: form.composioAccountIds,
 		name: form.name,
 		description: form.description,
 		systemPrompt: form.systemPrompt,
@@ -85,7 +85,7 @@ function numToStr(value: number | null | undefined): string {
 
 export function agentRowToForm(row: AgentRow): AgentForm {
 	return {
-		composioToolkits: row.composioToolkits ?? [],
+		composioAccountIds: row.composioAccountIds ?? [],
 		name: row.name,
 		description: row.description,
 		systemPrompt: row.systemPrompt,

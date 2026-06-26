@@ -9,7 +9,9 @@ export const agents = pgTable("agents", {
 	providerId: text("provider_id").notNull(),
 	modelId: text("model_id").notNull(),
 	params: jsonb("params").$type<AgentParams>(),
-	composioToolkits: jsonb("composio_toolkits")
+	// Linked composio account ids. An agent integrates every authenticated
+	// toolkit of each linked account.
+	composioAccountIds: jsonb("composio_account_ids")
 		.$type<string[]>()
 		.notNull()
 		.default([]),

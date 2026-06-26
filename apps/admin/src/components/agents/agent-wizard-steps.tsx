@@ -15,6 +15,7 @@ import { orpc } from "@/utils/orpc";
 
 import type { AgentForm } from "./agent-form";
 import { WIZARD_STEPS } from "./agent-form";
+import { ComposioAccountsField } from "./composio-accounts-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
@@ -188,6 +189,13 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 					value={form.maxOutputTokens}
 				/>
 			</Field>
+			<div className="flex flex-col gap-1">
+				<Label htmlFor="agent-composio">Composio accounts</Label>
+				<ComposioAccountsField
+					onChange={(ids) => set({ composioAccountIds: ids })}
+					selected={form.composioAccountIds}
+				/>
+			</div>
 		</div>
 	);
 }

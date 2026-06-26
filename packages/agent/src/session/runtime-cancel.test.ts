@@ -79,7 +79,7 @@ it("registers then unregisters the session around the turn", async () => {
 		providerId: "openai",
 		modelId: "gpt-x",
 		params: null,
-		composioToolkits: [],
+		composioAccountIds: [],
 		tokenHash: "h-cancel",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

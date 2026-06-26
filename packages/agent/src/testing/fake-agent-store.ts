@@ -12,7 +12,7 @@ function makeAgentTokenOps(
 			const agent: AgentConfig = {
 				id: crypto.randomUUID(),
 				...rest,
-				composioToolkits: rest.composioToolkits ?? [],
+				composioAccountIds: rest.composioAccountIds ?? [],
 				createdAt: now,
 				updatedAt: now,
 			};

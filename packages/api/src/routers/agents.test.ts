@@ -62,19 +62,22 @@ it("create returns the agent plus a one-time ba_ token", async () => {
 	expect(found?.id).toBe(result.agent.id);
 });
 
-it("round-trips composioToolkits on create and update", async () => {
+it("round-trips composioAccountIds on create and update", async () => {
 	const { client } = buildClient();
+	const accountA = "11111111-1111-4111-8111-111111111111";
+	const accountB = "22222222-2222-4222-8222-222222222222";
+	const accountC = "33333333-3333-4333-8333-333333333333";
 	const { agent } = await client.agents.create({
 		...INPUT,
-		composioToolkits: ["hackernews"],
+		composioAccountIds: [accountA],
 	});
-	expect(agent.composioToolkits).toEqual(["hackernews"]);
+	expect(agent.composioAccountIds).toEqual([accountA]);
 	const updated = await client.agents.update({
 		id: agent.id,
 		...INPUT,
-		composioToolkits: ["github", "gmail"],
+		composioAccountIds: [accountB, accountC],
 	});
-	expect(updated.composioToolkits).toEqual(["github", "gmail"]);
+	expect(updated.composioAccountIds).toEqual([accountB, accountC]);
 });
 
 it("rotateToken issues a new token and invalidates the old one", async () => {
