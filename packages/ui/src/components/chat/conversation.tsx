@@ -23,31 +23,46 @@ import { Response } from "@better-agent/ui/components/response";
 import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
 import { RevealText } from "./reveal-text";
 import { ToolGroup } from "./tool";
-import { type ChatMessage, useChat } from "./use-chat";
+import { useChat } from "./use-chat";
+
+function BlockView({
+	block,
+	streaming,
+}: {
+	block: ChatBlock;
+	streaming: boolean;
+}) {
+	if (block.kind === "reasoning") {
+		return (
+			<Reasoning isStreaming={streaming}>
+				<ReasoningTrigger label="Reasoning" />
+				<ReasoningContent>{block.text}</ReasoningContent>
+			</Reasoning>
+		);
+	}
+	if (block.kind === "tool") {
+		return <ToolGroup tools={[block.tool]} />;
+	}
+	return <Response isAnimating={streaming}>{block.text}</Response>;
+}
 
 function AssistantBody({ message }: { message: ChatMessage }) {
-	const streamingEmpty =
-		message.status === "streaming" &&
-		message.text === "" &&
-		message.tools.length === 0;
+	const streaming = message.status === "streaming";
+	const fullText = messageText(message);
 	return (
 		<div className="flex flex-col gap-2">
-			{message.reasoning === "" ? null : (
-				<Reasoning isStreaming={message.status === "streaming"}>
-					<ReasoningTrigger label="Reasoning" />
-					<ReasoningContent>{message.reasoning}</ReasoningContent>
-				</Reasoning>
-			)}
-			{streamingEmpty ? (
-				<Loader />
-			) : (
-				<Response isAnimating={message.status === "streaming"}>
-					{message.text}
-				</Response>
-			)}
-			<ToolGroup tools={message.tools} />
+			{streaming && message.blocks.length === 0 ? <Loader /> : null}
+			{message.blocks.map((block, index) => (
+				<BlockView
+					block={block}
+					// biome-ignore lint/suspicious/noArrayIndexKey: blocks are append-only and never reorder
+					key={`${index}-${block.kind}`}
+					streaming={streaming}
+				/>
+			))}
 			{message.status === "error" ? (
 				<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-destructive text-sm">
 					<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -56,8 +71,8 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 					</span>
 				</div>
 			) : null}
-			{message.status === "complete" && message.text !== "" ? (
-				<CopyAction text={message.text} />
+			{message.status === "complete" && fullText !== "" ? (
+				<CopyAction text={fullText} />
 			) : null}
 		</div>
 	);
@@ -68,7 +83,7 @@ function ChatRow({ message }: { message: ChatMessage }) {
 		return (
 			<Message from="user">
 				<MessageContent from="user">
-					<p className="whitespace-pre-wrap text-sm">{message.text}</p>
+					<p className="whitespace-pre-wrap text-sm">{messageText(message)}</p>
 				</MessageContent>
 			</Message>
 		);

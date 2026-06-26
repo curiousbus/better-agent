@@ -1,95 +1,115 @@
-import type { AgentClient, MessageHistory } from "@better-agent/client";
-import { createStreamReveal } from "@better-agent/ui/lib/stream-reveal";
+import type { AgentClient, RunEvent } from "@better-agent/client";
+import {
+	createStreamReveal,
+	type StreamReveal,
+} from "@better-agent/ui/lib/stream-reveal";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-type SessionMessageRow = MessageHistory[number];
-
-export interface ToolInvocation {
-	args: unknown;
-	callId: string;
-	isError: boolean;
-	result?: unknown;
-	status: "running" | "complete" | "error";
-	toolName: string;
-}
-
-export interface ChatMessage {
-	errorText?: string;
-	id: string;
-	reasoning: string;
-	role: "user" | "assistant" | "system";
-	status: "complete" | "streaming" | "error";
-	text: string;
-	tools: ToolInvocation[];
-}
+import type { ChatMessage } from "./chat-blocks";
+import { toChatMessage } from "./chat-blocks";
 
 // Query key for a session's message history, fetched through the Agent SDK
 // (token-scoped) rather than the unauthenticated oRPC client.
 const messagesKey = (sessionId: string) =>
 	["agent", "messages", sessionId] as const;
 
-function partStatus(status: SessionMessageRow["message"]["status"]) {
-	if (status === "complete") {
-		return "complete" as const;
-	}
-	if (status === "error") {
-		return "error" as const;
-	}
-	if (status === "aborted") {
-		return "complete" as const;
-	}
-	return "streaming" as const;
+interface StreamState {
+	assistant: ChatMessage;
+	reveal: StreamReveal | null;
+	revealKind: "text" | "reasoning" | null;
+	setDraft: (msgs: ChatMessage[]) => void;
+	user: ChatMessage;
 }
 
-function buildTools(parts: SessionMessageRow["parts"]): ToolInvocation[] {
-	const byId = new Map<string, ToolInvocation>();
-	const order: string[] = [];
-	for (const part of parts) {
-		if (part.type === "tool-call") {
-			const c = part.content;
-			byId.set(c.callId, {
-				callId: c.callId,
-				toolName: c.toolName,
-				args: c.args,
+function emit(state: StreamState) {
+	state.setDraft([
+		state.user,
+		{ ...state.assistant, blocks: [...state.assistant.blocks] },
+	]);
+}
+
+// Finalize the current text/reasoning run: reveal the rest and stop revealing.
+function sealReveal(state: StreamState) {
+	if (state.reveal) {
+		state.reveal.flush();
+		state.reveal = null;
+		state.revealKind = null;
+	}
+}
+
+function pushDelta(
+	state: StreamState,
+	kind: "text" | "reasoning",
+	delta: string
+) {
+	if (state.revealKind !== kind) {
+		sealReveal(state);
+		state.assistant.blocks.push({ kind, text: "" });
+		state.revealKind = kind;
+		state.reveal = createStreamReveal({
+			onFrame: ({ text, reasoning }) => {
+				const last = state.assistant.blocks.at(-1);
+				if (last && last.kind === kind) {
+					last.text = kind === "text" ? text : reasoning;
+				}
+				emit(state);
+			},
+		});
+	}
+	if (kind === "text") {
+		state.reveal?.pushText(delta);
+	} else {
+		state.reveal?.pushReasoning(delta);
+	}
+}
+
+function applyToolResult(
+	state: StreamState,
+	event: Extract<RunEvent, { type: "tool-result" }>
+) {
+	state.assistant.blocks = state.assistant.blocks.map((block) =>
+		block.kind === "tool" && block.tool.callId === event.callId
+			? {
+					kind: "tool",
+					tool: {
+						...block.tool,
+						result: event.result,
+						isError: event.isError,
+						status: event.isError ? "error" : "complete",
+					},
+				}
+			: block
+	);
+	emit(state);
+}
+
+function applyEvent(event: RunEvent, state: StreamState) {
+	if (event.type === "text-delta") {
+		pushDelta(state, "text", event.delta);
+	} else if (event.type === "reasoning-delta") {
+		pushDelta(state, "reasoning", event.delta);
+	} else if (event.type === "tool-call") {
+		sealReveal(state);
+		state.assistant.blocks.push({
+			kind: "tool",
+			tool: {
+				callId: event.callId,
+				toolName: event.toolName,
+				args: event.args,
 				isError: false,
 				status: "running",
-			});
-			order.push(c.callId);
-		} else if (part.type === "tool-result") {
-			const c = part.content;
-			const inv = byId.get(c.callId);
-			if (inv) {
-				inv.result = c.result;
-				inv.isError = c.isError;
-				inv.status = c.isError ? "error" : "complete";
-			}
-		}
+			},
+		});
+		emit(state);
+	} else if (event.type === "tool-result") {
+		applyToolResult(state, event);
+	} else if (event.type === "error") {
+		state.assistant.status = "error";
+		state.assistant.errorText = event.message;
+		emit(state);
 	}
-	return order
-		.map((id) => byId.get(id))
-		.filter((x): x is ToolInvocation => x !== undefined);
-}
-
-export function toChatMessage(entry: SessionMessageRow): ChatMessage {
-	let text = "";
-	let reasoning = "";
-	for (const part of entry.parts) {
-		if (part.type === "text") {
-			text += part.content.text;
-		} else if (part.type === "reasoning") {
-			reasoning += part.content.text;
-		}
-	}
-	return {
-		id: entry.message.id,
-		role: entry.message.role,
-		text,
-		reasoning,
-		status: partStatus(entry.message.status),
-		tools: buildTools(entry.parts),
-	};
 }
 
 interface StreamArgs {
@@ -102,70 +122,24 @@ interface StreamArgs {
 	user: ChatMessage;
 }
 
-function applyEvent(
-	event: import("@better-agent/client").RunEvent,
-	ctx: {
-		assistant: ChatMessage;
-		reveal: ReturnType<typeof createStreamReveal>;
-		setDraft: (msgs: ChatMessage[]) => void;
-		user: ChatMessage;
-	}
-) {
-	const { assistant, reveal, setDraft, user } = ctx;
-	if (event.type === "text-delta") {
-		reveal.pushText(event.delta);
-	} else if (event.type === "reasoning-delta") {
-		reveal.pushReasoning(event.delta);
-	} else if (event.type === "tool-call") {
-		assistant.tools = [
-			...assistant.tools,
-			{
-				callId: event.callId,
-				toolName: event.toolName,
-				args: event.args,
-				isError: false,
-				status: "running" as const,
-			},
-		];
-		setDraft([user, { ...assistant }]);
-	} else if (event.type === "tool-result") {
-		assistant.tools = assistant.tools.map((t) =>
-			t.callId === event.callId
-				? {
-						...t,
-						result: event.result,
-						isError: event.isError,
-						status: event.isError ? ("error" as const) : ("complete" as const),
-					}
-				: t
-		);
-		setDraft([user, { ...assistant }]);
-	} else if (event.type === "error") {
-		assistant.status = "error";
-		assistant.errorText = event.message;
-		setDraft([user, { ...assistant }]);
-	}
-}
-
 export async function streamPrompt(args: StreamArgs) {
-	const { agentClient, sessionId, text, signal, user, assistant, setDraft } =
-		args;
-	// Reveal buffered deltas one chunk per frame (steady typing cadence) instead
-	// of a setState per network token, which is what made the output choppy.
-	const reveal = createStreamReveal({
-		onFrame: ({ text: revealedText, reasoning }) => {
-			assistant.text = revealedText;
-			assistant.reasoning = reasoning;
-			setDraft([user, { ...assistant }]);
-		},
-	});
+	const state: StreamState = {
+		assistant: args.assistant,
+		user: args.user,
+		setDraft: args.setDraft,
+		reveal: null,
+		revealKind: null,
+	};
 	try {
-		for await (const event of agentClient.stream(text, { sessionId, signal })) {
-			applyEvent(event, { assistant, reveal, setDraft, user });
+		for await (const event of args.agentClient.stream(args.text, {
+			sessionId: args.sessionId,
+			signal: args.signal,
+		})) {
+			applyEvent(event, state);
 		}
-		reveal.flush();
+		sealReveal(state);
 	} catch (error) {
-		reveal.stop();
+		state.reveal?.stop();
 		throw error;
 	}
 }
@@ -199,18 +173,14 @@ async function sendMessage(text: string, args: SendArgs) {
 	const user: ChatMessage = {
 		id: "draft-user",
 		role: "user",
-		text,
-		reasoning: "",
 		status: "complete",
-		tools: [],
+		blocks: [{ kind: "text", text }],
 	};
 	const assistant: ChatMessage = {
 		id: "draft-assistant",
 		role: "assistant",
-		text: "",
-		reasoning: "",
 		status: "streaming",
-		tools: [],
+		blocks: [],
 	};
 	args.setDraft([user, assistant]);
 	try {
@@ -226,7 +196,7 @@ async function sendMessage(text: string, args: SendArgs) {
 	} catch {
 		if (!controller.signal.aborted) {
 			assistant.status = "error";
-			args.setDraft([user, { ...assistant }]);
+			args.setDraft([user, { ...assistant, blocks: [...assistant.blocks] }]);
 		}
 	} finally {
 		await finalizeSend(args.sessionId, args);

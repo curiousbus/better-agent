@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	XIcon,
 } from "lucide-react";
-import type { ToolInvocation } from "./use-chat";
+import type { ToolInvocation } from "./chat-blocks";
 
 const MAX_VALUE_CHARS = 2000;
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "./use-chat";
-import { streamPrompt, toChatMessage } from "./use-chat";
+import type { ChatMessage } from "./chat-blocks";
+import { toChatMessage } from "./chat-blocks";
+import { streamPrompt } from "./use-chat";
 
 function fakeStream(events: unknown[]) {
 	return {
@@ -13,70 +14,60 @@ function fakeStream(events: unknown[]) {
 	} as unknown as import("@better-agent/client").AgentClient;
 }
 
-it("streams tool-call then tool-result into the draft assistant", async () => {
-	const drafts: ChatMessage[][] = [];
-	const user: ChatMessage = {
+function draftAssistant(): ChatMessage {
+	return { id: "a", role: "assistant", status: "streaming", blocks: [] };
+}
+function draftUser(): ChatMessage {
+	return {
 		id: "u",
 		role: "user",
-		text: "hi",
-		reasoning: "",
 		status: "complete",
-		tools: [],
+		blocks: [{ kind: "text", text: "hi" }],
 	};
-	const assistant: ChatMessage = {
-		id: "a",
-		role: "assistant",
-		text: "",
-		reasoning: "",
-		status: "streaming",
-		tools: [],
-	};
+}
+
+async function run(events: unknown[]) {
+	const drafts: ChatMessage[][] = [];
+	const assistant = draftAssistant();
 	await streamPrompt({
-		agentClient: fakeStream([
-			{ type: "tool-call", callId: "c1", toolName: "search", args: { q: "x" } },
-			{ type: "tool-result", callId: "c1", result: "ok", isError: false },
-			{ type: "text-delta", delta: "answer" },
-		]),
+		agentClient: fakeStream(events),
 		assistant,
-		user,
+		user: draftUser(),
 		sessionId: "s",
 		text: "hi",
 		signal: new AbortController().signal,
 		setDraft: (m) => drafts.push(m),
 	});
-	const last = drafts.at(-1)?.[1];
-	expect(last?.tools).toHaveLength(1);
-	expect(last?.tools[0]).toMatchObject({ callId: "c1", status: "complete" });
+	return drafts.at(-1)?.[1];
+}
+
+it("streams tool-call then tool-result into a tool block", async () => {
+	const last = await run([
+		{ type: "tool-call", callId: "c1", toolName: "search", args: { q: "x" } },
+		{ type: "tool-result", callId: "c1", result: "ok", isError: false },
+		{ type: "text-delta", delta: "answer" },
+	]);
+	const tool = last?.blocks.find((b) => b.kind === "tool");
+	expect(tool).toMatchObject({
+		kind: "tool",
+		tool: { callId: "c1", status: "complete" },
+	});
+});
+
+it("preserves the agent's output order across text and tool blocks", async () => {
+	const last = await run([
+		{ type: "text-delta", delta: "let me look" },
+		{ type: "tool-call", callId: "c1", toolName: "search", args: {} },
+		{ type: "tool-result", callId: "c1", result: "ok", isError: false },
+		{ type: "text-delta", delta: "found it" },
+	]);
+	expect(last?.blocks.map((b) => b.kind)).toEqual(["text", "tool", "text"]);
+	expect(last?.blocks[0]).toEqual({ kind: "text", text: "let me look" });
+	expect(last?.blocks[2]).toEqual({ kind: "text", text: "found it" });
 });
 
 it("captures the error event message as errorText", async () => {
-	const drafts: ChatMessage[][] = [];
-	const user: ChatMessage = {
-		id: "u",
-		role: "user",
-		text: "hi",
-		reasoning: "",
-		status: "complete",
-		tools: [],
-	};
-	const assistant: ChatMessage = {
-		id: "a",
-		role: "assistant",
-		text: "",
-		reasoning: "",
-		status: "streaming",
-		tools: [],
-	};
-	await streamPrompt({
-		agentClient: fakeStream([{ type: "error", message: "rate limited" }]),
-		assistant,
-		user,
-		sessionId: "s",
-		text: "hi",
-		signal: new AbortController().signal,
-		setDraft: (m) => drafts.push(m),
-	});
-	const last = drafts.at(-1)?.[1];
+	const last = await run([{ type: "error", message: "rate limited" }]);
 	expect(last?.status).toBe("error");
 	expect(last?.errorText).toBe("rate limited");
 });
@@ -113,57 +104,52 @@ function rowWithToolPair() {
 	} as unknown as Parameters<typeof toChatMessage>[0];
 }
 
-function rowWithRunningTool() {
-	return {
-		message: { id: "m2", role: "assistant", status: "streaming" },
-		parts: [
-			part({
-				type: "tool-call",
-				content: { callId: "c9", toolName: "fetch", args: {} },
-			}),
-		],
-	} as unknown as Parameters<typeof toChatMessage>[0];
-}
-
-function rowWithErroredTool() {
-	return {
-		message: { id: "m3", role: "assistant", status: "complete" },
-		parts: [
-			part({
-				type: "tool-call",
-				content: { callId: "c2", toolName: "x", args: {} },
-			}),
-			part({
-				type: "tool-result",
-				seq: 1,
-				content: { callId: "c2", result: "boom", isError: true },
-			}),
-		],
-	} as unknown as Parameters<typeof toChatMessage>[0];
-}
-
 describe("toChatMessage", () => {
-	it("pairs tool-call and tool-result parts by callId into tools[]", () => {
+	it("builds ordered blocks (reasoning, tool, text) from parts", () => {
 		const msg = toChatMessage(rowWithToolPair());
-		expect(msg.text).toBe("done");
-		expect(msg.reasoning).toBe("think");
-		expect(msg.tools).toHaveLength(1);
-		expect(msg.tools[0]).toMatchObject({
-			callId: "c1",
-			toolName: "search",
-			isError: false,
-			status: "complete",
+		expect(msg.blocks).toHaveLength(3);
+		expect(msg.blocks[0]).toEqual({ kind: "reasoning", text: "think" });
+		expect(msg.blocks[1]).toMatchObject({
+			kind: "tool",
+			tool: { callId: "c1", status: "complete", result: { hits: 3 } },
 		});
-		expect(msg.tools[0]?.result).toEqual({ hits: 3 });
+		expect(msg.blocks[2]).toEqual({ kind: "text", text: "done" });
 	});
 
 	it("marks a tool-call without a result as running", () => {
-		const msg = toChatMessage(rowWithRunningTool());
-		expect(msg.tools[0]).toMatchObject({ callId: "c9", status: "running" });
+		const row = {
+			message: { id: "m2", role: "assistant", status: "streaming" },
+			parts: [
+				part({
+					type: "tool-call",
+					content: { callId: "c9", toolName: "fetch", args: {} },
+				}),
+			],
+		} as unknown as Parameters<typeof toChatMessage>[0];
+		expect(toChatMessage(row).blocks[0]).toMatchObject({
+			kind: "tool",
+			tool: { callId: "c9", status: "running" },
+		});
 	});
 
 	it("marks an errored tool-result as status error", () => {
-		const msg = toChatMessage(rowWithErroredTool());
-		expect(msg.tools[0]).toMatchObject({ status: "error", isError: true });
+		const row = {
+			message: { id: "m3", role: "assistant", status: "complete" },
+			parts: [
+				part({
+					type: "tool-call",
+					content: { callId: "c2", toolName: "x", args: {} },
+				}),
+				part({
+					type: "tool-result",
+					seq: 1,
+					content: { callId: "c2", result: "boom", isError: true },
+				}),
+			],
+		} as unknown as Parameters<typeof toChatMessage>[0];
+		expect(toChatMessage(row).blocks[0]).toMatchObject({
+			kind: "tool",
+			tool: { status: "error", isError: true },
+		});
 	});
 });
