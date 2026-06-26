@@ -182,6 +182,7 @@ it("rejects unauthenticated callers", async () => {
 });
 
 const okService: ComposioService = {
+	listToolkits: () => Promise.resolve([]),
 	listTools: (_userId, _toolkits) =>
 		Promise.resolve([
 			{ name: "HACKERNEWS_SEARCH_POSTS", description: "d", parameters: {} },
@@ -202,6 +203,7 @@ describe("safeComposioDefs", () => {
 
 	it("swallows a composio failure and returns []", async () => {
 		const boom: ComposioService = {
+			listToolkits: () => Promise.resolve([]),
 			listTools: () => Promise.reject(new Error("composio down")),
 			execute: () => Promise.resolve({ output: "" }),
 		};

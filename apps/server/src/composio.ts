@@ -1,5 +1,6 @@
 import type {
 	ComposioService,
+	ComposioToolkitMeta,
 	ComposioToolMeta,
 } from "@better-agent/agent/tool/composio-tools";
 import type { ExecuteResult } from "@better-agent/agent/tool/types";
@@ -24,6 +25,26 @@ interface ComposioResult {
 	data: Record<string, unknown>;
 	error: string | null;
 	successful: boolean;
+}
+
+/** The subset of a ToolKitItem from @composio/core@0.11 that we read. */
+interface ToolKitItem {
+	authSchemes?: string[];
+	meta?: { description?: string };
+	name: string;
+	noAuth?: boolean;
+	slug: string;
+}
+
+export function mapToolkit(item: ToolKitItem): ComposioToolkitMeta {
+	const needsAuth =
+		!item.noAuth && (item.authSchemes ?? []).some((s) => s !== "NO_AUTH");
+	return {
+		slug: item.slug,
+		name: item.name,
+		description: item.meta?.description ?? "",
+		needsAuth,
+	};
 }
 
 export function mapOpenAiTool(tool: OpenAiTool): ComposioToolMeta {
@@ -64,6 +85,13 @@ export function createComposioService(config: {
 				dangerouslySkipVersionCheck: true,
 			})) as ComposioResult;
 			return mapComposioResult(result);
+		},
+		async listToolkits() {
+			const toolkits = await composio.toolkits.get({
+				sortBy: "alphabetically",
+				limit: 100,
+			});
+			return (toolkits as ToolKitItem[]).map(mapToolkit);
 		},
 	};
 }

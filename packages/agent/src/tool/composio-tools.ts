@@ -6,6 +6,13 @@ export interface ComposioToolMeta {
 	parameters: JsonSchema;
 }
 
+export interface ComposioToolkitMeta {
+	description: string;
+	name: string;
+	needsAuth: boolean;
+	slug: string;
+}
+
 export interface ComposioService {
 	/** Execute one composio tool server-side for this user. */
 	execute(input: {
@@ -13,6 +20,8 @@ export interface ComposioService {
 		toolName: string;
 		args: unknown;
 	}): Promise<ExecuteResult>;
+	/** List the composio toolkit catalog (app-level; no per-user scope). */
+	listToolkits(): Promise<ComposioToolkitMeta[]>;
 	/** List the composio tools available to this user (scoped to the given toolkits). */
 	listTools(userId: string, toolkits: string[]): Promise<ComposioToolMeta[]>;
 }

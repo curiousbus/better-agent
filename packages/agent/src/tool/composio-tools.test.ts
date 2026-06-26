@@ -11,6 +11,7 @@ const EXEC_CTX = {
 
 function fakeService(over: Partial<ComposioService> = {}): ComposioService {
 	return {
+		listToolkits: () => Promise.resolve([]),
 		listTools: (_userId, _toolkits) =>
 			Promise.resolve([
 				{

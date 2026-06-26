@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapComposioResult, mapOpenAiTool } from "./composio";
+import { mapComposioResult, mapOpenAiTool, mapToolkit } from "./composio";
 
 describe("composio mappers", () => {
 	it("maps an OpenAI-format tool to a ComposioToolMeta", () => {
@@ -50,5 +50,40 @@ describe("composio mappers", () => {
 			output: "nope",
 			isError: true,
 		});
+	});
+});
+
+describe("mapToolkit", () => {
+	it("flags an OAuth toolkit as needing connection", () => {
+		expect(
+			mapToolkit({
+				name: "GitHub",
+				slug: "github",
+				authSchemes: ["OAUTH2"],
+				meta: { description: "d" },
+			})
+		).toEqual({
+			slug: "github",
+			name: "GitHub",
+			description: "d",
+			needsAuth: true,
+		});
+	});
+
+	it("treats a noAuth toolkit as ready", () => {
+		expect(
+			mapToolkit({ name: "HN", slug: "hackernews", noAuth: true, meta: {} })
+		).toEqual({
+			slug: "hackernews",
+			name: "HN",
+			description: "",
+			needsAuth: false,
+		});
+	});
+
+	it("treats a NO_AUTH-only scheme as ready and defaults a missing meta", () => {
+		expect(
+			mapToolkit({ name: "X", slug: "x", authSchemes: ["NO_AUTH"] })
+		).toEqual({ slug: "x", name: "X", description: "", needsAuth: false });
 	});
 });
