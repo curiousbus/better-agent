@@ -38,6 +38,7 @@ export interface AgentServices {
 	catalog: ModelCatalog;
 	composio: () => Promise<ComposioService | null>;
 	emailSender: EmailSender;
+	envSecretKeys: string[];
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
 	modelFactory: ModelFactory;
