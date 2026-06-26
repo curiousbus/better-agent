@@ -5,6 +5,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { IntegrationsSection } from "@/components/account-integrations";
 import { clearTokens, loadRefreshToken } from "@/utils/auth";
 import { client, orpc } from "@/utils/orpc";
 
@@ -194,6 +195,7 @@ function AccountPage() {
 				<div className="font-medium">{email}</div>
 			</div>
 			<PasswordSection hasPassword={hasPassword} onSaved={invalidateMe} />
+			<IntegrationsSection />
 			<div className="flex flex-col gap-2">
 				<div className="text-muted-foreground text-sm">Active sessions</div>
 				{logins.map((s) => (
