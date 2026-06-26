@@ -188,6 +188,9 @@ const okService: ComposioService = {
 			{ name: "HACKERNEWS_SEARCH_POSTS", description: "d", parameters: {} },
 		]),
 	execute: () => Promise.resolve({ output: "ok" }),
+	connect: () => Promise.resolve({ redirectUrl: "" }),
+	listConnections: () => Promise.resolve([]),
+	disconnect: () => Promise.resolve(),
 };
 
 describe("safeComposioDefs", () => {
@@ -206,6 +209,9 @@ describe("safeComposioDefs", () => {
 			listToolkits: () => Promise.resolve([]),
 			listTools: () => Promise.reject(new Error("composio down")),
 			execute: () => Promise.resolve({ output: "" }),
+			connect: () => Promise.resolve({ redirectUrl: "" }),
+			listConnections: () => Promise.resolve([]),
+			disconnect: () => Promise.resolve(),
 		};
 		expect(await safeComposioDefs(boom, "u1", [])).toEqual([]);
 	});
@@ -213,11 +219,15 @@ describe("safeComposioDefs", () => {
 	it("forwards toolkits to the underlying service", async () => {
 		const captured: string[][] = [];
 		const service: ComposioService = {
+			listToolkits: () => Promise.resolve([]),
 			listTools: (_userId, toolkits) => {
 				captured.push(toolkits);
 				return Promise.resolve([]);
 			},
 			execute: () => Promise.resolve({ output: "" }),
+			connect: () => Promise.resolve({ redirectUrl: "" }),
+			listConnections: () => Promise.resolve([]),
+			disconnect: () => Promise.resolve(),
 		};
 		await safeComposioDefs(service, "u1", ["hackernews"]);
 		expect(captured).toEqual([["hackernews"]]);

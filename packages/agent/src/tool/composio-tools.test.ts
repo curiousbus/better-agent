@@ -24,6 +24,9 @@ function fakeService(over: Partial<ComposioService> = {}): ComposioService {
 			Promise.resolve({
 				output: `ran ${toolName} for ${userId} with ${JSON.stringify(args)}`,
 			}),
+		connect: () => Promise.resolve({ redirectUrl: "" }),
+		listConnections: () => Promise.resolve([]),
+		disconnect: () => Promise.resolve(),
 		...over,
 	};
 }

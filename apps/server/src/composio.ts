@@ -1,4 +1,5 @@
 import type {
+	ComposioConnectionMeta,
 	ComposioService,
 	ComposioToolkitMeta,
 	ComposioToolMeta,
@@ -27,6 +28,13 @@ interface ComposioResult {
 	successful: boolean;
 }
 
+/** The subset of a connected account item from @composio/core@0.11 that we read. */
+interface ConnectedAccountItem {
+	id: string;
+	status: string;
+	toolkit: { slug: string };
+}
+
 /** The subset of a ToolKitItem from @composio/core@0.11 that we read. */
 interface ToolKitItem {
 	authSchemes?: string[];
@@ -34,6 +42,17 @@ interface ToolKitItem {
 	name: string;
 	noAuth?: boolean;
 	slug: string;
+}
+
+export function mapConnection(
+	item: ConnectedAccountItem
+): ComposioConnectionMeta {
+	return {
+		id: item.id,
+		toolkitSlug: item.toolkit.slug,
+		status: item.status,
+		active: item.status === "ACTIVE",
+	};
 }
 
 export function mapToolkit(item: ToolKitItem): ComposioToolkitMeta {
@@ -92,6 +111,19 @@ export function createComposioService(config: {
 				limit: 100,
 			});
 			return (toolkits as ToolKitItem[]).map(mapToolkit);
+		},
+		async connect(userId, toolkit) {
+			const req = await composio.toolkits.authorize(userId, toolkit);
+			return { redirectUrl: req.redirectUrl ?? "" };
+		},
+		async listConnections(userId) {
+			const res = (await composio.connectedAccounts.list({
+				userIds: [userId],
+			})) as { items: ConnectedAccountItem[] };
+			return res.items.map(mapConnection);
+		},
+		async disconnect(connectionId) {
+			await composio.connectedAccounts.delete(connectionId);
 		},
 	};
 }

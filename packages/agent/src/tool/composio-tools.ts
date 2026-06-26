@@ -13,13 +13,26 @@ export interface ComposioToolkitMeta {
 	slug: string;
 }
 
+export interface ComposioConnectionMeta {
+	active: boolean;
+	id: string;
+	status: string;
+	toolkitSlug: string;
+}
+
 export interface ComposioService {
+	/** Initiate a connection for a user to a toolkit. Returns a redirect URL. */
+	connect(userId: string, toolkit: string): Promise<{ redirectUrl: string }>;
+	/** Remove a connected account by its ID. */
+	disconnect(connectionId: string): Promise<void>;
 	/** Execute one composio tool server-side for this user. */
 	execute(input: {
 		userId: string;
 		toolName: string;
 		args: unknown;
 	}): Promise<ExecuteResult>;
+	/** List all connections for a user. */
+	listConnections(userId: string): Promise<ComposioConnectionMeta[]>;
 	/** List the composio toolkit catalog (app-level; no per-user scope). */
 	listToolkits(): Promise<ComposioToolkitMeta[]>;
 	/** List the composio tools available to this user (scoped to the given toolkits). */

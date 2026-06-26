@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapComposioResult, mapOpenAiTool, mapToolkit } from "./composio";
+import {
+	mapComposioResult,
+	mapConnection,
+	mapOpenAiTool,
+	mapToolkit,
+} from "./composio";
 
 describe("composio mappers", () => {
 	it("maps an OpenAI-format tool to a ComposioToolMeta", () => {
@@ -50,6 +55,32 @@ describe("composio mappers", () => {
 			output: "nope",
 			isError: true,
 		});
+	});
+});
+
+describe("mapConnection", () => {
+	it("maps a connected account and flags ACTIVE", () => {
+		expect(
+			mapConnection({
+				id: "ca_1",
+				status: "ACTIVE",
+				toolkit: { slug: "gmail" },
+			})
+		).toEqual({
+			id: "ca_1",
+			toolkitSlug: "gmail",
+			status: "ACTIVE",
+			active: true,
+		});
+	});
+	it("flags a non-ACTIVE status as inactive", () => {
+		expect(
+			mapConnection({
+				id: "ca_2",
+				status: "INITIATED",
+				toolkit: { slug: "slack" },
+			}).active
+		).toBe(false);
 	});
 });
 
