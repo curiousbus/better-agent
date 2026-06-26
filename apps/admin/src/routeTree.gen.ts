@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,11 @@ import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProvidersRoute = ProvidersRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/tools': typeof ToolsRoute
   '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/tools': typeof ToolsRoute
   '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
+  '/tools': typeof ToolsRoute
   '/users': typeof UsersRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/tools'
     | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/tools'
     | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/providers'
+    | '/tools'
     | '/users'
     | '/agents/$agentId'
     | '/auth/verify'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ProvidersRoute: typeof ProvidersRoute
+  ToolsRoute: typeof ToolsRoute
   UsersRoute: typeof UsersRoute
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/providers': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ProvidersRoute: ProvidersRoute,
+  ToolsRoute: ToolsRoute,
   UsersRoute: UsersRoute,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
   AuthVerifyRoute: AuthVerifyRoute,
