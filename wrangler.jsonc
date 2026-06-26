@@ -1,0 +1,17 @@
+{
+	"name": "better-agent-server",
+	"main": "apps/server/src/worker.ts",
+	"compatibility_date": "2025-09-23",
+	"compatibility_flags": ["nodejs_compat", "fetch_iterable_type_support"],
+	"env": {
+		"test": {
+			// Non-secret vars with safe defaults for the test environment.
+			// Secrets (DATABASE_URL, AUTH_JWT_SECRET, CREDENTIALS_SECRET,
+			// CORS_ORIGIN, WEB_URL, ADMIN_URL, provider API keys) are NOT here —
+			// set them with: wrangler secret put <NAME> --env test
+			"vars": {
+				"NODE_ENV": "production"
+			}
+		}
+	}
+}
