@@ -14,6 +14,8 @@ import { DeleteConfirm } from "@/components/list/delete-confirm";
 import type { ComposioConnectionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
+import { queryPlaceholder } from "./placeholder";
+
 const COLUMN_COUNT = 3;
 
 function useDisconnect() {
@@ -61,6 +63,10 @@ export function ConnectionsSection({ accountId }: { accountId: string }) {
 	const disconnect = useDisconnect();
 	const rows = connections.data ?? [];
 	const empty = connections.isLoading || rows.length === 0;
+	const placeholder = queryPlaceholder(
+		connections,
+		"No toolkits authenticated yet."
+	);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -81,9 +87,7 @@ export function ConnectionsSection({ accountId }: { accountId: string }) {
 									className="h-20 text-center text-muted-foreground"
 									colSpan={COLUMN_COUNT}
 								>
-									{connections.isLoading
-										? "Loading…"
-										: "No toolkits authenticated yet."}
+									{placeholder}
 								</TableCell>
 							</TableRow>
 						) : (

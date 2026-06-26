@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import type { ComposioToolkitRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
+import { queryPlaceholder } from "./placeholder";
+
 const COLUMN_COUNT = 3;
 
 function useToolkitConnect() {
@@ -68,11 +70,13 @@ function ToolkitsTable({
 	rows,
 	isLoading,
 	isPending,
+	placeholder,
 	onConnect,
 }: {
 	rows: ComposioToolkitRow[];
 	isLoading: boolean;
 	isPending: boolean;
+	placeholder: string;
 	onConnect: (slug: string) => void;
 }) {
 	return (
@@ -92,7 +96,7 @@ function ToolkitsTable({
 								className="h-20 text-center text-muted-foreground"
 								colSpan={COLUMN_COUNT}
 							>
-								{isLoading ? "Loading…" : "No toolkits found."}
+								{placeholder}
 							</TableCell>
 						</TableRow>
 					) : (
@@ -130,6 +134,8 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 			: all;
 	}, [toolkits.data, search]);
 
+	const placeholder = queryPlaceholder(toolkits, "No toolkits found.");
+
 	return (
 		<div className="flex flex-col gap-2">
 			<h2 className="font-medium text-sm">Available toolkits</h2>
@@ -147,6 +153,7 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 				isLoading={toolkits.isLoading}
 				isPending={connect.isPending}
 				onConnect={(slug) => connect.mutate({ accountId, toolkit: slug })}
+				placeholder={placeholder}
 				rows={filtered}
 			/>
 		</div>
