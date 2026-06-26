@@ -17,7 +17,7 @@ import { createInMemorySessionLock } from "@better-agent/agent/session/session-l
 import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
-import { db } from "@better-agent/db";
+import { createNodeDb } from "@better-agent/db/node-db";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import {
 	createMagicLinkStore,
@@ -54,6 +54,8 @@ import { createRedisSessionLock } from "./redis-session-lock";
 initLogger({
 	env: { service: "better-agent-server" },
 });
+
+const db = createNodeDb(env.DATABASE_URL);
 
 const ACCESS_TTL = 900;
 const REFRESH_TTL = 2_592_000;
