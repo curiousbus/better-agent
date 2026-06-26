@@ -191,3 +191,5 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 		</div>
 	);
 }
+
+export { ToolsStep } from "./agent-wizard-tools";

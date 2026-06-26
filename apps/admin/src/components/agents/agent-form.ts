@@ -1,6 +1,7 @@
 import type { AgentRow } from "@/utils/api-types";
 
 export interface AgentForm {
+	composioToolkits: string[];
 	description: string;
 	maxOutputTokens: string;
 	modelId: string;
@@ -12,6 +13,7 @@ export interface AgentForm {
 }
 
 export const EMPTY_AGENT_FORM: AgentForm = {
+	composioToolkits: [],
 	name: "",
 	description: "",
 	systemPrompt: "",
@@ -22,7 +24,7 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	maxOutputTokens: "",
 };
 
-export const WIZARD_STEPS = ["Identity", "Model", "Params"] as const;
+export const WIZARD_STEPS = ["Identity", "Model", "Params", "Tools"] as const;
 
 const IDENTITY_STEP = 0;
 const MODEL_STEP = 1;
@@ -67,6 +69,7 @@ function toParams(form: AgentForm) {
 
 export function toAgentInput(form: AgentForm) {
 	return {
+		composioToolkits: form.composioToolkits,
 		name: form.name,
 		description: form.description,
 		systemPrompt: form.systemPrompt,
@@ -76,15 +79,20 @@ export function toAgentInput(form: AgentForm) {
 	};
 }
 
+function numToStr(value: number | null | undefined): string {
+	return value?.toString() ?? "";
+}
+
 export function agentRowToForm(row: AgentRow): AgentForm {
 	return {
+		composioToolkits: row.composioToolkits ?? [],
 		name: row.name,
 		description: row.description,
 		systemPrompt: row.systemPrompt,
 		providerId: row.providerId,
 		modelId: row.modelId,
-		temperature: row.params?.temperature?.toString() ?? "",
-		topP: row.params?.topP?.toString() ?? "",
-		maxOutputTokens: row.params?.maxOutputTokens?.toString() ?? "",
+		temperature: numToStr(row.params?.temperature),
+		topP: numToStr(row.params?.topP),
+		maxOutputTokens: numToStr(row.params?.maxOutputTokens),
 	};
 }
