@@ -40,7 +40,6 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 					<ReasoningContent>{message.reasoning}</ReasoningContent>
 				</Reasoning>
 			)}
-			<ToolGroup tools={message.tools} />
 			{streamingEmpty ? (
 				<Loader />
 			) : (
@@ -48,6 +47,7 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 					{message.text}
 				</Response>
 			)}
+			<ToolGroup tools={message.tools} />
 			{message.status === "error" ? (
 				<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-destructive text-sm">
 					<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -152,17 +152,25 @@ export function Conversation({
 	initialText?: string;
 }) {
 	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
-	const sentRef = useRef(false);
 	const sendRef = useRef(send);
 	useLayoutEffect(() => {
 		sendRef.current = send;
 	});
+	// Send the first message once the chat mounts. Defer it: a transient
+	// mount/unmount during the composer→chat slide (or a dev double-invoke)
+	// cancels the stale schedule via cleanup instead of aborting an
+	// already-started stream — so the send fires exactly once, after things
+	// settle, and the first message is never lost.
 	useEffect(() => {
-		if (initialText && !sentRef.current) {
-			sentRef.current = true;
-			sendRef.current(initialText);
-		}
-	}, [initialText]); // send accessed via ref, not a dep
+		const id = initialText
+			? setTimeout(() => sendRef.current(initialText), 0)
+			: undefined;
+		return () => {
+			if (id !== undefined) {
+				clearTimeout(id);
+			}
+		};
+	}, [initialText]);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ConversationRoot>
