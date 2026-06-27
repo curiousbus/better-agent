@@ -7,7 +7,6 @@ import {
 	Conversation as ConversationRoot,
 	ConversationScrollButton,
 } from "@better-agent/ui/components/conversation";
-import { Loader } from "@better-agent/ui/components/loader";
 import {
 	Message,
 	MessageAvatar,
@@ -60,7 +59,9 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 	const fullText = messageText(message);
 	return (
 		<div className="flex flex-col gap-2">
-			{streaming && message.blocks.length === 0 ? <Loader /> : null}
+			{streaming && message.blocks.length === 0 ? (
+				<span className="shimmer font-medium text-sm">Thinking…</span>
+			) : null}
 			{message.blocks.map((block, index) => (
 				<BlockView
 					block={block}
