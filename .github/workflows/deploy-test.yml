@@ -54,6 +54,44 @@ jobs:
           CREDENTIALS_SECRET: ${{ secrets.CREDENTIALS_SECRET }}
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
 
+  authz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate authz database
+        run: pnpm -F authz exec drizzle-kit migrate
+        env:
+          AUTHZ_DATABASE_URL: ${{ secrets.AUTHZ_DATABASE_URL }}
+      - name: Seed authz admin
+        run: pnpm -F authz exec tsx src/seed-admin.ts
+        env:
+          AUTHZ_DATABASE_URL: ${{ secrets.AUTHZ_DATABASE_URL }}
+          AUTHZ_ADMIN_EMAIL: ${{ secrets.AUTHZ_ADMIN_EMAIL }}
+          AUTHZ_ADMIN_PASSWORD: ${{ secrets.AUTHZ_ADMIN_PASSWORD }}
+      - name: Deploy authz
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/authz
+          command: deploy
+          secrets: |
+            AUTHZ_DATABASE_URL
+            AUTHZ_JWT_SECRET
+            AUTHZ_SERVICE_SECRET
+            MAIN_SERVER_URL
+        env:
+          AUTHZ_DATABASE_URL: ${{ secrets.AUTHZ_DATABASE_URL }}
+          AUTHZ_JWT_SECRET: ${{ secrets.AUTHZ_JWT_SECRET }}
+          AUTHZ_SERVICE_SECRET: ${{ secrets.AUTHZ_SERVICE_SECRET }}
+          MAIN_SERVER_URL: ${{ secrets.MAIN_SERVER_URL }}
+
   frontends:
     runs-on: ubuntu-latest
     strategy:
