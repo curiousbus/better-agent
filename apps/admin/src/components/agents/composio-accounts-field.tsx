@@ -31,8 +31,16 @@ export function ComposioAccountsField({
 		);
 	}
 
+	// Map each value to its display label so the trigger shows the account name,
+	// not the raw UUID.
+	const items: Record<string, string> = {
+		[NONE]: "No composio account",
+		...Object.fromEntries(rows.map((row) => [row.id, row.name])),
+	};
+
 	return (
 		<Select
+			items={items}
 			onValueChange={(next) => {
 				const value = typeof next === "string" ? next : NONE;
 				onChange(value === NONE ? [] : [value]);
