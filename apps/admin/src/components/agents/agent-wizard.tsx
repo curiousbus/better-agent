@@ -18,11 +18,13 @@ import {
 	ModelStep,
 	ParamsStep,
 	Stepper,
+	ToolsStep,
 } from "./agent-wizard-steps";
 
 const IDENTITY_STEP = 0;
 const MODEL_STEP = 1;
 const PARAMS_STEP = 2;
+const TOOLS_STEP = 3;
 
 function WizardFooter({
 	step,
@@ -93,6 +95,7 @@ export function AgentWizard({
 				{step === IDENTITY_STEP ? <IdentityStep form={form} set={set} /> : null}
 				{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
 				{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
+				{step === TOOLS_STEP ? <ToolsStep form={form} set={set} /> : null}
 				<WizardFooter
 					canNext={isStepValid(step, form)}
 					onBack={() => setStep((current) => current - 1)}

@@ -24,7 +24,7 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	maxOutputTokens: "",
 };
 
-export const WIZARD_STEPS = ["Identity", "Model", "Params"] as const;
+export const WIZARD_STEPS = ["Identity", "Model", "Params", "Tools"] as const;
 
 const IDENTITY_STEP = 0;
 const MODEL_STEP = 1;

@@ -189,13 +189,24 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 					value={form.maxOutputTokens}
 				/>
 			</Field>
-			<div className="flex flex-col gap-1">
-				<Label htmlFor="agent-composio">Composio accounts</Label>
-				<ComposioAccountsField
-					onChange={(ids) => set({ composioAccountIds: ids })}
-					selected={form.composioAccountIds}
-				/>
+		</div>
+	);
+}
+
+export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
+	return (
+		<div className="flex flex-col gap-2">
+			<div>
+				<p className="font-medium text-sm">Composio accounts</p>
+				<p className="text-muted-foreground text-sm">
+					Link composio accounts to give this agent tools. It integrates every
+					authenticated toolkit of each account you select.
+				</p>
 			</div>
+			<ComposioAccountsField
+				onChange={(ids) => set({ composioAccountIds: ids })}
+				selected={form.composioAccountIds}
+			/>
 		</div>
 	);
 }
