@@ -1,6 +1,5 @@
 import type { AppRouter } from "@better-agent/api/routers/index";
 import { Badge } from "@better-agent/ui/components/badge";
-import { Button } from "@better-agent/ui/components/button";
 import {
 	Table,
 	TableBody,
@@ -14,53 +13,17 @@ import type { RouterClient } from "@orpc/server";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 
 export type AdminUserRow = Awaited<
-	ReturnType<RouterClient<AppRouter>["admin"]["listUsers"]>
+	ReturnType<RouterClient<AppRouter>["admin"]["listStaff"]>
 >[number];
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 4;
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
 });
 
 interface RowHandlers {
-	isPendingAdmin: boolean;
 	meId: string | undefined;
 	onDelete: (row: AdminUserRow) => void;
-	onToggleAdmin: (row: AdminUserRow) => void;
-}
-
-function UserActions({
-	row,
-	isSelf,
-	isPendingAdmin,
-	onToggleAdmin,
-	onDelete,
-}: {
-	row: AdminUserRow;
-	isSelf: boolean;
-	isPendingAdmin: boolean;
-	onToggleAdmin: () => void;
-	onDelete: () => void;
-}) {
-	return (
-		<div className="flex items-center justify-end gap-1">
-			<Button
-				disabled={isSelf || isPendingAdmin}
-				onClick={onToggleAdmin}
-				size="xs"
-				variant={row.isAdmin ? "secondary" : "outline"}
-			>
-				{row.isAdmin ? "Revoke admin" : "Make admin"}
-			</Button>
-			{isSelf ? (
-				<Button disabled size="xs" variant="destructive">
-					Delete
-				</Button>
-			) : (
-				<DeleteConfirm label={`Delete ${row.email}?`} onConfirm={onDelete} />
-			)}
-		</div>
-	);
 }
 
 function UserTableRow({
@@ -70,6 +33,7 @@ function UserTableRow({
 	row: AdminUserRow;
 	handlers: RowHandlers;
 }) {
+	const isSelf = handlers.meId === row.id;
 	return (
 		<TableRow>
 			<TableCell className="font-medium">{row.email}</TableCell>
@@ -78,29 +42,18 @@ function UserTableRow({
 					{row.emailVerified ? "verified" : "unverified"}
 				</Badge>
 			</TableCell>
-			<TableCell>
-				<Badge variant="outline">
-					{row.hasPassword ? "password" : "magic"}
-				</Badge>
-			</TableCell>
-			<TableCell>
-				{row.isAdmin ? (
-					<Badge>admin</Badge>
-				) : (
-					<span className="text-muted-foreground">—</span>
-				)}
-			</TableCell>
 			<TableCell className="text-muted-foreground">
 				{dateFormatter.format(new Date(row.createdAt))}
 			</TableCell>
 			<TableCell className="text-right">
-				<UserActions
-					isPendingAdmin={handlers.isPendingAdmin}
-					isSelf={handlers.meId === row.id}
-					onDelete={() => handlers.onDelete(row)}
-					onToggleAdmin={() => handlers.onToggleAdmin(row)}
-					row={row}
-				/>
+				{isSelf ? (
+					<span className="text-muted-foreground text-xs">you</span>
+				) : (
+					<DeleteConfirm
+						label={`Delete ${row.email}?`}
+						onConfirm={() => handlers.onDelete(row)}
+					/>
+				)}
 			</TableCell>
 		</TableRow>
 	);
@@ -113,7 +66,7 @@ function EmptyRow({ isLoading }: { isLoading: boolean }) {
 				className="h-24 text-center text-muted-foreground"
 				colSpan={COLUMN_COUNT}
 			>
-				{isLoading ? "Loading…" : "No users found."}
+				{isLoading ? "Loading…" : "No staff yet."}
 			</TableCell>
 		</TableRow>
 	);
@@ -134,8 +87,6 @@ export function UsersTable({
 				<TableRow>
 					<TableHead>Email</TableHead>
 					<TableHead>Email status</TableHead>
-					<TableHead>Auth</TableHead>
-					<TableHead>Role</TableHead>
 					<TableHead>Joined</TableHead>
 					<TableHead className="text-right">Actions</TableHead>
 				</TableRow>

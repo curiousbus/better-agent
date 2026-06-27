@@ -46,6 +46,15 @@ export async function enforce(
 	}
 }
 
+async function enforcePasswordLimits(
+	context: Context,
+	email: string
+): Promise<void> {
+	const limiter = context.services.rateLimiter;
+	await enforce(limiter, `password:ip:${context.clientIp}`, LIMIT_PASSWORD_IP);
+	await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
+}
+
 export async function issueTokens(
 	context: Context,
 	user: { id: string; email: string }
@@ -152,10 +161,11 @@ export const authRouter = {
 
 	me: userProcedure.handler(async ({ context }) => ({
 		...context.authedUser,
-		isAdmin: isAdminEmail(
-			context.authedUser.email,
-			context.services.authConfig.adminEmails
-		),
+		isAdmin:
+			isAdminEmail(
+				context.authedUser.email,
+				context.services.authConfig.adminEmails
+			) || (await context.services.stores.user.isAdmin(context.authedUser.id)),
 		hasPassword: await context.services.stores.user.hasPassword(
 			context.authedUser.id
 		),
@@ -180,37 +190,31 @@ export const authRouter = {
 		.input(passwordInput)
 		.handler(async ({ input, context }) => {
 			const { email, password } = input;
-			const limiter = context.services.rateLimiter;
-			await enforce(
-				limiter,
-				`password:ip:${context.clientIp}`,
-				LIMIT_PASSWORD_IP
-			);
-			await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
+			await enforcePasswordLimits(context, email);
 			const existing = await context.services.stores.user.findByEmail(email);
 			if (existing) {
 				throw new ORPCError("CONFLICT", {
 					message: "An account with this email already exists",
 				});
 			}
+			// Web sign-up only ever creates customers; staff are added by an admin.
 			const user = await context.services.stores.user.createWithPassword(
 				email,
-				hashPassword(password)
+				hashPassword(password),
+				"customer"
 			);
 			return issueTokens(context, user);
 		}),
 
 	loginWithPassword: publicProcedure
-		.input(passwordInput)
+		.input(
+			passwordInput.extend({
+				audience: z.enum(["customer", "staff"]).default("customer"),
+			})
+		)
 		.handler(async ({ input, context }) => {
-			const { email, password } = input;
-			const limiter = context.services.rateLimiter;
-			await enforce(
-				limiter,
-				`password:ip:${context.clientIp}`,
-				LIMIT_PASSWORD_IP
-			);
-			await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
+			const { email, password, audience } = input;
+			await enforcePasswordLimits(context, email);
 			const cred =
 				await context.services.stores.user.findCredentialByEmail(email);
 			const ok = verifyPassword(
@@ -220,6 +224,21 @@ export const authRouter = {
 			if (!(cred?.passwordHash && ok)) {
 				throw new ORPCError("UNAUTHORIZED", {
 					message: "Invalid email or password",
+				});
+			}
+			// Keep the two populations separate: customers can't sign in to the
+			// admin (staff) plane, and staff can't sign in on web. The super-admin
+			// email is always staff.
+			const isStaff =
+				cred.kind === "staff" ||
+				isAdminEmail(cred.email, context.services.authConfig.adminEmails);
+			const allowed = audience === "staff" ? isStaff : cred.kind === "customer";
+			if (!allowed) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						audience === "staff"
+							? "This account can't sign in to the admin."
+							: "This account can't sign in here.",
 				});
 			}
 			return issueTokens(context, { id: cred.id, email: cred.email });

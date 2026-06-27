@@ -58,7 +58,7 @@ function SignInForm() {
 				className="flex flex-col gap-3"
 				onSubmit={(event) => {
 					event.preventDefault();
-					login.mutate({ email, password });
+					login.mutate({ email, password, audience: "staff" });
 				}}
 			>
 				<EmailInput onChange={setEmail} value={email} />

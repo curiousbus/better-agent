@@ -1,31 +1,35 @@
 import { SUPER_ADMIN_EMAIL } from "@better-agent/agent/auth/admin";
+import { hashPassword } from "@better-agent/agent/crypto/password";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { adminProcedure } from "../index";
 
 export const adminRouter = {
-	listUsers: adminProcedure.handler(({ context }) =>
-		context.services.stores.user.listAll()
+	// Back-office (staff) users only. Customers live on the web plane.
+	listStaff: adminProcedure.handler(({ context }) =>
+		context.services.stores.user.listByKind("staff")
 	),
 
-	setUserAdmin: adminProcedure
-		.input(z.object({ userId: z.string().uuid(), isAdmin: z.boolean() }))
+	createStaff: adminProcedure
+		.input(z.object({ email: z.email(), password: z.string().min(8) }))
 		.handler(async ({ input, context }) => {
-			const target = await context.services.stores.user.findById(input.userId);
-			if (!target) {
-				throw new ORPCError("NOT_FOUND", { message: "User not found" });
-			}
-			if (target.email === SUPER_ADMIN_EMAIL && !input.isAdmin) {
-				throw new ORPCError("BAD_REQUEST", {
-					message: "The super admin cannot be demoted",
+			const existing = await context.services.stores.user.findByEmail(
+				input.email
+			);
+			if (existing) {
+				throw new ORPCError("CONFLICT", {
+					message: "A user with this email already exists",
 				});
 			}
-			await context.services.stores.user.setAdmin(input.userId, input.isAdmin);
-			return { ok: true };
+			return context.services.stores.user.createWithPassword(
+				input.email,
+				hashPassword(input.password),
+				"staff"
+			);
 		}),
 
-	deleteUser: adminProcedure
-		.input(z.object({ userId: z.string().uuid() }))
+	deleteStaff: adminProcedure
+		.input(z.object({ userId: z.uuid() }))
 		.handler(async ({ input, context }) => {
 			if (input.userId === context.authedUser.id) {
 				throw new ORPCError("BAD_REQUEST", {

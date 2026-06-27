@@ -1,9 +1,10 @@
-import type { AdminUserRow, User } from "../auth/types";
+import type { AdminUserRow, User, UserKind } from "../auth/types";
 import type { UserStore } from "../ports";
 
 interface FakeUserRecord extends User {
 	emailVerifiedAt: Date | null;
 	isAdmin: boolean;
+	kind: UserKind;
 	passwordHash: string | null;
 }
 
@@ -13,7 +14,8 @@ function toUser(record: FakeUserRecord): User {
 
 function makeUserRecord(
 	email: string,
-	passwordHash: string | null = null
+	passwordHash: string | null = null,
+	kind: UserKind = "customer"
 ): FakeUserRecord {
 	return {
 		id: crypto.randomUUID(),
@@ -21,7 +23,8 @@ function makeUserRecord(
 		createdAt: new Date(),
 		passwordHash,
 		emailVerifiedAt: null,
-		isAdmin: false,
+		isAdmin: kind === "staff",
+		kind,
 	};
 }
 
@@ -39,6 +42,7 @@ function toCredential(record: FakeUserRecord) {
 		id: record.id,
 		email: record.email,
 		passwordHash: record.passwordHash,
+		kind: record.kind,
 	};
 }
 
@@ -50,6 +54,7 @@ function toAdminUserRow(record: FakeUserRecord): AdminUserRow {
 		emailVerified: record.emailVerifiedAt !== null,
 		hasPassword: record.passwordHash !== null,
 		isAdmin: record.isAdmin,
+		kind: record.kind,
 	};
 }
 
@@ -88,10 +93,11 @@ function fakeMarkEmailVerified(maps: UserMaps, userId: string): void {
 	}
 }
 
-function fakeSetAdmin(maps: UserMaps, userId: string, isAdmin: boolean): void {
+function fakeSetStaff(maps: UserMaps, userId: string): void {
 	const record = maps.byId.get(userId);
 	if (record) {
-		record.isAdmin = isAdmin;
+		record.kind = "staff";
+		record.isAdmin = true;
 	}
 }
 
@@ -113,8 +119,8 @@ export function createFakeUserStore(): UserStore {
 		findById: (id) => Promise.resolve(lookupUser(maps.byId, id)),
 		findByEmail: (email) => Promise.resolve(lookupUser(maps.byEmail, email)),
 		findOrCreate: (email) => Promise.resolve(fakeFindOrCreate(maps, email)),
-		createWithPassword(email, passwordHash) {
-			const record = makeUserRecord(email, passwordHash);
+		createWithPassword(email, passwordHash, kind) {
+			const record = makeUserRecord(email, passwordHash, kind);
 			insertRecord(maps.byId, maps.byEmail, record);
 			return Promise.resolve(toUser(record));
 		},
@@ -133,14 +139,13 @@ export function createFakeUserStore(): UserStore {
 			Promise.resolve(fakeMarkEmailVerified(maps, userId)),
 		isEmailVerified: (userId) =>
 			Promise.resolve(maps.byId.get(userId)?.emailVerifiedAt != null),
-		listAll() {
-			const rows = [...maps.byId.values()].sort(
-				(a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-			);
+		listByKind(kind) {
+			const rows = [...maps.byId.values()]
+				.filter((r) => r.kind === kind)
+				.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 			return Promise.resolve(rows.map(toAdminUserRow));
 		},
-		setAdmin: (userId, isAdmin) =>
-			Promise.resolve(fakeSetAdmin(maps, userId, isAdmin)),
+		setStaff: (userId) => Promise.resolve(fakeSetStaff(maps, userId)),
 		isAdmin: (userId) =>
 			Promise.resolve(maps.byId.get(userId)?.isAdmin ?? false),
 		deleteById: (userId) => Promise.resolve(fakeDeleteById(maps, userId)),

@@ -1,3 +1,4 @@
+import type { UserKind } from "@better-agent/agent/auth/types";
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -12,6 +13,8 @@ export const users = pgTable("users", {
 		.notNull()
 		.defaultNow(),
 	isAdmin: boolean("is_admin").notNull().default(false),
+	// "customer" (web sign-up) or "staff" (admin/back-office). Staff are admins.
+	kind: text("kind").$type<UserKind>().notNull().default("customer"),
 });
 
 export const magicLinks = pgTable("magic_links", {

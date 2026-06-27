@@ -1,3 +1,4 @@
+import type { UserKind } from "@better-agent/agent/auth/types";
 import type { UserStore } from "@better-agent/agent/ports";
 import { desc, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
@@ -17,6 +18,7 @@ function toAdminUserRow(row: {
 	emailVerifiedAt: Date | null;
 	passwordHash: string | null;
 	isAdmin: boolean;
+	kind: UserKind;
 }) {
 	return {
 		id: row.id,
@@ -25,6 +27,7 @@ function toAdminUserRow(row: {
 		emailVerified: row.emailVerifiedAt !== null,
 		hasPassword: row.passwordHash !== null,
 		isAdmin: row.isAdmin,
+		kind: row.kind,
 	};
 }
 
@@ -63,11 +66,12 @@ async function dbFindOrCreate(db: Db, email: string) {
 async function dbCreateWithPassword(
 	db: Db,
 	email: string,
-	passwordHash: string
+	passwordHash: string,
+	kind: UserKind
 ) {
 	const inserted = await db
 		.insert(schema.users)
-		.values({ email, passwordHash })
+		.values({ email, passwordHash, kind, isAdmin: kind === "staff" })
 		.returning();
 	const row = inserted[0];
 	if (!row) {
@@ -82,13 +86,19 @@ async function dbFindCredentialByEmail(db: Db, email: string) {
 			id: schema.users.id,
 			email: schema.users.email,
 			passwordHash: schema.users.passwordHash,
+			kind: schema.users.kind,
 		})
 		.from(schema.users)
 		.where(eq(schema.users.email, email))
 		.limit(1);
 	const row = rows[0];
 	return row
-		? { id: row.id, email: row.email, passwordHash: row.passwordHash }
+		? {
+				id: row.id,
+				email: row.email,
+				passwordHash: row.passwordHash,
+				kind: row.kind,
+			}
 		: null;
 }
 
@@ -131,7 +141,8 @@ export function createUserStore(db: Db): UserStore {
 		},
 		findByEmail: (email) => dbFindUserByEmail(db, email),
 		findOrCreate: (email) => dbFindOrCreate(db, email),
-		createWithPassword: (email, hash) => dbCreateWithPassword(db, email, hash),
+		createWithPassword: (email, hash, kind) =>
+			dbCreateWithPassword(db, email, hash, kind),
 		async setPasswordHash(userId, passwordHash) {
 			await db
 				.update(schema.users)
@@ -147,17 +158,18 @@ export function createUserStore(db: Db): UserStore {
 				.where(eq(schema.users.id, userId));
 		},
 		isEmailVerified: (userId) => dbIsEmailVerified(db, userId),
-		async listAll() {
+		async listByKind(kind) {
 			const rows = await db
 				.select()
 				.from(schema.users)
+				.where(eq(schema.users.kind, kind))
 				.orderBy(desc(schema.users.createdAt));
 			return rows.map(toAdminUserRow);
 		},
-		async setAdmin(userId, isAdmin) {
+		async setStaff(userId) {
 			await db
 				.update(schema.users)
-				.set({ isAdmin, updatedAt: new Date() })
+				.set({ kind: "staff", isAdmin: true, updatedAt: new Date() })
 				.where(eq(schema.users.id, userId));
 		},
 		isAdmin: (userId) => dbIsAdmin(db, userId),

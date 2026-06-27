@@ -26,15 +26,13 @@ async function seedAdmin(): Promise<void> {
 	const hash = hashPassword(password);
 
 	const existing = await users.findByEmail(email);
-	let userId: string;
 	if (existing) {
 		await users.setPasswordHash(existing.id, hash);
-		userId = existing.id;
+		await users.setStaff(existing.id);
 	} else {
-		const created = await users.createWithPassword(email, hash);
-		userId = created.id;
+		// createWithPassword("staff") seeds kind=staff + isAdmin=true.
+		await users.createWithPassword(email, hash, "staff");
 	}
-	await users.setAdmin(userId, true);
 
 	await db.$client.end();
 	process.stdout.write(

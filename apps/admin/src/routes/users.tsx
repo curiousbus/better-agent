@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AddStaffDialog } from "@/components/users/add-staff-dialog";
 import { UsersPagination } from "@/components/users/users-pagination";
 import { type AdminUserRow, UsersTable } from "@/components/users/users-table";
 import { orpc } from "@/utils/orpc";
@@ -14,18 +15,15 @@ export const Route = createFileRoute("/users")({
 
 const PAGE_SIZE = 10;
 
-function useUserMutations() {
+function useDeleteStaff() {
 	const queryClient = useQueryClient();
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.admin.listUsers.key() });
-	const onError = (error: Error) => toast.error(error.message);
-	const setAdmin = useMutation(
-		orpc.admin.setUserAdmin.mutationOptions({ onSuccess: invalidate, onError })
+	return useMutation(
+		orpc.admin.deleteStaff.mutationOptions({
+			onSuccess: () =>
+				queryClient.invalidateQueries({ queryKey: orpc.admin.listStaff.key() }),
+			onError: (error: Error) => toast.error(error.message),
+		})
 	);
-	const remove = useMutation(
-		orpc.admin.deleteUser.mutationOptions({ onSuccess: invalidate, onError })
-	);
-	return { setAdmin, remove };
 }
 
 function useFilteredUsers(data: AdminUserRow[] | undefined, search: string) {
@@ -46,10 +44,10 @@ function UsersSearch({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<div className="relative">
+		<div className="relative flex-1">
 			<SearchIcon className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
-				aria-label="Search users by email"
+				aria-label="Search staff by email"
 				className="pl-8"
 				onChange={(event) => onChange(event.target.value)}
 				placeholder="Search by email"
@@ -62,11 +60,11 @@ function UsersSearch({
 function UsersPage() {
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(1);
-	const usersQuery = useQuery(orpc.admin.listUsers.queryOptions());
+	const staffQuery = useQuery(orpc.admin.listStaff.queryOptions());
 	const meQuery = useQuery(orpc.auth.me.queryOptions());
-	const { setAdmin, remove } = useUserMutations();
+	const remove = useDeleteStaff();
 
-	const filtered = useFilteredUsers(usersQuery.data, search);
+	const filtered = useFilteredUsers(staffQuery.data, search);
 	const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 	const safePage = Math.min(page, totalPages);
 	const pageRows = filtered.slice(
@@ -76,23 +74,23 @@ function UsersPage() {
 
 	return (
 		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 overflow-auto p-6">
-			<UsersSearch
-				onChange={(value) => {
-					setSearch(value);
-					setPage(1);
-				}}
-				value={search}
-			/>
+			<div className="flex items-center gap-2">
+				<UsersSearch
+					onChange={(value) => {
+						setSearch(value);
+						setPage(1);
+					}}
+					value={search}
+				/>
+				<AddStaffDialog />
+			</div>
 			<div className="rounded-lg border">
 				<UsersTable
 					handlers={{
 						meId: meQuery.data?.id,
-						isPendingAdmin: setAdmin.isPending,
-						onToggleAdmin: (row) =>
-							setAdmin.mutate({ userId: row.id, isAdmin: !row.isAdmin }),
 						onDelete: (row) => remove.mutate({ userId: row.id }),
 					}}
-					isLoading={usersQuery.isLoading}
+					isLoading={staffQuery.isLoading}
 					rows={pageRows}
 				/>
 			</div>

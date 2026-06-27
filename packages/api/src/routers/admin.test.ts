@@ -8,6 +8,8 @@ import { expect, it } from "vitest";
 import { appRouter } from "./index";
 
 const ONE_MINUTE_MS = 60_000;
+const UNKNOWN_ID = "00000000-0000-0000-0000-000000000000";
+const STAFF_PASSWORD = "password123";
 
 const SUPER_ADMIN_USER = {
 	id: "super-admin-uid",
@@ -28,18 +30,17 @@ function buildServices() {
 	const user = createFakeUserStore();
 	const refreshToken = createFakeRefreshTokenStore();
 	return {
-		services: {
-			authConfig: AUTH_CONFIG,
-			stores: { user, refreshToken },
-		},
+		services: { authConfig: AUTH_CONFIG, stores: { user, refreshToken } },
 		user,
 		refreshToken,
 	};
 }
 
-function buildAdminClient(authedUser = SUPER_ADMIN_USER) {
-	const { services, user, refreshToken } = buildServices();
-	const client = createRouterClient(appRouter, {
+function clientFor(
+	services: unknown,
+	authedUser: { id: string; email: string; createdAt: Date } | null
+) {
+	return createRouterClient(appRouter, {
 		context: {
 			services: services as never,
 			authedAgent: null,
@@ -48,178 +49,128 @@ function buildAdminClient(authedUser = SUPER_ADMIN_USER) {
 			userAgent: null,
 		},
 	});
-	return { client, user, refreshToken };
 }
 
-function buildUnauthClient() {
-	const { services } = buildServices();
-	return createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: null,
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
-	});
+function buildAdminClient(authedUser = SUPER_ADMIN_USER) {
+	const { services, user, refreshToken } = buildServices();
+	return {
+		client: clientFor(services, authedUser),
+		services,
+		user,
+		refreshToken,
+	};
 }
 
-it("listUsers returns all users with correct shape", async () => {
+it("listStaff returns only staff users", async () => {
 	const { client, user } = buildAdminClient();
-	const alice = await user.findOrCreate("alice@example.com");
-	await user.markEmailVerified(alice.id);
-	await user.setPasswordHash(alice.id, "hash");
-	const rows = await client.admin.listUsers();
-	expect(rows.length).toBeGreaterThanOrEqual(1);
-	const row = rows.find((r) => r.email === "alice@example.com");
-	expect(row).toMatchObject({
-		email: "alice@example.com",
-		emailVerified: true,
-		hasPassword: true,
-		isAdmin: false,
-	});
+	await user.createWithPassword("staff@example.com", "hash", "staff");
+	await user.findOrCreate("customer@example.com"); // a customer — excluded
+	const rows = await client.admin.listStaff();
+	expect(rows.map((r) => r.email)).toContain("staff@example.com");
+	expect(rows.map((r) => r.email)).not.toContain("customer@example.com");
+	expect(rows.every((r) => r.kind === "staff")).toBe(true);
 });
 
-it("setUserAdmin grants admin so the user then passes adminProcedure via DB flag", async () => {
-	const { services, user } = buildServices();
-
-	// Create a DB-only admin (NOT in the env allowlist)
-	const dbAdmin = await user.findOrCreate("dbadmin@example.com");
-
-	// Promote them via the super-admin client
-	const superClient = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: SUPER_ADMIN_USER,
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
+it("createStaff makes a staff user that then passes adminProcedure", async () => {
+	const { client, services } = buildAdminClient();
+	const created = await client.admin.createStaff({
+		email: "newstaff@example.com",
+		password: STAFF_PASSWORD,
 	});
-	await superClient.admin.setUserAdmin({ userId: dbAdmin.id, isAdmin: true });
-
-	// Now build a client authed as the newly-promoted DB admin
-	const dbAdminClient = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: {
-				id: dbAdmin.id,
-				email: dbAdmin.email,
-				createdAt: dbAdmin.createdAt,
-			},
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
+	const staffClient = clientFor(services, {
+		id: created.id,
+		email: created.email,
+		createdAt: created.createdAt,
 	});
-
-	// listUsers is admin-gated — this should succeed now
-	const rows = await dbAdminClient.admin.listUsers();
+	const rows = await staffClient.admin.listStaff();
 	expect(Array.isArray(rows)).toBe(true);
 });
 
-it("demoting the super admin returns BAD_REQUEST", async () => {
+it("createStaff returns CONFLICT for an existing email", async () => {
 	const { client, user } = buildAdminClient();
-	const superAdmin = await user.findOrCreate(SUPER_ADMIN_EMAIL);
+	await user.findOrCreate("taken@example.com");
 	await expect(
-		client.admin.setUserAdmin({ userId: superAdmin.id, isAdmin: false })
-	).rejects.toMatchObject({ code: "BAD_REQUEST" });
-});
-
-it("setUserAdmin returns NOT_FOUND for unknown userId", async () => {
-	const { client } = buildAdminClient();
-	await expect(
-		client.admin.setUserAdmin({
-			userId: "00000000-0000-0000-0000-000000000000",
-			isAdmin: true,
+		client.admin.createStaff({
+			email: "taken@example.com",
+			password: STAFF_PASSWORD,
 		})
-	).rejects.toMatchObject({ code: "NOT_FOUND" });
+	).rejects.toMatchObject({ code: "CONFLICT" });
 });
 
-it("deleteUser removes the user and revokes their refresh tokens", async () => {
+it("deleteStaff removes the user and revokes their refresh tokens", async () => {
 	const { client, user, refreshToken } = buildAdminClient();
-	const victim = await user.findOrCreate("victim@example.com");
+	const victim = await user.createWithPassword(
+		"victim@example.com",
+		"h",
+		"staff"
+	);
 	await refreshToken.create({
 		userId: victim.id,
 		tokenHash: "hash-abc",
 		expiresAt: new Date(Date.now() + ONE_MINUTE_MS),
 	});
-
-	await client.admin.deleteUser({ userId: victim.id });
-
+	await client.admin.deleteStaff({ userId: victim.id });
 	expect(await user.findById(victim.id)).toBeNull();
-	const active = await refreshToken.listActiveByUser(victim.id);
-	expect(active).toHaveLength(0);
+	expect(await refreshToken.listActiveByUser(victim.id)).toHaveLength(0);
 });
 
-it("deleteUser returns NOT_FOUND for unknown userId", async () => {
+it("deleteStaff returns NOT_FOUND for unknown userId", async () => {
 	const { client } = buildAdminClient();
 	await expect(
-		client.admin.deleteUser({ userId: "00000000-0000-0000-0000-000000000000" })
+		client.admin.deleteStaff({ userId: UNKNOWN_ID })
 	).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
 
-it("deleteUser returns BAD_REQUEST when deleting the super admin", async () => {
+it("deleteStaff returns BAD_REQUEST when deleting the super admin", async () => {
 	const { client, user } = buildAdminClient();
 	const superAdmin = await user.findOrCreate(SUPER_ADMIN_EMAIL);
 	await expect(
-		client.admin.deleteUser({ userId: superAdmin.id })
+		client.admin.deleteStaff({ userId: superAdmin.id })
 	).rejects.toMatchObject({ code: "BAD_REQUEST" });
 });
 
-it("deleteUser returns BAD_REQUEST when deleting yourself", async () => {
+it("deleteStaff returns BAD_REQUEST when deleting yourself", async () => {
 	const { services, user } = buildServices();
-	// Use a non-super-admin DB admin so the super-admin guard doesn't fire first
-	const caller = await user.findOrCreate("selfdelete@example.com");
-	await user.setAdmin(caller.id, true);
-	const selfClient = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: {
-				id: caller.id,
-				email: caller.email,
-				createdAt: caller.createdAt,
-			},
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
+	const caller = await user.createWithPassword(
+		"self@example.com",
+		"h",
+		"staff"
+	);
+	const selfClient = clientFor(services, {
+		id: caller.id,
+		email: caller.email,
+		createdAt: caller.createdAt,
 	});
 	await expect(
-		selfClient.admin.deleteUser({ userId: caller.id })
+		selfClient.admin.deleteStaff({ userId: caller.id })
 	).rejects.toMatchObject({ code: "BAD_REQUEST" });
 });
 
-it("non-admin caller is FORBIDDEN on all admin procedures", async () => {
+it("non-admin caller is FORBIDDEN on admin procedures", async () => {
 	const { services, user } = buildServices();
 	const regular = await user.findOrCreate("regular@example.com");
-	const client = createRouterClient(appRouter, {
-		context: {
-			services: services as never,
-			authedAgent: null,
-			authedUser: {
-				id: regular.id,
-				email: regular.email,
-				createdAt: regular.createdAt,
-			},
-			clientIp: "127.0.0.1",
-			userAgent: null,
-		},
+	const client = clientFor(services, {
+		id: regular.id,
+		email: regular.email,
+		createdAt: regular.createdAt,
 	});
-	await expect(client.admin.listUsers()).rejects.toMatchObject({
+	await expect(client.admin.listStaff()).rejects.toMatchObject({
 		code: "FORBIDDEN",
 	});
 	await expect(
-		client.admin.setUserAdmin({ userId: regular.id, isAdmin: true })
+		client.admin.createStaff({
+			email: "x@example.com",
+			password: STAFF_PASSWORD,
+		})
 	).rejects.toMatchObject({ code: "FORBIDDEN" });
 	await expect(
-		client.admin.deleteUser({ userId: "00000000-0000-0000-0000-000000000000" })
+		client.admin.deleteStaff({ userId: UNKNOWN_ID })
 	).rejects.toMatchObject({ code: "FORBIDDEN" });
 });
 
 it("unauthenticated caller is UNAUTHORIZED on admin procedures", async () => {
-	const client = buildUnauthClient();
-	await expect(client.admin.listUsers()).rejects.toMatchObject({
+	const client = clientFor(buildServices().services, null);
+	await expect(client.admin.listStaff()).rejects.toMatchObject({
 		code: "UNAUTHORIZED",
 	});
 });
