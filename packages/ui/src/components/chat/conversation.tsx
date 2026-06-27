@@ -3,15 +3,18 @@ import { CopyAction } from "@better-agent/ui/components/actions";
 import { Avatar, AvatarFallback } from "@better-agent/ui/components/avatar";
 import { Bubble, BubbleContent } from "@better-agent/ui/components/bubble";
 import {
-	ConversationContent,
-	Conversation as ConversationRoot,
-	ConversationScrollButton,
-} from "@better-agent/ui/components/conversation";
-import {
 	Message,
 	MessageAvatar,
 	MessageContent,
 } from "@better-agent/ui/components/message";
+import {
+	MessageScroller,
+	MessageScrollerButton,
+	MessageScrollerContent,
+	MessageScrollerItem,
+	MessageScrollerProvider,
+	MessageScrollerViewport,
+} from "@better-agent/ui/components/message-scroller";
 import {
 	PromptInput,
 	PromptInputSubmit,
@@ -190,6 +193,32 @@ function EmptyMessages() {
 	);
 }
 
+function ChatScroller({ messages }: { messages: ChatMessage[] }) {
+	return (
+		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
+			<MessageScroller>
+				<MessageScrollerViewport>
+					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-4 py-4">
+						{messages.length === 0 ? (
+							<EmptyMessages />
+						) : (
+							messages.map((message, index) => (
+								<MessageScrollerItem
+									key={message.id}
+									scrollAnchor={index === messages.length - 1}
+								>
+									<ChatRow message={message} />
+								</MessageScrollerItem>
+							))
+						)}
+					</MessageScrollerContent>
+				</MessageScrollerViewport>
+				<MessageScrollerButton />
+			</MessageScroller>
+		</MessageScrollerProvider>
+	);
+}
+
 export function Conversation({
 	sessionId,
 	agentClient,
@@ -221,18 +250,7 @@ export function Conversation({
 	}, [initialText]);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<ConversationRoot>
-				<ConversationContent className="mx-auto w-full max-w-3xl">
-					{messages.length === 0 ? (
-						<EmptyMessages />
-					) : (
-						messages.map((message) => (
-							<ChatRow key={message.id} message={message} />
-						))
-					)}
-				</ConversationContent>
-				<ConversationScrollButton />
-			</ConversationRoot>
+			<ChatScroller messages={messages} />
 			<ChatComposer onSend={send} onStop={stop} streaming={streaming} />
 		</div>
 	);
