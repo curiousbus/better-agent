@@ -172,6 +172,29 @@ export interface ComposioAccountStore {
 	list(): Promise<ComposioAccountRow[]>;
 }
 
+export interface WebAuthzCacheRow {
+	authorized: boolean;
+	checkedAt: Date;
+	subject: string;
+}
+
+export interface WebAuthzCacheStore {
+	clear(subjects: string[]): Promise<void>;
+	get(subject: string): Promise<WebAuthzCacheRow | null>;
+	set(subject: string, authorized: boolean): Promise<void>;
+}
+
+/** Client for the standalone authz (invite-code) service. */
+export interface AuthzClient {
+	authorize(subject: string): Promise<boolean>;
+	/** Whether the authz feature is enabled (AUTHZ_URL configured). */
+	readonly enabled: boolean;
+	redeem(
+		subject: string,
+		code: string
+	): Promise<{ authorized: boolean; reason?: string }>;
+}
+
 export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 	sendPasswordReset(input: { email: string; url: string }): Promise<void>;

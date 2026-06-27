@@ -1,7 +1,7 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { adminProcedure, userProcedure } from "../index";
+import { adminProcedure, authorizedUserProcedure } from "../index";
 
 const paramsInput = z.object({
 	temperature: z.number().min(0).max(2).nullable().default(null),
@@ -33,7 +33,7 @@ async function assertValidAgent(
 }
 
 export const agentsRouter = {
-	list: userProcedure.handler(({ context }) =>
+	list: authorizedUserProcedure.handler(({ context }) =>
 		context.services.stores.agent.list()
 	),
 

@@ -6,6 +6,7 @@ import { adminRouter } from "./admin";
 import { agentsRouter } from "./agents";
 import { authRouter } from "./auth";
 import { composioAdminRouter } from "./composio-admin";
+import { inviteRouter } from "./invite";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
 import { userSessionsRouter } from "./user-sessions";
@@ -16,6 +17,7 @@ export const appRouter = {
 	account: accountRouter,
 	admin: adminRouter,
 	composio: composioAdminRouter,
+	invite: inviteRouter,
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,

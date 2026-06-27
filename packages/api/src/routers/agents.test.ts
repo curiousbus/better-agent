@@ -24,6 +24,7 @@ function buildClient() {
 	const tokenService = createTokenService();
 	const agentStore = createFakeAgentStore();
 	const services = {
+		authz: { enabled: false },
 		tokenService,
 		authConfig: AUTH_CONFIG,
 		agentValidator: { validate: () => Promise.resolve(null) },

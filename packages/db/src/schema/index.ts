@@ -5,3 +5,4 @@ export * from "./composio";
 export * from "./providers";
 export * from "./sessions";
 export * from "./settings";
+export * from "./web-authz";

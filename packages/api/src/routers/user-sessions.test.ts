@@ -62,6 +62,7 @@ function buildServices() {
 	});
 	const pendingToolCallStore = createInMemoryPendingToolCallStore();
 	const services = {
+		authz: { enabled: false },
 		runtime,
 		pendingToolCallStore,
 		stores: { agent: agentStore, session: sessionStore, message: messageStore },

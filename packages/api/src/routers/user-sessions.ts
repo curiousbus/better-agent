@@ -10,7 +10,7 @@ import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
-import { userProcedure } from "../index";
+import { authorizedUserProcedure } from "../index";
 import { drainWithStructured, errorMessage } from "./sessions";
 
 const idInput = z.object({ id: z.uuid() });
@@ -121,7 +121,7 @@ async function* streamUserTurn(
 }
 
 export const userSessionsRouter = {
-	create: userProcedure
+	create: authorizedUserProcedure
 		.input(z.object({ agentId: z.uuid() }))
 		.handler(async ({ input, context }) => {
 			const agent = await context.services.stores.agent.get(input.agentId);
@@ -134,24 +134,24 @@ export const userSessionsRouter = {
 			});
 		}),
 
-	list: userProcedure.handler(({ context }) =>
+	list: authorizedUserProcedure.handler(({ context }) =>
 		context.services.stores.session.listByUser(context.authedUser.id)
 	),
 
-	get: userProcedure
+	get: authorizedUserProcedure
 		.input(idInput)
 		.handler(({ input, context }) =>
 			requireUserSession(context, context.authedUser.id, input.id)
 		),
 
-	listMessages: userProcedure
+	listMessages: authorizedUserProcedure
 		.input(sessionIdInput)
 		.handler(async ({ input, context }) => {
 			await requireUserSession(context, context.authedUser.id, input.sessionId);
 			return context.services.stores.message.listWithParts(input.sessionId);
 		}),
 
-	run: userProcedure
+	run: authorizedUserProcedure
 		.input(promptInput)
 		.handler(async ({ input, context, signal }) => {
 			await requireUserSession(context, context.authedUser.id, input.sessionId);
@@ -172,13 +172,13 @@ export const userSessionsRouter = {
 			);
 		}),
 
-	prompt: userProcedure
+	prompt: authorizedUserProcedure
 		.input(promptInput)
 		.handler(({ input, context, signal }) =>
 			streamUserTurn(context, context.authedUser.id, input, signal)
 		),
 
-	cancel: userProcedure
+	cancel: authorizedUserProcedure
 		.input(sessionIdInput)
 		.handler(async ({ input, context }) => {
 			await requireUserSession(context, context.authedUser.id, input.sessionId);
@@ -186,7 +186,7 @@ export const userSessionsRouter = {
 			return { ok: true };
 		}),
 
-	submitToolResult: userProcedure
+	submitToolResult: authorizedUserProcedure
 		.input(
 			z.object({
 				sessionId: z.uuid(),

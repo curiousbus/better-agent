@@ -21,6 +21,7 @@ const STREAMING_PATHS = new Set([
 ]);
 
 const HTTP_INTERNAL_SERVER_ERROR = 500;
+const HTTP_FORBIDDEN = 403;
 
 const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -95,9 +96,31 @@ function applyRpcHandler(
 	});
 }
 
+// Internal endpoint the authz service calls (with the shared service secret) to
+// drop cached authorizations immediately when an invite code is revoked.
+function applyInternalRoutes(
+	app: Hono<EvlogVariables>,
+	services: AgentServices
+): void {
+	app.post("/internal/authz-invalidate", async (c) => {
+		if (c.req.header("x-service-secret") !== env.AUTHZ_SERVICE_SECRET) {
+			return c.text("forbidden", HTTP_FORBIDDEN);
+		}
+		const body = (await c.req.json().catch(() => ({}))) as {
+			subjects?: unknown;
+		};
+		const subjects = Array.isArray(body.subjects)
+			? body.subjects.filter((s): s is string => typeof s === "string")
+			: [];
+		await services.stores.webAuthzCache.clear(subjects);
+		return c.json({ ok: true });
+	});
+}
+
 export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	const app = new Hono<EvlogVariables>();
 	applyMiddleware(app);
+	applyInternalRoutes(app, services);
 	applyRpcHandler(app, services);
 	app.get("/", (c) => c.text("OK"));
 	return app;

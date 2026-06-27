@@ -20,6 +20,7 @@ function build() {
 	const userStore = createFakeUserStore();
 	const refreshToken = createFakeRefreshTokenStore();
 	const services = {
+		authz: { enabled: false },
 		stores: { user: userStore, refreshToken },
 	};
 	const makeClient = (authedUserId: string | null) => {
@@ -150,6 +151,7 @@ function buildWithAuth() {
 	const refreshToken = createFakeRefreshTokenStore();
 	const jwtService = createJwtService("a-test-secret-at-least-32-chars-long!!");
 	const services = {
+		authz: { enabled: false },
 		jwtService,
 		rateLimiter: createInMemoryRateLimiter(),
 		authConfig: {

@@ -43,6 +43,9 @@ export const env = createEnv({
 			),
 		GOOGLE_CLIENT_ID: z.string().optional(),
 		GOOGLE_CLIENT_SECRET: z.string().optional(),
+		/** Standalone authz (invite) service — the gate is off when unset. */
+		AUTHZ_URL: z.string().optional(),
+		AUTHZ_SERVICE_SECRET: z.string().optional(),
 		MODELS_DEV_URL: z.url().default("https://models.dev/api.json"),
 		/** 逗号分隔的「只同步这些 provider」白名单（避免把 models.dev 全部 145 个 provider 同步进来）。 */
 		CATALOG_PROVIDERS: z

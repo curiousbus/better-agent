@@ -4,6 +4,7 @@ import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
 	AgentStore,
+	AuthzClient,
 	ComposioAccountStore,
 	EmailSender,
 	GoogleOAuth,
@@ -17,6 +18,7 @@ import type {
 	SessionStore,
 	SettingsStore,
 	UserStore,
+	WebAuthzCacheStore,
 } from "@better-agent/agent/ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
@@ -35,6 +37,7 @@ export interface AgentServices {
 		magicLinkTtl: number;
 		adminEmails: string[];
 	};
+	authz: AuthzClient;
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
 	composio: (accountId: string) => Promise<ComposioService | null>;
@@ -58,6 +61,7 @@ export interface AgentServices {
 		refreshToken: RefreshTokenStore;
 		settings: SettingsStore;
 		composioAccount: ComposioAccountStore;
+		webAuthzCache: WebAuthzCacheStore;
 	};
 	tokenService: TokenService;
 }
