@@ -21,7 +21,12 @@ function useRedeem() {
 	return useMutation(
 		orpc.invite.redeem.mutationOptions({
 			onSuccess: () => {
-				queryClient.invalidateQueries({ queryKey: orpc.invite.status.key() });
+				// Optimistically mark authorized so the home route's gate doesn't read
+				// stale (authorized:false) cache and bounce us back to /invite.
+				queryClient.setQueryData(orpc.invite.status.key(), {
+					required: true,
+					authorized: true,
+				});
 				navigate({ to: "/" });
 			},
 		})

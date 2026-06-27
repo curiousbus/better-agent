@@ -6,15 +6,13 @@ import {
 	SelectValue,
 } from "@better-agent/ui/components/select";
 
-const SHORT_ID_LENGTH = 8;
-
 interface SessionRow {
 	id: string;
 	title: string | null;
 }
 
 function sessionLabel(session: SessionRow): string {
-	return session.title ?? `Session ${session.id.slice(0, SHORT_ID_LENGTH)}`;
+	return session.title ?? "New chat";
 }
 
 export function SessionPicker({
@@ -26,8 +24,13 @@ export function SessionPicker({
 	value: string;
 	onChange: (sessionId: string) => void;
 }) {
+	// Map value→label so the trigger shows the title, not the raw session id.
+	const items = Object.fromEntries(
+		sessions.map((s) => [s.id, sessionLabel(s)])
+	);
 	return (
 		<Select
+			items={items}
 			onValueChange={(next) => onChange(typeof next === "string" ? next : "")}
 			value={value}
 		>
