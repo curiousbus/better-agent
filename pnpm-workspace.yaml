@@ -25,3 +25,5 @@ catalog:
   "@types/react": ^19.2.15
   "@types/react-dom": ^19.2.3
   ioredis: ^5.11.1
+minimumReleaseAgeExclude:
+  - shadcn@4.12.0
