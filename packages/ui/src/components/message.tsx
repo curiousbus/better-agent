@@ -1,70 +1,82 @@
 import { cn } from "@better-agent/ui/lib/utils";
-import { BotIcon, UserIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentProps } from "react";
 
-type Role = "user" | "assistant" | "system";
-
-export function MessageAvatar({ role }: { role: Role }) {
-	const isUser = role === "user";
+export function MessageGroup({ className, ...props }: ComponentProps<"div">) {
 	return (
 		<div
-			className={cn(
-				"flex size-7 shrink-0 items-center justify-center rounded-full border",
-				isUser ? "bg-primary text-primary-foreground" : "bg-muted"
-			)}
-		>
-			{isUser ? (
-				<UserIcon className="size-4" />
-			) : (
-				<BotIcon className="size-4" />
-			)}
-		</div>
-	);
-}
-
-export function MessageContent({
-	children,
-	from,
-	className,
-}: {
-	children: ReactNode;
-	from: Role;
-	className?: string;
-}) {
-	const isUser = from === "user";
-	return (
-		<div
-			className={cn(
-				"max-w-[80%] rounded-lg px-3 py-2",
-				isUser ? "bg-primary text-primary-foreground" : "bg-muted",
-				className
-			)}
-		>
-			{children}
-		</div>
+			className={cn("flex min-w-0 flex-col gap-1.5", className)}
+			data-slot="message-group"
+			{...props}
+		/>
 	);
 }
 
 export function Message({
-	from,
-	children,
 	className,
-}: {
-	from: Role;
-	children: ReactNode;
-	className?: string;
-}) {
-	const isUser = from === "user";
+	align = "start",
+	...props
+}: ComponentProps<"div"> & { align?: "start" | "end" }) {
 	return (
 		<div
 			className={cn(
-				"flex items-start gap-2",
-				isUser ? "flex-row-reverse" : "flex-row",
+				"group/message relative flex w-full min-w-0 gap-1.5 text-xs data-[align=end]:flex-row-reverse",
 				className
 			)}
-		>
-			<MessageAvatar role={from} />
-			{children}
-		</div>
+			data-align={align}
+			data-slot="message"
+			{...props}
+		/>
+	);
+}
+
+export function MessageAvatar({ className, ...props }: ComponentProps<"div">) {
+	return (
+		<div
+			className={cn(
+				"flex w-fit min-w-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-full bg-muted group-has-data-[slot=message-footer]/message:-translate-y-8",
+				className
+			)}
+			data-slot="message-avatar"
+			{...props}
+		/>
+	);
+}
+
+export function MessageContent({ className, ...props }: ComponentProps<"div">) {
+	return (
+		<div
+			className={cn(
+				"wrap-break-word flex w-full min-w-0 flex-col gap-2 group-data-[align=end]/message:*:data-slot:self-end",
+				className
+			)}
+			data-slot="message-content"
+			{...props}
+		/>
+	);
+}
+
+export function MessageHeader({ className, ...props }: ComponentProps<"div">) {
+	return (
+		<div
+			className={cn(
+				"flex min-w-0 max-w-full items-center px-2.5 font-medium text-muted-foreground text-xs group-has-data-[variant=ghost]/message:px-0",
+				className
+			)}
+			data-slot="message-header"
+			{...props}
+		/>
+	);
+}
+
+export function MessageFooter({ className, ...props }: ComponentProps<"div">) {
+	return (
+		<div
+			className={cn(
+				"flex min-w-0 max-w-full items-center px-2.5 font-medium text-muted-foreground text-xs group-has-data-[variant=ghost]/message:px-0 group-data-[align=end]/message:justify-end",
+				className
+			)}
+			data-slot="message-footer"
+			{...props}
+		/>
 	);
 }

@@ -1,12 +1,18 @@
 import type { AgentClient } from "@better-agent/client";
 import { CopyAction } from "@better-agent/ui/components/actions";
+import { Avatar, AvatarFallback } from "@better-agent/ui/components/avatar";
+import { Bubble, BubbleContent } from "@better-agent/ui/components/bubble";
 import {
 	ConversationContent,
 	Conversation as ConversationRoot,
 	ConversationScrollButton,
 } from "@better-agent/ui/components/conversation";
 import { Loader } from "@better-agent/ui/components/loader";
-import { Message, MessageContent } from "@better-agent/ui/components/message";
+import {
+	Message,
+	MessageAvatar,
+	MessageContent,
+} from "@better-agent/ui/components/message";
 import {
 	PromptInput,
 	PromptInputSubmit,
@@ -20,7 +26,7 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
-import { TriangleAlertIcon } from "lucide-react";
+import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
@@ -78,20 +84,46 @@ function AssistantBody({ message }: { message: ChatMessage }) {
 	);
 }
 
+function RoleAvatar({ from }: { from: "user" | "assistant" }) {
+	return (
+		<MessageAvatar>
+			<Avatar>
+				<AvatarFallback>
+					{from === "user" ? (
+						<UserIcon className="size-4" />
+					) : (
+						<BotIcon className="size-4" />
+					)}
+				</AvatarFallback>
+			</Avatar>
+		</MessageAvatar>
+	);
+}
+
 function ChatRow({ message }: { message: ChatMessage }) {
 	if (message.role === "user") {
 		return (
-			<Message from="user">
-				<MessageContent from="user">
-					<p className="whitespace-pre-wrap text-sm">{messageText(message)}</p>
+			<Message align="end">
+				<RoleAvatar from="user" />
+				<MessageContent>
+					<Bubble align="end">
+						<BubbleContent className="whitespace-pre-wrap text-sm">
+							{messageText(message)}
+						</BubbleContent>
+					</Bubble>
 				</MessageContent>
 			</Message>
 		);
 	}
 	return (
-		<Message from="assistant">
-			<MessageContent className="bg-transparent px-0 py-0" from="assistant">
-				<AssistantBody message={message} />
+		<Message align="start">
+			<RoleAvatar from="assistant" />
+			<MessageContent>
+				<Bubble variant="ghost">
+					<BubbleContent className="text-sm">
+						<AssistantBody message={message} />
+					</BubbleContent>
+				</Bubble>
 			</MessageContent>
 		</Message>
 	);
