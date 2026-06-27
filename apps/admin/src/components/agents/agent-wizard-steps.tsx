@@ -8,8 +8,9 @@ import {
 	SelectValue,
 } from "@better-agent/ui/components/select";
 import { Textarea } from "@better-agent/ui/components/textarea";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { orpc } from "@/utils/orpc";
 
@@ -19,20 +20,58 @@ import { ComposioAccountsField } from "./composio-accounts-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
+function StepDot({
+	index,
+	step,
+	label,
+}: {
+	index: number;
+	step: number;
+	label: string;
+}) {
+	const done = index < step;
+	const active = index === step;
+	return (
+		<div className="flex items-center gap-1.5">
+			<span
+				className={cn(
+					"flex size-6 items-center justify-center rounded-full border text-xs",
+					active && "border-foreground bg-foreground text-background",
+					done && "border-foreground bg-foreground/15 text-foreground",
+					!(active || done) && "border-border text-muted-foreground"
+				)}
+			>
+				{index + 1}
+			</span>
+			<span
+				className={cn(
+					"text-xs",
+					active || done
+						? "font-medium text-foreground"
+						: "text-muted-foreground"
+				)}
+			>
+				{label}
+			</span>
+		</div>
+	);
+}
+
 export function Stepper({ step }: { step: number }) {
 	return (
-		<div className="flex gap-3 text-sm">
+		<div className="flex items-center gap-2">
 			{WIZARD_STEPS.map((label, index) => (
-				<span
-					className={
-						index === step
-							? "font-medium text-foreground"
-							: "text-muted-foreground"
-					}
-					key={label}
-				>
-					{index + 1}. {label}
-				</span>
+				<Fragment key={label}>
+					{index > 0 ? (
+						<div
+							className={cn(
+								"h-px flex-1",
+								index <= step ? "bg-foreground" : "bg-border"
+							)}
+						/>
+					) : null}
+					<StepDot index={index} label={label} step={step} />
+				</Fragment>
 			))}
 		</div>
 	);

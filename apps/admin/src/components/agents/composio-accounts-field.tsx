@@ -1,8 +1,17 @@
-import { Checkbox } from "@better-agent/ui/components/checkbox";
-import { Label } from "@better-agent/ui/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@better-agent/ui/components/select";
 import { useQuery } from "@tanstack/react-query";
 
 import { orpc } from "@/utils/orpc";
+
+// An agent links at most ONE composio account. Stored as a string[] (0 or 1
+// items) so the backend stays uniform, but the UI is a single-select.
+const NONE = "none";
 
 export function ComposioAccountsField({
 	selected,
@@ -22,22 +31,25 @@ export function ComposioAccountsField({
 		);
 	}
 
-	const toggle = (id: string, checked: boolean) =>
-		onChange(
-			checked ? [...selected, id] : selected.filter((value) => value !== id)
-		);
-
 	return (
-		<div className="flex flex-col gap-2">
-			{rows.map((row) => (
-				<Label className="flex items-center gap-2 font-normal" key={row.id}>
-					<Checkbox
-						checked={selected.includes(row.id)}
-						onCheckedChange={(checked) => toggle(row.id, checked === true)}
-					/>
-					{row.name}
-				</Label>
-			))}
-		</div>
+		<Select
+			onValueChange={(next) => {
+				const value = typeof next === "string" ? next : NONE;
+				onChange(value === NONE ? [] : [value]);
+			}}
+			value={selected[0] ?? NONE}
+		>
+			<SelectTrigger className="w-full" id="agent-composio">
+				<SelectValue placeholder="No composio account" />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value={NONE}>None</SelectItem>
+				{rows.map((row) => (
+					<SelectItem key={row.id} value={row.id}>
+						{row.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }

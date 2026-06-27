@@ -87,15 +87,20 @@ export function AgentWizard({
 		isLastStep(step) ? onSubmit(form) : setStep((current) => current + 1);
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
+			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle>{initial ? "Edit agent" : "New agent"}</DialogTitle>
 				</DialogHeader>
 				<Stepper step={step} />
-				{step === IDENTITY_STEP ? <IdentityStep form={form} set={set} /> : null}
-				{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
-				{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
-				{step === TOOLS_STEP ? <ToolsStep form={form} set={set} /> : null}
+				{/* Fixed height so the modal stays the same size across every step. */}
+				<div className="flex min-h-80 flex-col">
+					{step === IDENTITY_STEP ? (
+						<IdentityStep form={form} set={set} />
+					) : null}
+					{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
+					{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
+					{step === TOOLS_STEP ? <ToolsStep form={form} set={set} /> : null}
+				</div>
 				<WizardFooter
 					canNext={isStepValid(step, form)}
 					onBack={() => setStep((current) => current - 1)}
