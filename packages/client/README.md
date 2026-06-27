@@ -7,10 +7,29 @@ packages required at runtime.
 
 ## Install
 
-```bash
-npm install @curiousbus/agent-client
-# or: pnpm add @curiousbus/agent-client
-```
+This package is published to **GitHub Packages**, so installing it takes a one-time
+setup: point the `@curiousbus` scope at GitHub's registry and authenticate.
+
+1. Add a `.npmrc` next to your `package.json`:
+
+   ```ini
+   @curiousbus:registry=https://npm.pkg.github.com
+   ```
+
+2. Authenticate. GitHub Packages requires a token even for public packages — create
+   a GitHub Personal Access Token with the **`read:packages`** scope and add it to
+   your **user-level** `~/.npmrc` (keep it out of the project file):
+
+   ```ini
+   //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+   ```
+
+3. Install:
+
+   ```bash
+   npm install @curiousbus/agent-client
+   # or: pnpm add @curiousbus/agent-client
+   ```
 
 ## Quick start
 

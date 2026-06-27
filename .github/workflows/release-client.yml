@@ -1,12 +1,15 @@
-name: Release client (npm)
+name: Release client (GitHub Packages)
 
-# Push a tag like `client-v0.1.0` to build + publish @curiousbus/agent-client.
-# Requires an NPM_TOKEN repo secret (npm automation token with publish access
-# to the @curiousbus scope).
+# Push a tag like `client-v0.1.0` to build + publish @curiousbus/agent-client
+# to GitHub Packages. Uses the automatic GITHUB_TOKEN — no manual secret needed.
 on:
   push:
     tags:
       - "client-v*"
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   publish:
@@ -18,7 +21,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com
+          scope: "@curiousbus"
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm -F @curiousbus/agent-client check-types
@@ -26,7 +30,7 @@ jobs:
         run: pnpm -F @curiousbus/agent-client test
       - name: Build
         run: pnpm -F @curiousbus/agent-client build
-      - name: Publish
-        run: pnpm -F @curiousbus/agent-client publish --access public --no-git-checks
+      - name: Publish to GitHub Packages
+        run: pnpm -F @curiousbus/agent-client publish --no-git-checks
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
