@@ -76,7 +76,6 @@ function UsersPage() {
 
 	return (
 		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 overflow-auto p-6">
-			<h1 className="font-semibold text-lg">Users</h1>
 			<UsersSearch
 				onChange={(value) => {
 					setSearch(value);

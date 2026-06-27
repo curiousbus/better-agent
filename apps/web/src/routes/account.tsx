@@ -179,20 +179,14 @@ function useAccountPage() {
 function AccountPage() {
 	const {
 		currentRefreshToken,
-		email,
 		hasPassword,
 		invalidateMe,
 		logins,
 		revokeLogin,
 		revokeOthers,
-		signOut,
 	} = useAccountPage();
 	return (
 		<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">
-			<div>
-				<div className="text-muted-foreground text-sm">Signed in as</div>
-				<div className="font-medium">{email}</div>
-			</div>
 			<PasswordSection hasPassword={hasPassword} onSaved={invalidateMe} />
 			<div className="flex flex-col gap-2">
 				<div className="text-muted-foreground text-sm">Active sessions</div>
@@ -204,15 +198,12 @@ function AccountPage() {
 					/>
 				))}
 			</div>
-			<div className="flex gap-2">
+			<div>
 				<Button
 					onClick={() => revokeOthers.mutate({ currentRefreshToken })}
 					variant="outline"
 				>
 					Sign out other devices
-				</Button>
-				<Button onClick={signOut} variant="default">
-					Sign out
 				</Button>
 			</div>
 		</div>
