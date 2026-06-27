@@ -103,7 +103,8 @@ function applyInternalRoutes(
 	services: AgentServices
 ): void {
 	app.post("/internal/authz-invalidate", async (c) => {
-		if (c.req.header("x-service-secret") !== env.AUTHZ_SERVICE_SECRET) {
+		const secret = env.AUTHZ_SERVICE_SECRET;
+		if (!secret || c.req.header("x-service-secret") !== secret) {
 			return c.text("forbidden", HTTP_FORBIDDEN);
 		}
 		const body = (await c.req.json().catch(() => ({}))) as {

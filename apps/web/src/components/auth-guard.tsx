@@ -4,6 +4,7 @@ import {
 	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -12,7 +13,7 @@ import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 const PUBLIC_PATHS = [
 	"/login",
@@ -79,23 +80,40 @@ function LoadingScreen() {
 	);
 }
 
+function StandaloneOutlet() {
+	return (
+		<main className="flex min-h-svh flex-col">
+			<Outlet />
+		</main>
+	);
+}
+
 function BoundaryContent({
 	authed,
 	isPublic,
+	isInvite,
 	ready,
+	inviteChecked,
+	blocked,
 }: {
 	authed: boolean;
 	isPublic: boolean;
+	isInvite: boolean;
 	ready: boolean;
+	inviteChecked: boolean;
+	blocked: boolean;
 }) {
 	if (isPublic) {
-		return (
-			<main className="flex min-h-svh flex-col">
-				<Outlet />
-			</main>
-		);
+		return <StandaloneOutlet />;
 	}
 	if (!(ready && authed)) {
+		return <LoadingScreen />;
+	}
+	if (isInvite) {
+		return <StandaloneOutlet />;
+	}
+	// Wait for the invite check, and hold while redirecting a blocked user.
+	if (!inviteChecked || blocked) {
 		return <LoadingScreen />;
 	}
 	return <AuthedShell />;
@@ -108,18 +126,40 @@ export function AuthBoundary() {
 		select: (state) => state.location.pathname,
 	});
 	const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+	const isInvite = pathname.startsWith("/invite");
 	// Read live each render: after /auth/verify calls setTokens, this becomes
 	// non-null on the next render, so the just-signed-in user isn't redirected.
 	const authed = getAccessToken() !== null;
+
+	const inviteStatus = useQuery({
+		...orpc.invite.status.queryOptions(),
+		enabled: ready && authed && !isPublic,
+	});
+	const blocked = inviteStatus.data
+		? inviteStatus.data.required && !inviteStatus.data.authorized
+		: false;
+
 	useEffect(() => {
 		if (!isPublic && ready && !authed) {
 			navigate({ to: "/login" });
+			return;
 		}
-	}, [isPublic, ready, authed, navigate]);
+		if (!(isPublic || isInvite) && ready && authed && blocked) {
+			navigate({ to: "/invite" });
+		}
+	}, [isPublic, isInvite, ready, authed, blocked, navigate]);
+
 	return (
 		<>
-			<RouteProgress active={!ready} />
-			<BoundaryContent authed={authed} isPublic={isPublic} ready={ready} />
+			<RouteProgress active={!(ready && (isPublic || inviteStatus.data))} />
+			<BoundaryContent
+				authed={authed}
+				blocked={blocked}
+				inviteChecked={Boolean(inviteStatus.data)}
+				isInvite={isInvite}
+				isPublic={isPublic}
+				ready={ready}
+			/>
 		</>
 	);
 }
