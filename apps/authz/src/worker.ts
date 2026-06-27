@@ -11,11 +11,16 @@ import {
 	revokeCode,
 } from "./service";
 
+interface ServiceBinding {
+	fetch(request: Request): Promise<Response>;
+}
+
 interface Env {
 	AUTHZ_DATABASE_URL: string;
 	AUTHZ_JWT_SECRET: string;
 	AUTHZ_SERVICE_SECRET: string;
-	MAIN_SERVER_URL?: string;
+	// Worker-to-worker binding to the main server (for the revoke push).
+	MAIN?: ServiceBinding;
 }
 
 const BAD_REQUEST = 400;
@@ -35,18 +40,20 @@ const createInput = z.object({
 // Tell the main server to drop its cached authorization for these subjects, so a
 // revocation takes effect immediately (the 60s TTL is the fallback).
 async function pushInvalidate(env: Env, subjects: string[]): Promise<void> {
-	if (!(env.MAIN_SERVER_URL && subjects.length > 0)) {
+	if (!(env.MAIN && subjects.length > 0)) {
 		return;
 	}
 	try {
-		await fetch(`${env.MAIN_SERVER_URL}/internal/authz-invalidate`, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				"x-service-secret": env.AUTHZ_SERVICE_SECRET,
-			},
-			body: JSON.stringify({ subjects }),
-		});
+		await env.MAIN.fetch(
+			new Request("https://main.internal/internal/authz-invalidate", {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					"x-service-secret": env.AUTHZ_SERVICE_SECRET,
+				},
+				body: JSON.stringify({ subjects }),
+			})
+		);
 	} catch {
 		// best-effort; the TTL still expires the cache within 60s
 	}

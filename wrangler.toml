@@ -8,3 +8,9 @@ compatibility_flags = ["nodejs_compat", "fetch_iterable_type_support"]
 # repo secrets onto this same worker.
 [vars]
 NODE_ENV = "production"
+
+# Worker-to-worker binding to the authz service (same-account public-URL fetch
+# is unreliable on Cloudflare, so the invite gate calls authz through this).
+[[services]]
+binding = "AUTHZ"
+service = "better-agent-authz"

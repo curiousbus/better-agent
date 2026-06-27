@@ -7,3 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 # MAIN_SERVER_URL, …) are uploaded by the deploy Action from GitHub repo secrets.
 [vars]
 NODE_ENV = "production"
+
+# Worker-to-worker binding to the main server (for pushing cache invalidations
+# on revoke; same-account public-URL fetch is unreliable on Cloudflare).
+[[services]]
+binding = "MAIN"
+service = "better-agent-server"

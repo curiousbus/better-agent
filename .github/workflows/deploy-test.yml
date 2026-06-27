@@ -89,12 +89,10 @@ jobs:
             AUTHZ_DATABASE_URL
             AUTHZ_JWT_SECRET
             AUTHZ_SERVICE_SECRET
-            MAIN_SERVER_URL
         env:
           AUTHZ_DATABASE_URL: ${{ secrets.AUTHZ_DATABASE_URL }}
           AUTHZ_JWT_SECRET: ${{ secrets.AUTHZ_JWT_SECRET }}
           AUTHZ_SERVICE_SECRET: ${{ secrets.AUTHZ_SERVICE_SECRET }}
-          MAIN_SERVER_URL: ${{ secrets.MAIN_SERVER_URL }}
 
   frontends:
     runs-on: ubuntu-latest

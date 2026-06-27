@@ -34,7 +34,7 @@ import { createSettingsStore } from "@better-agent/db/repositories/settings-stor
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
 import Redis from "ioredis";
-import { buildAuthzClient } from "./authz-client";
+import { buildAuthzClient, type ServiceBinding } from "./authz-client";
 import { createEmailSender } from "./email-sender";
 import {
 	buildComposioAccountResolver,
@@ -154,7 +154,7 @@ function buildRuntime(
 	});
 }
 
-export function buildServices(db: Db) {
+export function buildServices(db: Db, authzBinding?: ServiceBinding) {
 	const secretBox = getSecretBox();
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
@@ -184,7 +184,7 @@ export function buildServices(db: Db) {
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioAccountResolver(composioAccount),
-		authz: buildAuthzClient(),
+		authz: buildAuthzClient(authzBinding),
 		rateLimiter: buildRateLimiter(),
 		stores: {
 			providerCatalog: deps.providerCatalog,

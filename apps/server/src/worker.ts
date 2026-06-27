@@ -8,10 +8,15 @@
 // The human iterates this via `wrangler dev` — do not over-engineer here.
 import { createNeonDb } from "@better-agent/db/neon-db";
 import { buildApp } from "./app";
+import type { ServiceBinding } from "./authz-client";
 import { buildServices } from "./services";
 
-// Secrets injected by Cloudflare at runtime (set via `wrangler secret put`).
-type WorkerEnv = { DATABASE_URL: string } & Record<string, string>;
+// Secrets injected by Cloudflare at runtime. AUTHZ is a service binding to the
+// authz worker (same-account worker-to-worker; public-URL fetch is unreliable).
+interface WorkerEnv {
+	AUTHZ?: ServiceBinding;
+	DATABASE_URL: string;
+}
 
 export default {
 	fetch(
@@ -25,7 +30,7 @@ export default {
 		// behalf of a different request", surfaced as a 1101). The one expensive
 		// piece (the scrypt-derived secret box) is memoized inside buildServices.
 		const db = createNeonDb(environment.DATABASE_URL);
-		const services = buildServices(db);
+		const services = buildServices(db, environment.AUTHZ);
 		return buildApp(services).fetch(request);
 	},
 };
