@@ -2,12 +2,11 @@ import type { AppRouter } from "@better-agent/api/routers/index";
 import type { RouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 import {
-	type ClientToolDef,
 	createAgentClientFrom,
 	createUserSessionClientFrom,
 	dispatchToolCall,
-	type RunEvent,
-} from "./index";
+} from "./internal";
+import type { ClientToolDef, RunEvent } from "./types";
 
 const SESSION_ID = "session-abc";
 

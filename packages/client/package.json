@@ -1,24 +1,68 @@
 {
-  "name": "@better-agent/client",
+  "name": "@curiousbus/agent-client",
+  "version": "0.1.0",
   "type": "module",
-  "private": true,
+  "description": "TypeScript SDK for connecting to a Better Agent server — run agents, stream events, and manage sessions over oRPC.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/curiousbus/better-agent.git",
+    "directory": "packages/client"
+  },
+  "homepage": "https://github.com/curiousbus/better-agent/tree/main/packages/client#readme",
+  "keywords": [
+    "better-agent",
+    "agent",
+    "ai",
+    "sdk",
+    "orpc",
+    "client",
+    "streaming"
+  ],
+  "sideEffects": false,
   "exports": {
     ".": {
       "default": "./src/index.ts"
+    },
+    "./internal": {
+      "default": "./src/internal.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      }
     }
   },
   "scripts": {
+    "build": "tsup && dts-bundle-generator -o dist/index.d.ts --project tsconfig.dts.json --no-check --external-inlines @better-agent/agent @better-agent/api @better-agent/db @better-agent/env @better-agent/config -- src/index.ts && cp dist/index.d.ts dist/index.d.cts",
     "check-types": "tsc --noEmit",
+    "prepublishOnly": "pnpm build",
     "test": "vitest run"
   },
   "dependencies": {
-    "@better-agent/api": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:"
   },
   "devDependencies": {
+    "@better-agent/agent": "workspace:*",
+    "@better-agent/api": "workspace:*",
     "@better-agent/config": "workspace:*",
     "@types/node": "catalog:",
+    "dts-bundle-generator": "^9.5.1",
+    "tsup": "^8.5.0",
     "typescript": "catalog:",
     "vitest": "4.1.9"
   }

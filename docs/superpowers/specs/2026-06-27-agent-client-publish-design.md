@@ -100,6 +100,41 @@ Sections: install, quick start (above), `BETTER_AGENT_URL` note (server root, `/
 - `npm pack --dry-run` (or `pnpm pack`) shows the tarball contains only `dist` + `README` + `LICENSE` + `package.json`, and the manifest's `dependencies` are just `@orpc/*` (no `@better-agent/api`).
 - Repo-wide `pnpm check-types` + `pnpm -F web build` + `pnpm -F admin build` pass after the rename.
 
+## Revisions during implementation (as built)
+
+The "bundle the whole `AppRouter` type" plan above proved messy in practice: a
+declaration bundler inlining the router's full inferred return types dragged in
+unrelated server internals (an `@ai-sdk/provider` `LanguageModelV3` leak) and
+collided the exported `Message`/`RunEvent` names. The shipped design instead
+re-uses the server's own canonical domain types, which are small and clean:
+
+- **Type sources.** `Message`, `MessagePart`, `RunEvent`, etc. are re-exported
+  from `@better-agent/agent/session/{types,events}` (the exact shapes the server
+  returns) rather than derived via `Awaited<ReturnType<RouterClient<AppRouter>…>>`.
+  The run result is its own type — `RunResult = Message & { structured: unknown }`
+  — to avoid colliding with the canonical `Message` used inside `MessageHistory`.
+- **File split.** `src/types.ts` (public types) → `src/internal.ts` (the impl,
+  the `RouterClient<AppRouter>` `Client` type, and the workspace-only
+  `createAgentClientFrom`/`createUserSessionClientFrom` helpers) → `src/index.ts`
+  (public re-exports: types + `createAgentClient` + `dispatchToolCall`). No import
+  cycle; `AppRouter` never reaches an exported signature, so it stays out of the
+  published `.d.ts`.
+- **`.d.ts` build.** tsup builds JS only (`dts: false`); the declaration is built
+  by **dts-bundle-generator** (`tsconfig.dts.json` with `paths` mapping
+  `@better-agent/*` to source so it compiles the monorepo's bundler-mode `.ts`).
+  It inlines `@better-agent/agent` and keeps `@orpc/*` external → a 178-line,
+  zero-leak `index.d.ts`.
+- **`/internal` subpath.** Exposed in dev `exports` (workspace consumers — only
+  `apps/web/src/utils/chat-client.ts` uses it) but omitted from `publishConfig`,
+  so the published package's public surface is just `.`.
+- **pnpm pack + private workspace deps.** `@better-agent/{agent,api,config}`
+  remain client `devDependencies` (workspace consumers compile client's source
+  and must resolve them). pnpm pack rewrites `workspace:*` only if the target has
+  a `version`, so `packages/api` was given `version: "0.0.0"` (agent/config
+  already had one). Result: published `dependencies` are `@orpc/*` only; the
+  `@better-agent@0.0.0` entries sit in `devDependencies`, which npm never installs
+  for a consumed package.
+
 ## Out of scope
 
 Publishing `@better-agent/api` (not needed — type bundled). Changesets/automated version bumping (manual version edit + tag). Backward-compat alias for the old `@better-agent/client` name (internal-only rename).

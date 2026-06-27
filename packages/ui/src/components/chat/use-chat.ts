@@ -1,8 +1,8 @@
-import type { AgentClient, RunEvent } from "@better-agent/client";
 import {
 	createStreamReveal,
 	type StreamReveal,
 } from "@better-agent/ui/lib/stream-reveal";
+import type { AgentClient, RunEvent } from "@curiousbus/agent-client";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";

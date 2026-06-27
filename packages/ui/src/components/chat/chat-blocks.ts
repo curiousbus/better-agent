@@ -1,4 +1,4 @@
-import type { MessageHistory } from "@better-agent/client";
+import type { MessageHistory } from "@curiousbus/agent-client";
 
 type SessionMessageRow = MessageHistory[number];
 

@@ -1,4 +1,3 @@
-import type { AgentClient } from "@better-agent/client";
 import { CopyAction } from "@better-agent/ui/components/actions";
 import { Avatar, AvatarFallback } from "@better-agent/ui/components/avatar";
 import { Bubble, BubbleContent } from "@better-agent/ui/components/bubble";
@@ -28,6 +27,7 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
+import type { AgentClient } from "@curiousbus/agent-client";
 import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 

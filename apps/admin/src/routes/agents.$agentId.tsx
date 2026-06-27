@@ -1,10 +1,10 @@
-import type { AgentClient } from "@better-agent/client";
-import { createAgentClient } from "@better-agent/client";
 import { env } from "@better-agent/env/web";
 import { Button } from "@better-agent/ui/components/button";
 import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
+import type { AgentClient } from "@curiousbus/agent-client";
+import { createAgentClient } from "@curiousbus/agent-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";

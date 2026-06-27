@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentClientFrom, createUserSessionClientFrom } from "./index";
+import { createAgentClientFrom, createUserSessionClientFrom } from "./internal";
 
 describe("cancel()", () => {
 	it("cancel() calls userSessions.cancel for the user-session client", async () => {

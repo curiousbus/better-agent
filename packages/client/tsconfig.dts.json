@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@better-agent/api": ["../api/src/index.ts"],
+      "@better-agent/api/*": ["../api/src/*"],
+      "@better-agent/agent": ["../agent/src/index.ts"],
+      "@better-agent/agent/*": ["../agent/src/*"],
+      "@better-agent/db": ["../db/src/index.ts"],
+      "@better-agent/db/*": ["../db/src/*"],
+      "@better-agent/env": ["../env/src/index.ts"],
+      "@better-agent/env/*": ["../env/src/*"]
+    }
+  },
+  "include": ["src"]
+}
