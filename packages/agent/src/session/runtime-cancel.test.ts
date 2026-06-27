@@ -80,6 +80,7 @@ it("registers then unregisters the session around the turn", async () => {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "h-cancel",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

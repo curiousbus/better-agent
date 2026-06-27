@@ -100,6 +100,7 @@ async function overflowSetup() {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-overflow",
 	});
 	await modelCacheStore.replaceAll([

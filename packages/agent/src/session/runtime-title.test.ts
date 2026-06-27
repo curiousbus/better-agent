@@ -67,6 +67,7 @@ async function setup(
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-title",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

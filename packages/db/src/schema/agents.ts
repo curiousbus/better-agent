@@ -15,6 +15,8 @@ export const agents = pgTable("agents", {
 		.$type<string[]>()
 		.notNull()
 		.default([]),
+	// Enabled built-in tool ids (see packages/agent/src/tool/builtin-tools.ts).
+	builtinTools: jsonb("builtin_tools").$type<string[]>().notNull().default([]),
 	tokenHash: text("token_hash").notNull().unique(),
 	// The current token, encrypted (secret-box). Lets the admin reuse it for
 	// chat instead of relying on a show-once copy. Null for backfilled agents.

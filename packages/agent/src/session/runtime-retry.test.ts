@@ -63,6 +63,7 @@ async function drainTurn(
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-retry",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

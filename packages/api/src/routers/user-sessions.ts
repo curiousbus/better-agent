@@ -1,5 +1,6 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Session } from "@better-agent/agent/session/types";
+import { buildBuiltinToolDefs } from "@better-agent/agent/tool/builtin-tools";
 import {
 	buildComposioToolDefs,
 	type ComposioService,
@@ -49,21 +50,26 @@ export async function safeComposioDefs(
 	}
 }
 
-// An agent integrates every authenticated toolkit of each composio account it
-// links. Resolves each linked account's service and merges their tool defs.
-async function agentComposioDefs(
+// An agent's tools: every authenticated toolkit of each linked composio account,
+// plus its enabled built-in tools.
+async function agentToolDefs(
 	context: Context,
 	agentId: string
 ): Promise<ToolDef[]> {
 	const agent = await context.services.stores.agent.get(agentId);
-	const accountIds = agent?.composioAccountIds ?? [];
+	if (!agent) {
+		return [];
+	}
 	const perAccount = await Promise.all(
-		accountIds.map(async (accountId) => {
+		(agent.composioAccountIds ?? []).map(async (accountId) => {
 			const service = await context.services.composio(accountId);
 			return safeComposioDefs(service, accountId);
 		})
 	);
-	return perAccount.flat();
+	return [
+		...perAccount.flat(),
+		...buildBuiltinToolDefs(agent.builtinTools ?? []),
+	];
 }
 
 async function requireUserSession(
@@ -100,8 +106,8 @@ async function* streamUserTurn(
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
-		const composioDefs = await agentComposioDefs(context, session.agentId);
-		const allDefs = [...remoteDefs, ...composioDefs];
+		const toolDefs = await agentToolDefs(context, session.agentId);
+		const allDefs = [...remoteDefs, ...toolDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,

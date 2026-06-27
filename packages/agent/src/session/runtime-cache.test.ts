@@ -60,6 +60,7 @@ it("passes promptCacheKey from cache policy to the model via providerOptions", a
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-cache-test",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

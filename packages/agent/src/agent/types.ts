@@ -5,6 +5,7 @@ export interface AgentParams {
 }
 
 export interface AgentConfig {
+	builtinTools: string[];
 	composioAccountIds: string[];
 	createdAt: Date;
 	description: string;
@@ -19,6 +20,7 @@ export interface AgentConfig {
 
 /** 创建/更新输入：无 id、无时间戳（由存储层生成）。 */
 export interface AgentInput {
+	builtinTools: string[];
 	composioAccountIds: string[];
 	description: string;
 	modelId: string;

@@ -88,6 +88,7 @@ async function setup(model: LanguageModelV3) {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-runtime",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });

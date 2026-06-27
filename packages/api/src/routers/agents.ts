@@ -17,6 +17,7 @@ const agentInput = z.object({
 	modelId: z.string().min(1),
 	params: paramsInput.nullable().default(null),
 	composioAccountIds: z.array(z.uuid()).default([]),
+	builtinTools: z.array(z.string()).default([]),
 });
 
 const idInput = z.object({ id: z.uuid() });

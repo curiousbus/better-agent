@@ -49,6 +49,7 @@ async function setup(model: LanguageModelV3) {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		builtinTools: [],
 		tokenHash: "hash-tools-err",
 	});
 	const session = await sessionStore.create({ agentId: agent.id });
@@ -189,9 +190,8 @@ const RESOLVE_ERR_STEP2: LanguageModelV3StreamPart[] = [
 	},
 ];
 
-// The resolve-error tool RESOLVES (does not throw) but sets isError:true.
-// The registry must throw so the AI SDK emits a tool-error chunk, which
-// drainStream persists as a tool-result part with isError:true.
+// The resolve-error tool RESOLVES (not throws) but sets isError:true; the
+// registry must throw so the AI SDK emits a tool-error chunk → drainStream.
 const resolveErrTool: ToolDef = {
 	name: RESOLVE_ERR_TOOL_NAME,
 	description: "resolves with isError:true",

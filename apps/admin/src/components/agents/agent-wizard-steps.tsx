@@ -16,6 +16,7 @@ import { orpc } from "@/utils/orpc";
 
 import type { AgentForm } from "./agent-form";
 import { WIZARD_STEPS } from "./agent-form";
+import { BuiltinToolsField } from "./builtin-tools-field";
 import { ComposioAccountsField } from "./composio-accounts-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
@@ -234,18 +235,21 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 
 export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 	return (
-		<div className="flex flex-col gap-2">
-			<div>
-				<p className="font-medium text-sm">Composio accounts</p>
-				<p className="text-muted-foreground text-sm">
-					Link composio accounts to give this agent tools. It integrates every
-					authenticated toolkit of each account you select.
-				</p>
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-sm">Composio account</p>
+				<ComposioAccountsField
+					onChange={(ids) => set({ composioAccountIds: ids })}
+					selected={form.composioAccountIds}
+				/>
 			</div>
-			<ComposioAccountsField
-				onChange={(ids) => set({ composioAccountIds: ids })}
-				selected={form.composioAccountIds}
-			/>
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-sm">Built-in tools</p>
+				<BuiltinToolsField
+					onChange={(ids) => set({ builtinTools: ids })}
+					selected={form.builtinTools}
+				/>
+			</div>
 		</div>
 	);
 }

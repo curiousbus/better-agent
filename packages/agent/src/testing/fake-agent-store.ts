@@ -13,6 +13,7 @@ function makeAgentTokenOps(
 				id: crypto.randomUUID(),
 				...rest,
 				composioAccountIds: rest.composioAccountIds ?? [],
+				builtinTools: rest.builtinTools ?? [],
 				createdAt: now,
 				updatedAt: now,
 			};
