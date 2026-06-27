@@ -51,10 +51,12 @@ export interface BrandConfig {
 
 type NavGroup = Extract<NavSection, { kind: "group" }>;
 
-// Shared active-button styling: the highlight is a motion slider, so the active
-// button itself stays transparent and just lifts its text/icon above the slider.
+// Shared active-button styling: the highlight is a motion slider behind the
+// button. The active text uses the sidebar-accent foreground (not primary), so
+// it contrasts with the sidebar background itself — readable even if the slider
+// hasn't painted yet (otherwise the active item is white-on-white).
 export const ACTIVE_BUTTON_CLASS =
-	"relative z-10 rounded-md text-sidebar-foreground not-data-active:hover:bg-sidebar-accent/60 not-data-active:hover:text-sidebar-foreground data-active:bg-transparent data-active:font-medium data-active:text-sidebar-primary-foreground data-active:hover:bg-transparent data-active:hover:text-sidebar-primary-foreground";
+	"relative z-10 rounded-md text-sidebar-foreground not-data-active:hover:bg-sidebar-accent/60 not-data-active:hover:text-sidebar-foreground data-active:bg-transparent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-transparent data-active:hover:text-sidebar-accent-foreground";
 
 const HIGHLIGHT_SPRING = {
 	type: "spring",
@@ -65,7 +67,7 @@ const HIGHLIGHT_SPRING = {
 export function ActiveHighlight({ layoutId }: { layoutId: string }) {
 	return (
 		<motion.div
-			className="absolute inset-0 rounded-md bg-sidebar-primary"
+			className="absolute inset-0 rounded-md bg-sidebar-accent ring-1 ring-sidebar-border"
 			layoutId={layoutId}
 			transition={HIGHLIGHT_SPRING}
 		/>
