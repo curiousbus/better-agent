@@ -11,11 +11,19 @@ export interface ToolInvocation {
 	toolName: string;
 }
 
-/** One ordered piece of an assistant turn, in the order the agent produced it. */
+export interface AttachmentRef {
+	attachmentId: string;
+	mime: string;
+	name: string;
+}
+
+/** One ordered piece of a turn. `file` parts are user-uploaded attachments
+ * (e.g. images sent with the message). */
 export type ChatBlock =
 	| { kind: "text"; text: string }
 	| { kind: "reasoning"; text: string }
-	| { kind: "tool"; tool: ToolInvocation };
+	| { kind: "tool"; tool: ToolInvocation }
+	| { kind: "file"; file: AttachmentRef };
 
 export interface ChatMessage {
 	blocks: ChatBlock[];
@@ -78,6 +86,15 @@ function buildBlocks(parts: SessionMessageRow["parts"]): ChatBlock[] {
 				tool.isError = part.content.isError;
 				tool.status = part.content.isError ? "error" : "complete";
 			}
+		} else if (part.type === "file") {
+			blocks.push({
+				kind: "file",
+				file: {
+					attachmentId: part.content.attachmentId,
+					mime: part.content.mime,
+					name: part.content.name,
+				},
+			});
 		}
 	}
 	return blocks;

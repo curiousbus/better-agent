@@ -15,13 +15,6 @@ import {
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
 import {
-	PromptInput,
-	PromptInputSubmit,
-	PromptInputTextarea,
-	PromptInputToolbar,
-	PromptInputTools,
-} from "@better-agent/ui/components/prompt-input";
-import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
@@ -29,9 +22,11 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
+import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
+import { ChatComposer } from "./chat-composer";
 import { RevealText } from "./reveal-text";
 import { ToolGroup } from "./tool";
 import { useChat } from "./use-chat";
@@ -54,7 +49,11 @@ function BlockView({
 	if (block.kind === "tool") {
 		return <ToolGroup tools={[block.tool]} />;
 	}
-	return <Response isAnimating={streaming}>{block.text}</Response>;
+	if (block.kind === "text") {
+		return <Response isAnimating={streaming}>{block.text}</Response>;
+	}
+	// `file` blocks belong to user messages and render outside the assistant body.
+	return null;
 }
 
 function AssistantBody({ message }: { message: ChatMessage }) {
@@ -104,17 +103,46 @@ function RoleAvatar({ from }: { from: "user" | "assistant" }) {
 	);
 }
 
-function ChatRow({ message }: { message: ChatMessage }) {
+function fileBlocks(
+	message: ChatMessage
+): Extract<ChatBlock, { kind: "file" }>[] {
+	return message.blocks.filter(
+		(b): b is Extract<ChatBlock, { kind: "file" }> => b.kind === "file"
+	);
+}
+
+function ChatRow({
+	message,
+	agentClient,
+}: {
+	message: ChatMessage;
+	agentClient: AgentClient;
+}) {
 	if (message.role === "user") {
+		const text = messageText(message);
+		const files = fileBlocks(message);
 		return (
 			<Message align="end">
 				<RoleAvatar from="user" />
 				<MessageContent>
-					<Bubble align="end">
-						<BubbleContent className="whitespace-pre-wrap text-sm">
-							{messageText(message)}
-						</BubbleContent>
-					</Bubble>
+					{files.length > 0 ? (
+						<div className="flex flex-wrap justify-end gap-2">
+							{files.map((b) => (
+								<AttachmentImage
+									agentClient={agentClient}
+									file={b.file}
+									key={b.file.attachmentId}
+								/>
+							))}
+						</div>
+					) : null}
+					{text.length > 0 ? (
+						<Bubble align="end">
+							<BubbleContent className="whitespace-pre-wrap text-sm">
+								{text}
+							</BubbleContent>
+						</Bubble>
+					) : null}
 				</MessageContent>
 			</Message>
 		);
@@ -133,51 +161,6 @@ function ChatRow({ message }: { message: ChatMessage }) {
 	);
 }
 
-function ChatComposer({
-	streaming,
-	onSend,
-	onStop,
-}: {
-	streaming: boolean;
-	onSend: (text: string) => void;
-	onStop: () => void;
-}) {
-	const [text, setText] = useState("");
-	const submit = () => {
-		const trimmed = text.trim();
-		if (trimmed === "" || streaming) {
-			return;
-		}
-		onSend(trimmed);
-		setText("");
-	};
-	return (
-		<div className="shrink-0 px-4 pb-4">
-			<div className="mx-auto w-full max-w-3xl">
-				<PromptInput
-					className="rounded-2xl border bg-background p-2 shadow-sm"
-					onSubmit={submit}
-				>
-					<PromptInputTextarea
-						disabled={streaming}
-						onChange={setText}
-						onSubmit={submit}
-						placeholder="Send a message…"
-						value={text}
-					/>
-					<PromptInputToolbar>
-						<PromptInputTools />
-						<PromptInputSubmit
-							onStop={onStop}
-							status={streaming ? "streaming" : "idle"}
-						/>
-					</PromptInputToolbar>
-				</PromptInput>
-			</div>
-		</div>
-	);
-}
-
 function EmptyMessages() {
 	return (
 		<div className="flex flex-col items-center justify-center py-24 text-center">
@@ -193,7 +176,13 @@ function EmptyMessages() {
 	);
 }
 
-function ChatScroller({ messages }: { messages: ChatMessage[] }) {
+function ChatScroller({
+	messages,
+	agentClient,
+}: {
+	messages: ChatMessage[];
+	agentClient: AgentClient;
+}) {
 	return (
 		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
 			<MessageScroller>
@@ -207,7 +196,7 @@ function ChatScroller({ messages }: { messages: ChatMessage[] }) {
 									key={message.id}
 									scrollAnchor={index === messages.length - 1}
 								>
-									<ChatRow message={message} />
+									<ChatRow agentClient={agentClient} message={message} />
 								</MessageScrollerItem>
 							))
 						)}
@@ -250,8 +239,14 @@ export function Conversation({
 	}, [initialText]);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<ChatScroller messages={messages} />
-			<ChatComposer onSend={send} onStop={stop} streaming={streaming} />
+			<ChatScroller agentClient={agentClient} messages={messages} />
+			<ChatComposer
+				agentClient={agentClient}
+				onSend={send}
+				onStop={stop}
+				sessionId={sessionId}
+				streaming={streaming}
+			/>
 		</div>
 	);
 }

@@ -39,6 +39,8 @@ export interface AgentClientConfig {
 }
 
 export interface RunOptions {
+	/** Ids of attachments (from `uploadAttachment`) to send with this turn. */
+	attachmentIds?: string[];
 	/** JSON Schema for structured output; the server returns a `structured` field. */
 	outputSchema?: Record<string, unknown>;
 	/** Continue an existing session; omit to auto-create a one-shot session. */
@@ -49,15 +51,27 @@ export interface RunOptions {
 	tools?: ClientToolDef[];
 }
 
+/** Metadata for an uploaded attachment, returned by `uploadAttachment`. */
+export interface UploadedAttachment {
+	id: string;
+	mime: string;
+	name: string;
+	size: number;
+}
+
 export interface AgentClient {
 	/** Cancel the in-flight turn for a session (server-side cancellation). */
 	cancel(sessionId: string): Promise<void>;
 	/** Create a new session bound to this client's agent. */
 	createSession(): Promise<{ sessionId: string }>;
+	/** Fetch an uploaded attachment's bytes (e.g. to render an image). */
+	getAttachment(id: string): Promise<Blob>;
 	/** Replay a session's full message history with parts. */
 	listMessages(sessionId: string): Promise<MessageHistory>;
 	/** Run one turn, returning the final assistant message (auto-creates a session if omitted). */
 	run(text: string, options?: RunOptions): Promise<RunResult>;
 	/** Run one turn, streaming run events (auto-creates a session if omitted). */
 	stream(text: string, options?: RunOptions): AsyncGenerator<RunEvent>;
+	/** Upload an image/file for a session; returns its id to pass as an attachmentId. */
+	uploadAttachment(sessionId: string, file: File): Promise<UploadedAttachment>;
 }

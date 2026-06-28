@@ -10,7 +10,27 @@ import type {
 	RunEvent,
 	RunOptions,
 	RunResult,
+	UploadedAttachment,
 } from "./types";
+
+interface AttachmentApi {
+	getAttachment(input: { id: string }): Promise<File>;
+	uploadAttachment(input: {
+		file: File;
+		sessionId: string;
+	}): Promise<UploadedAttachment>;
+}
+
+/** Shared upload/download methods for either plane (sessions / userSessions). */
+function attachmentMethods(
+	api: AttachmentApi
+): Pick<AgentClient, "getAttachment" | "uploadAttachment"> {
+	return {
+		uploadAttachment: (sessionId, file) =>
+			api.uploadAttachment({ sessionId, file }),
+		getAttachment: (id) => api.getAttachment({ id }),
+	};
+}
 
 /** The fully-typed oRPC client for the server router. Workspace-internal. */
 type Client = RouterClient<AppRouter>;
@@ -94,7 +114,13 @@ async function* streamTurn(
 ): AsyncGenerator<RunEvent> {
 	const toolDefs = options?.tools ? stripToolDefs(options.tools) : undefined;
 	const events = await client.sessions.prompt(
-		{ sessionId, text, tools: toolDefs, outputSchema: options?.outputSchema },
+		{
+			sessionId,
+			text,
+			tools: toolDefs,
+			outputSchema: options?.outputSchema,
+			attachmentIds: options?.attachmentIds,
+		},
 		{ signal: options?.signal }
 	);
 	const dispatches: Promise<void>[] = [];
@@ -138,7 +164,12 @@ export function createAgentClientFrom(client: Client): AgentClient {
 			}
 			const sessionId = await ensureSession(options?.sessionId);
 			return client.sessions.run(
-				{ sessionId, text, outputSchema: options?.outputSchema },
+				{
+					sessionId,
+					text,
+					outputSchema: options?.outputSchema,
+					attachmentIds: options?.attachmentIds,
+				},
 				{ signal: options?.signal }
 			);
 		},
@@ -151,6 +182,8 @@ export function createAgentClientFrom(client: Client): AgentClient {
 		listMessages(sessionId) {
 			return client.sessions.listMessages({ sessionId });
 		},
+
+		...attachmentMethods(client.sessions),
 
 		async cancel(sessionId) {
 			await client.sessions.cancel({ sessionId });
@@ -175,14 +208,24 @@ export function createUserSessionClientFrom(
 		async run(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
 			return client.userSessions.run(
-				{ sessionId, text, outputSchema: options?.outputSchema },
+				{
+					sessionId,
+					text,
+					outputSchema: options?.outputSchema,
+					attachmentIds: options?.attachmentIds,
+				},
 				{ signal: options?.signal }
 			);
 		},
 		async *stream(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
 			const events = await client.userSessions.prompt(
-				{ sessionId, text, outputSchema: options?.outputSchema },
+				{
+					sessionId,
+					text,
+					outputSchema: options?.outputSchema,
+					attachmentIds: options?.attachmentIds,
+				},
 				{ signal: options?.signal }
 			);
 			for await (const event of events) {
@@ -192,6 +235,8 @@ export function createUserSessionClientFrom(
 		listMessages(sessionId) {
 			return client.userSessions.listMessages({ sessionId });
 		},
+
+		...attachmentMethods(client.userSessions),
 
 		async cancel(sessionId) {
 			await client.userSessions.cancel({ sessionId });

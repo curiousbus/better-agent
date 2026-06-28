@@ -7,7 +7,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import type { ChatMessage } from "./chat-blocks";
+import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
 
 // Query key for a session's message history, fetched through the Agent SDK
@@ -115,6 +115,7 @@ function applyEvent(event: RunEvent, state: StreamState) {
 interface StreamArgs {
 	agentClient: AgentClient;
 	assistant: ChatMessage;
+	attachmentIds?: string[];
 	sessionId: string;
 	setDraft: (msgs: ChatMessage[]) => void;
 	signal: AbortSignal;
@@ -134,6 +135,7 @@ export async function streamPrompt(args: StreamArgs) {
 		for await (const event of args.agentClient.stream(args.text, {
 			sessionId: args.sessionId,
 			signal: args.signal,
+			attachmentIds: args.attachmentIds,
 		})) {
 			applyEvent(event, state);
 		}
@@ -163,7 +165,25 @@ async function finalizeSend(sessionId: string, args: SendArgs) {
 	args.setDraft([]);
 }
 
-async function sendMessage(text: string, args: SendArgs) {
+function userDraftBlocks(
+	text: string,
+	attachments: AttachmentRef[]
+): ChatBlock[] {
+	const blocks: ChatBlock[] = [];
+	if (text.length > 0) {
+		blocks.push({ kind: "text", text });
+	}
+	for (const file of attachments) {
+		blocks.push({ kind: "file", file });
+	}
+	return blocks;
+}
+
+async function sendMessage(
+	text: string,
+	attachments: AttachmentRef[],
+	args: SendArgs
+) {
 	if (args.sessionId === "" || args.streaming) {
 		return;
 	}
@@ -174,7 +194,7 @@ async function sendMessage(text: string, args: SendArgs) {
 		id: "draft-user",
 		role: "user",
 		status: "complete",
-		blocks: [{ kind: "text", text }],
+		blocks: userDraftBlocks(text, attachments),
 	};
 	const assistant: ChatMessage = {
 		id: "draft-assistant",
@@ -192,6 +212,7 @@ async function sendMessage(text: string, args: SendArgs) {
 			user,
 			assistant,
 			setDraft: args.setDraft,
+			attachmentIds: attachments.map((a) => a.attachmentId),
 		});
 	} catch {
 		if (!controller.signal.aborted) {
@@ -222,8 +243,8 @@ export function useChat(sessionId: string, agentClient: AgentClient) {
 		...draft,
 	];
 
-	const send = (text: string) =>
-		sendMessage(text, {
+	const send = (text: string, attachments: AttachmentRef[] = []) =>
+		sendMessage(text, attachments, {
 			agentClient,
 			sessionId,
 			streaming,
