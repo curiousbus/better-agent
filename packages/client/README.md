@@ -5,6 +5,12 @@ events, and manage sessions over [oRPC](https://orpc.unnoq.com). Fully typed, wi
 the server's message and event shapes inferred for you. No `@better-agent/*`
 packages required at runtime.
 
+**Requirements:** Node 18+ (uses the global `fetch`) or any modern browser. Ships
+both ESM and CommonJS, so `import` and `require` both work.
+
+**You need two things to connect:** the server's URL (`BETTER_AGENT_URL`) and an
+**agent token**. See [Connecting to the server](#connecting-to-the-server) for both.
+
 ## Install
 
 This package is published to **GitHub Packages**, so installing it takes a one-time
@@ -69,10 +75,12 @@ const agent = createAgentClient({
 
 ### The agent `token`
 
-Each agent has its own token, issued when the agent is created on the server. The
-SDK sends it as `Authorization: Bearer <token>` on every request, which is how the
-server identifies *which* agent the calls belong to. Keep it secret (treat it like
-an API key) and supply it via an environment variable rather than hard-coding it.
+Each agent has its own token. **To get one, create an agent in the Better Agent
+admin app — the token is shown once, at creation — or ask whoever runs your Better
+Agent instance to issue you one.** The SDK sends it as `Authorization: Bearer <token>`
+on every request, which is how the server identifies *which* agent the calls belong
+to, so one token == one agent. Treat it like an API key: keep it secret and supply it
+via an environment variable rather than hard-coding it.
 
 ## Streaming
 
@@ -85,12 +93,20 @@ for await (const event of agent.stream("Write a haiku about Cloudflare.")) {
     case "text-delta":
       process.stdout.write(event.delta);
       break;
+    case "error":
+      console.error("\nrun failed:", event.message);
+      break;
     case "done":
       console.log("\n— done", event.usage);
       break;
   }
 }
 ```
+
+Run failures (bad session, model/provider error, …) arrive as a terminal `error`
+event and the stream then ends normally — the loop won't throw, so handle the
+`"error"` case rather than wrapping it in `try/catch`. Other event types include
+`reasoning-delta`, `tool-call`, `tool-result`, and `message-start`.
 
 ## Sessions
 
