@@ -14,3 +14,10 @@ NODE_ENV = "production"
 [[services]]
 binding = "AUTHZ"
 service = "better-agent-authz"
+
+# R2 bucket for chat attachments (uploaded images/files). The bucket must exist
+# (the deploy Action creates it idempotently; otherwise `wrangler r2 bucket
+# create better-agent-uploads`).
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "better-agent-uploads"

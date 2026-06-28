@@ -4,6 +4,7 @@ import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
 	AgentStore,
+	AttachmentStore,
 	AuthzClient,
 	ComposioAccountStore,
 	EmailSender,
@@ -55,6 +56,7 @@ export interface AgentServices {
 		agent: AgentStore;
 		session: SessionStore;
 		message: MessageStore;
+		attachment: AttachmentStore;
 		user: UserStore;
 		magicLink: MagicLinkStore;
 		passwordReset: PasswordResetStore;

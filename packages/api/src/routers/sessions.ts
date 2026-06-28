@@ -3,6 +3,12 @@ import type { Message } from "@better-agent/agent/session/types";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import {
+	attachmentIdInput,
+	bytesToFile,
+	uploadAttachmentInput,
+	validateImageUpload,
+} from "../attachments";
 import type { Context } from "../context";
 import { adminProcedure, agentProcedure } from "../index";
 
@@ -14,12 +20,21 @@ const remoteToolSchema = z.object({
 	parameters: z.record(z.string(), z.unknown()),
 });
 
-const promptInput = z.object({
-	sessionId: z.uuid(),
-	text: z.string().min(1),
-	tools: z.array(remoteToolSchema).optional(),
-	outputSchema: z.record(z.string(), z.unknown()).optional(),
-});
+const MAX_ATTACHMENTS = 10;
+
+export const promptInput = z
+	.object({
+		sessionId: z.uuid(),
+		text: z.string(),
+		tools: z.array(remoteToolSchema).optional(),
+		outputSchema: z.record(z.string(), z.unknown()).optional(),
+		attachmentIds: z.array(z.uuid()).max(MAX_ATTACHMENTS).optional(),
+	})
+	.refine(
+		(value) =>
+			value.text.trim().length > 0 || (value.attachmentIds?.length ?? 0) > 0,
+		{ message: "Provide a message or at least one attachment" }
+	);
 
 // Loads the session and asserts it belongs to the authed agent. Returns
 // NOT_FOUND for both missing and other-agent sessions so existence never leaks.
@@ -86,6 +101,7 @@ async function* streamTurn(
 			parameters: Record<string, unknown>;
 		}>;
 		outputSchema?: Record<string, unknown>;
+		attachmentIds?: string[];
 	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
@@ -99,6 +115,7 @@ async function* streamTurn(
 			text: input.text,
 			tools: toolDefs,
 			outputSchema: input.outputSchema,
+			attachmentIds: input.attachmentIds,
 			abortSignal: signal,
 		});
 	} catch (error) {
@@ -135,6 +152,39 @@ export const sessionsRouter = {
 			return context.services.stores.message.listWithParts(input.sessionId);
 		}),
 
+	uploadAttachment: agentProcedure
+		.input(uploadAttachmentInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedSession(
+				context,
+				context.authedAgent.id,
+				input.sessionId
+			);
+			const validated = await validateImageUpload(input.file);
+			const row = await context.services.stores.attachment.create({
+				sessionId: input.sessionId,
+				data: validated.data,
+				mime: validated.mime,
+				name: validated.name,
+			});
+			return { id: row.id, mime: row.mime, name: row.name, size: row.size };
+		}),
+
+	getAttachment: agentProcedure
+		.input(attachmentIdInput)
+		.handler(async ({ input, context }) => {
+			const row = await context.services.stores.attachment.getById(input.id);
+			if (!row) {
+				throw new ORPCError("NOT_FOUND", { message: "Attachment not found" });
+			}
+			await requireOwnedSession(context, context.authedAgent.id, row.sessionId);
+			const bytes = await context.services.stores.attachment.getBytes(input.id);
+			if (!bytes) {
+				throw new ORPCError("NOT_FOUND", { message: "Attachment not found" });
+			}
+			return bytesToFile(bytes, row.name, row.mime);
+		}),
+
 	run: agentProcedure
 		.input(promptInput)
 		.handler(async ({ input, context, signal }) => {
@@ -155,6 +205,7 @@ export const sessionsRouter = {
 					text: input.text,
 					tools: toolDefs,
 					outputSchema: input.outputSchema,
+					attachmentIds: input.attachmentIds,
 					abortSignal: signal,
 				})
 			);

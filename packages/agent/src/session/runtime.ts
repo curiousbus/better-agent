@@ -1,9 +1,10 @@
 import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { ModelMessage } from "ai";
 import { hasToolCall, stepCountIs, streamText } from "ai";
-import type { AgentParams } from "../agent/types";
+import type { AgentConfig, AgentParams } from "../agent/types";
 import type {
 	AgentStore,
+	AttachmentStore,
 	MessageStore,
 	ModelCacheStore,
 	ProviderCatalogStore,
@@ -31,6 +32,7 @@ import {
 import type { DrainCtx } from "./runtime-drain";
 import { drainStream } from "./runtime-drain";
 import { finalizeAssistant } from "./runtime-finalize";
+import { buildAssistantCtx, settleTitleEvent } from "./runtime-support";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import {
 	buildStructuredOutputToolDef,
@@ -43,12 +45,13 @@ import {
 	loadContext,
 	persistUserTurn,
 } from "./turn-messages";
-import type { Message, PartStatus } from "./types";
+import type { Message, PartStatus, Session } from "./types";
 
 const DEFAULT_MAX_STEPS = 50;
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;
+	attachmentStore?: AttachmentStore;
 	cancellation?: CancellationRegistry;
 	clock?: () => Date;
 	messageStore: MessageStore;
@@ -64,6 +67,8 @@ export interface SessionRuntimeDeps {
 
 export interface RunTurnInput {
 	abortSignal?: AbortSignal;
+	/** Ids of attachments uploaded for this turn (linked to the user message). */
+	attachmentIds?: string[];
 	outputSchema?: Record<string, unknown>;
 	sessionId: string;
 	text: string;
@@ -178,46 +183,16 @@ async function* streamAssistant(
 	return state;
 }
 
-interface AssistantCtx {
-	assistant: Message;
-	ctx: DrainCtx;
-}
-
-async function buildAssistantCtx(
+async function prepareMessages(
 	deps: SessionRuntimeDeps,
-	agent: { id: string; providerId: string; modelId: string },
-	sessionId: string,
-	toolDefs: ToolDef[]
-): Promise<AssistantCtx> {
-	const assistant = await deps.messageStore.createMessage({
-		sessionId,
-		role: "assistant",
-		status: "streaming",
-		providerId: agent.providerId,
-		modelId: agent.modelId,
-	});
-	return {
-		assistant,
-		ctx: {
-			agentId: agent.id,
-			assistantId: assistant.id,
-			messageStore: deps.messageStore,
-			sessionId,
-			toolDefs,
-		},
-	};
-}
-
-async function* settleTitleEvent(
-	sessionStore: SessionStore,
-	sessionId: string,
-	titlePromise: Promise<string | null>
-): AsyncGenerator<RunEvent, void> {
-	const title = await titlePromise;
-	if (title) {
-		await sessionStore.setTitle(sessionId, title);
-		yield { type: "title", title };
-	}
+	agent: AgentConfig,
+	session: Session,
+	sessionId: string
+) {
+	const rawMessages = await buildTurnMessages(deps, agent, session, sessionId);
+	const provider = await deps.providerCatalogStore.get(agent.providerId);
+	const policy = resolveCachePolicy(provider?.npm ?? null);
+	return applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 }
 
 async function* executeTurn(
@@ -226,12 +201,15 @@ async function* executeTurn(
 ): AsyncGenerator<RunEvent, Message> {
 	const { sessionId, text, abortSignal, tools } = input;
 	const { session, agent } = await loadContext(deps, sessionId);
-	await persistUserTurn(deps.messageStore, sessionId, text);
+	await persistUserTurn({
+		messageStore: deps.messageStore,
+		attachmentStore: deps.attachmentStore,
+		sessionId,
+		text,
+		attachmentIds: input.attachmentIds,
+	});
 	const titlePromise = maybeTitle(deps, session, agent, text);
-	const rawMessages = await buildTurnMessages(deps, agent, session, sessionId);
-	const provider = await deps.providerCatalogStore.get(agent.providerId);
-	const policy = resolveCachePolicy(provider?.npm ?? null);
-	const cached = applyCachePolicy({ messages: rawMessages, sessionId }, policy);
+	const cached = await prepareMessages(deps, agent, session, sessionId);
 	const toolDefs = [...(tools ?? [])];
 	if (input.outputSchema) {
 		// Injected last so the model can call remote tools first, then submit.
@@ -242,7 +220,7 @@ async function* executeTurn(
 		toolDefs.push(buildStructuredOutputToolDef(input.outputSchema));
 	}
 	const { assistant, ctx } = await buildAssistantCtx(
-		deps,
+		deps.messageStore,
 		agent,
 		sessionId,
 		toolDefs

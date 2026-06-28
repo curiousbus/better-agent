@@ -89,6 +89,33 @@ export interface MessageStore {
 	updatePart(id: string, patch: MessagePartPatch): Promise<MessagePart | null>;
 }
 
+/** An uploaded attachment's metadata (bytes live in object storage). */
+export interface AttachmentRow {
+	createdAt: Date;
+	id: string;
+	messageId: string | null;
+	mime: string;
+	name: string;
+	sessionId: string;
+	size: number;
+}
+
+export interface AttachmentStore {
+	/** Store the bytes + a metadata row (message_id null until linked). */
+	create(input: {
+		data: Uint8Array;
+		mime: string;
+		name: string;
+		sessionId: string;
+	}): Promise<AttachmentRow>;
+	getById(id: string): Promise<AttachmentRow | null>;
+	/** Raw bytes from object storage; null if the row or object is missing. */
+	getBytes(id: string): Promise<Uint8Array | null>;
+	/** Bind uploaded attachments to the message they were sent with. */
+	linkToMessage(ids: string[], messageId: string): Promise<void>;
+	listByMessage(messageId: string): Promise<AttachmentRow[]>;
+}
+
 export interface UserStore {
 	createWithPassword(
 		email: string,

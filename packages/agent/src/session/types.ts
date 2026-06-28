@@ -93,7 +93,8 @@ export type MessagePartType =
 	| "text"
 	| "reasoning"
 	| "tool-call"
-	| "tool-result";
+	| "tool-result"
+	| "file";
 
 export type PartStatus = "streaming" | "complete" | "error";
 
@@ -119,11 +120,20 @@ export interface ToolResultPartContent {
 	result: unknown;
 }
 
+/** A user-uploaded attachment sent with the turn. Bytes live in object storage;
+ * this references the row in the `attachments` table. */
+export interface FilePartContent {
+	attachmentId: string;
+	mime: string;
+	name: string;
+}
+
 export type MessagePartContent =
 	| TextPartContent
 	| ReasoningPartContent
 	| ToolCallPartContent
-	| ToolResultPartContent;
+	| ToolResultPartContent
+	| FilePartContent;
 
 interface MessagePartBase {
 	createdAt: Date;
@@ -143,7 +153,8 @@ export type MessagePart =
 	| (MessagePartBase & {
 			type: "tool-result";
 			content: ToolResultPartContent;
-	  });
+	  })
+	| (MessagePartBase & { type: "file"; content: FilePartContent });
 
 export interface MessagePartInput {
 	content: MessagePartContent;

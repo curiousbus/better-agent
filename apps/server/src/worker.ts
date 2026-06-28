@@ -8,6 +8,7 @@
 // The human iterates this via `wrangler dev` — do not over-engineer here.
 import { createNeonDb } from "@better-agent/db/neon-db";
 import { buildApp } from "./app";
+import type { R2Bucket } from "./attachment-store";
 import type { ServiceBinding } from "./authz-client";
 import { buildServices } from "./services";
 
@@ -16,6 +17,9 @@ import { buildServices } from "./services";
 interface WorkerEnv {
 	AUTHZ?: ServiceBinding;
 	DATABASE_URL: string;
+	// R2 bucket for chat attachments (images/files). Optional so the worker still
+	// boots without it; attachment uploads error clearly until it's bound.
+	UPLOADS?: R2Bucket;
 }
 
 export default {
@@ -30,7 +34,7 @@ export default {
 		// behalf of a different request", surfaced as a 1101). The one expensive
 		// piece (the scrypt-derived secret box) is memoized inside buildServices.
 		const db = createNeonDb(environment.DATABASE_URL);
-		const services = buildServices(db, environment.AUTHZ);
+		const services = buildServices(db, environment.AUTHZ, environment.UPLOADS);
 		return buildApp(services).fetch(request);
 	},
 };

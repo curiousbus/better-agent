@@ -1,13 +1,59 @@
 import type { ModelMessage, ToolCallPart, ToolResultPart } from "ai";
 import type { MessagePart, MessageWithParts } from "./types";
 
+/** Resolved attachment bytes, keyed by attachmentId, for building image content. */
+export type ResolvedImages = Map<string, { data: Uint8Array; mime: string }>;
+
 export interface ToModelMessagesInput {
 	compactedThroughSeq: number | null;
 	/** 按 seq 升序的会话历史。 */
 	history: MessageWithParts[];
+	/** Resolved bytes for image `file` parts (vision). Missing ids are skipped. */
+	images?: ResolvedImages;
 	/** 📐 P2 compaction：非 null 时前置摘要并只纳入 seq > compactedThroughSeq 的消息。 */
 	summary: string | null;
 	systemPrompt: string;
+}
+
+interface UserImagePart {
+	image: Uint8Array;
+	mediaType: string;
+	type: "image";
+}
+interface UserTextPart {
+	text: string;
+	type: "text";
+}
+
+/** Build a user ModelMessage: a plain string, or text + image parts for vision. */
+function buildUserContent(
+	parts: MessagePart[],
+	images: ResolvedImages
+): string | Array<UserTextPart | UserImagePart> {
+	const text = joinTextParts(parts);
+	const imageParts: UserImagePart[] = [];
+	for (const part of parts) {
+		if (part.type !== "file" || !part.content.mime.startsWith("image/")) {
+			continue;
+		}
+		const resolved = images.get(part.content.attachmentId);
+		if (resolved) {
+			imageParts.push({
+				type: "image",
+				image: resolved.data,
+				mediaType: resolved.mime,
+			});
+		}
+	}
+	if (imageParts.length === 0) {
+		return text;
+	}
+	const content: Array<UserTextPart | UserImagePart> = [];
+	if (text.length > 0) {
+		content.push({ type: "text", text });
+	}
+	content.push(...imageParts);
+	return content;
 }
 
 const NO_COMPACTION = -1;
@@ -139,9 +185,13 @@ export function toModelMessages(input: ToModelMessagesInput): ModelMessage[] {
 	// so tool-result entries can always find their toolName.
 	const callIdToTool = buildGlobalCallIdMap(input.history);
 
+	const images: ResolvedImages = input.images ?? new Map();
 	for (const entry of history) {
 		if (entry.message.role === "user") {
-			result.push({ role: "user", content: joinTextParts(entry.parts) });
+			result.push({
+				role: "user",
+				content: buildUserContent(entry.parts, images),
+			});
 		} else if (entry.message.role === "assistant") {
 			for (const msg of renderAssistantEntry(entry, callIdToTool)) {
 				result.push(msg);

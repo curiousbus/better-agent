@@ -9,23 +9,18 @@ import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import {
+	attachmentIdInput,
+	bytesToFile,
+	uploadAttachmentInput,
+	validateImageUpload,
+} from "../attachments";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
-import { drainWithStructured, errorMessage } from "./sessions";
+import { drainWithStructured, errorMessage, promptInput } from "./sessions";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
-const remoteToolSchema = z.object({
-	name: z.string().min(1),
-	description: z.string(),
-	parameters: z.record(z.string(), z.unknown()),
-});
-const promptInput = z.object({
-	sessionId: z.uuid(),
-	text: z.string().min(1),
-	tools: z.array(remoteToolSchema).optional(),
-	outputSchema: z.record(z.string(), z.unknown()).optional(),
-});
 
 // `scope` is the composio "user" scope — here a composio account id. Builds the
 // tool defs for every authenticated toolkit of that account.
@@ -98,6 +93,7 @@ async function* streamUserTurn(
 			parameters: Record<string, unknown>;
 		}>;
 		outputSchema?: Record<string, unknown>;
+		attachmentIds?: string[];
 	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
@@ -113,6 +109,7 @@ async function* streamUserTurn(
 			text: input.text,
 			tools: allDefs.length > 0 ? allDefs : undefined,
 			outputSchema: input.outputSchema,
+			attachmentIds: input.attachmentIds,
 			abortSignal: signal,
 		});
 	} catch (error) {
@@ -151,6 +148,35 @@ export const userSessionsRouter = {
 			return context.services.stores.message.listWithParts(input.sessionId);
 		}),
 
+	uploadAttachment: authorizedUserProcedure
+		.input(uploadAttachmentInput)
+		.handler(async ({ input, context }) => {
+			await requireUserSession(context, context.authedUser.id, input.sessionId);
+			const validated = await validateImageUpload(input.file);
+			const row = await context.services.stores.attachment.create({
+				sessionId: input.sessionId,
+				data: validated.data,
+				mime: validated.mime,
+				name: validated.name,
+			});
+			return { id: row.id, mime: row.mime, name: row.name, size: row.size };
+		}),
+
+	getAttachment: authorizedUserProcedure
+		.input(attachmentIdInput)
+		.handler(async ({ input, context }) => {
+			const row = await context.services.stores.attachment.getById(input.id);
+			if (!row) {
+				throw new ORPCError("NOT_FOUND", { message: "Attachment not found" });
+			}
+			await requireUserSession(context, context.authedUser.id, row.sessionId);
+			const bytes = await context.services.stores.attachment.getBytes(input.id);
+			if (!bytes) {
+				throw new ORPCError("NOT_FOUND", { message: "Attachment not found" });
+			}
+			return bytesToFile(bytes, row.name, row.mime);
+		}),
+
 	run: authorizedUserProcedure
 		.input(promptInput)
 		.handler(async ({ input, context, signal }) => {
@@ -167,6 +193,7 @@ export const userSessionsRouter = {
 					text: input.text,
 					tools: toolDefs,
 					outputSchema: input.outputSchema,
+					attachmentIds: input.attachmentIds,
 					abortSignal: signal,
 				})
 			);

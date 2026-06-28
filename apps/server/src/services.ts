@@ -16,6 +16,7 @@ import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
+import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import {
 	createMagicLinkStore,
 	createPasswordResetStore,
@@ -34,6 +35,7 @@ import { createSettingsStore } from "@better-agent/db/repositories/settings-stor
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
 import Redis from "ioredis";
+import { createAttachmentStore, type R2Bucket } from "./attachment-store";
 import { buildAuthzClient, type ServiceBinding } from "./authz-client";
 import { createEmailSender } from "./email-sender";
 import {
@@ -134,15 +136,19 @@ function buildRateLimiter() {
 		: createInMemoryRateLimiter();
 }
 
-function buildRuntime(
-	deps: ReturnType<typeof buildProviderDeps>,
-	sessionStore: ReturnType<typeof createSessionStore>,
-	messageStore: ReturnType<typeof createMessageStore>,
-	cancellation: CancellationRegistry
-) {
+function buildRuntime(parts: {
+	attachmentStore: ReturnType<typeof createAttachmentStore>;
+	cancellation: CancellationRegistry;
+	deps: ReturnType<typeof buildProviderDeps>;
+	messageStore: ReturnType<typeof createMessageStore>;
+	sessionStore: ReturnType<typeof createSessionStore>;
+}) {
+	const { deps, sessionStore, messageStore, cancellation, attachmentStore } =
+		parts;
 	return createSessionRuntime({
 		sessionStore,
 		messageStore,
+		attachmentStore,
 		agentStore: deps.agentStore,
 		modelFactory: deps.modelFactory,
 		sessionLock: buildSessionLock(),
@@ -154,18 +160,46 @@ function buildRuntime(
 	});
 }
 
-export function buildServices(db: Db, authzBinding?: ServiceBinding) {
-	const secretBox = getSecretBox();
-	const deps = buildProviderDeps(db, secretBox);
-	const sessionStore = createSessionStore(db);
-	const messageStore = createMessageStore(db);
-	const cancellation = buildCancellation();
-	const runtime = buildRuntime(deps, sessionStore, messageStore, cancellation);
-	const { jwtService, emailSender, authConfig, authStores } =
-		buildAuthServices(db);
-	const settings = createSettingsStore(db, secretBox);
-	const composioAccount = createComposioAccountStore(db, secretBox);
-	const webAuthzCache = createWebAuthzCacheStore(db);
+function buildStores(parts: {
+	attachmentStore: ReturnType<typeof createAttachmentStore>;
+	authStores: ReturnType<typeof buildAuthServices>["authStores"];
+	composioAccount: ReturnType<typeof createComposioAccountStore>;
+	deps: ReturnType<typeof buildProviderDeps>;
+	messageStore: ReturnType<typeof createMessageStore>;
+	sessionStore: ReturnType<typeof createSessionStore>;
+	settings: ReturnType<typeof createSettingsStore>;
+	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
+}) {
+	const { deps, authStores } = parts;
+	return {
+		providerCatalog: deps.providerCatalog,
+		modelCache: deps.modelCache,
+		providerCredential: deps.providerCredential,
+		agent: deps.agentStore,
+		session: parts.sessionStore,
+		message: parts.messageStore,
+		attachment: parts.attachmentStore,
+		settings: parts.settings,
+		composioAccount: parts.composioAccount,
+		webAuthzCache: parts.webAuthzCache,
+		...authStores,
+	};
+}
+
+function assembleServices(parts: {
+	attachmentStore: ReturnType<typeof createAttachmentStore>;
+	auth: ReturnType<typeof buildAuthServices>;
+	authzBinding?: ServiceBinding;
+	cancellation: CancellationRegistry;
+	composioAccount: ReturnType<typeof createComposioAccountStore>;
+	deps: ReturnType<typeof buildProviderDeps>;
+	messageStore: ReturnType<typeof createMessageStore>;
+	runtime: ReturnType<typeof buildRuntime>;
+	sessionStore: ReturnType<typeof createSessionStore>;
+	settings: ReturnType<typeof createSettingsStore>;
+	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
+}) {
+	const { deps, auth } = parts;
 	return {
 		catalog: createModelCatalog({
 			catalogStore: deps.providerCatalog,
@@ -175,28 +209,62 @@ export function buildServices(db: Db, authzBinding?: ServiceBinding) {
 		}),
 		modelFactory: deps.modelFactory,
 		agentValidator: deps.agentValidator,
-		runtime,
+		runtime: parts.runtime,
 		tokenService: createTokenService(),
-		jwtService,
-		emailSender,
-		authConfig,
-		cancellation,
+		jwtService: auth.jwtService,
+		emailSender: auth.emailSender,
+		authConfig: auth.authConfig,
+		cancellation: parts.cancellation,
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
-		composio: buildComposioAccountResolver(composioAccount),
-		authz: buildAuthzClient(authzBinding),
+		composio: buildComposioAccountResolver(parts.composioAccount),
+		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
-		stores: {
-			providerCatalog: deps.providerCatalog,
-			modelCache: deps.modelCache,
-			providerCredential: deps.providerCredential,
-			agent: deps.agentStore,
-			session: sessionStore,
-			message: messageStore,
-			settings,
-			composioAccount,
-			webAuthzCache,
-			...authStores,
-		},
+		stores: buildStores({
+			deps,
+			sessionStore: parts.sessionStore,
+			messageStore: parts.messageStore,
+			attachmentStore: parts.attachmentStore,
+			settings: parts.settings,
+			composioAccount: parts.composioAccount,
+			webAuthzCache: parts.webAuthzCache,
+			authStores: auth.authStores,
+		}),
 	};
+}
+
+export function buildServices(
+	db: Db,
+	authzBinding?: ServiceBinding,
+	uploads?: R2Bucket
+) {
+	const secretBox = getSecretBox();
+	const deps = buildProviderDeps(db, secretBox);
+	const sessionStore = createSessionStore(db);
+	const messageStore = createMessageStore(db);
+	const attachmentStore = createAttachmentStore(
+		createAttachmentMetaStore(db),
+		uploads
+	);
+	const cancellation = buildCancellation();
+	const runtime = buildRuntime({
+		deps,
+		sessionStore,
+		messageStore,
+		cancellation,
+		attachmentStore,
+	});
+	return assembleServices({
+		deps,
+		runtime,
+		cancellation,
+		attachmentStore,
+		sessionStore,
+		messageStore,
+		auth: buildAuthServices(db),
+		settings: createSettingsStore(db, secretBox),
+		composioAccount: createComposioAccountStore(db, secretBox),
+		webAuthzCache: createWebAuthzCacheStore(db),
+		authzBinding,
+	});
 }
