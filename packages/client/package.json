@@ -51,6 +51,7 @@
     "build": "tsup && dts-bundle-generator -o dist/index.d.ts --project tsconfig.dts.json --no-check --external-inlines @better-agent/agent @better-agent/api @better-agent/db @better-agent/env @better-agent/config -- src/index.ts && cp dist/index.d.ts dist/index.d.cts",
     "check-types": "tsc --noEmit",
     "prepublishOnly": "pnpm build",
+    "release": "node scripts/release.mjs",
     "test": "vitest run"
   },
   "dependencies": {
