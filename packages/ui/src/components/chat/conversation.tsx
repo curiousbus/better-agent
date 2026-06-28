@@ -198,7 +198,7 @@ function ChatScroller({ messages }: { messages: ChatMessage[] }) {
 		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
 			<MessageScroller>
 				<MessageScrollerViewport>
-					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-4 py-4">
+					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4">
 						{messages.length === 0 ? (
 							<EmptyMessages />
 						) : (

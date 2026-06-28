@@ -37,7 +37,7 @@ function useRedeem() {
 // bottom edges (filled with the page background so it reads as a cut-out).
 function Perforation() {
 	return (
-		<div className="relative self-stretch border-border border-l-2 border-dashed">
+		<div className="relative hidden self-stretch border-border border-l-2 border-dashed sm:block">
 			<span className="absolute -top-3 -left-3 size-6 rounded-full bg-muted" />
 			<span className="absolute -bottom-3 -left-3 size-6 rounded-full bg-muted" />
 		</div>
@@ -46,7 +46,7 @@ function Perforation() {
 
 function Stub() {
 	return (
-		<div className="flex w-20 shrink-0 flex-col items-center justify-center gap-3 py-6">
+		<div className="hidden w-20 shrink-0 flex-col items-center justify-center gap-3 py-6 sm:flex">
 			<div
 				aria-hidden="true"
 				className="h-16 w-9 text-foreground/80"
@@ -100,8 +100,8 @@ function TicketForm() {
 
 function InvitePage() {
 	return (
-		<div className="flex flex-1 items-center justify-center bg-muted p-6">
-			<div className="flex w-full max-w-xl rounded-xl border bg-card shadow-md">
+		<div className="flex flex-1 items-center justify-center bg-muted p-4 sm:p-6">
+			<div className="flex w-full max-w-md rounded-xl border bg-card shadow-md sm:max-w-xl">
 				<TicketForm />
 				<Perforation />
 				<Stub />

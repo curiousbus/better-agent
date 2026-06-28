@@ -1,3 +1,4 @@
+import { Button } from "@better-agent/ui/components/button";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import {
 	PromptInput,
@@ -44,14 +45,14 @@ function ComposerHeader({
 					sessions={sessions}
 					value=""
 				/>
-				<button
+				<Button
 					aria-label="Close"
-					className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					onClick={onClose}
-					type="button"
+					size="icon"
+					variant="ghost"
 				>
 					<XIcon className="size-4" />
-				</button>
+				</Button>
 			</div>
 		</header>
 	);

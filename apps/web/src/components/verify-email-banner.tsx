@@ -19,10 +19,11 @@ export function VerifyEmailBanner() {
 	}
 
 	return (
-		<div className="flex shrink-0 items-center justify-between gap-2 bg-muted px-4 py-2 text-sm">
-			<span>
+		<div className="flex shrink-0 flex-col items-start justify-between gap-2 bg-muted px-4 py-2 text-sm sm:flex-row sm:items-center">
+			<span className="min-w-0">
 				Verify your email — check{" "}
-				<span className="font-medium">{me.data.email}</span> for a link.
+				<span className="break-all font-medium">{me.data.email}</span> for a
+				link.
 			</span>
 			{sent ? (
 				<span className="text-muted-foreground">Sent — check your inbox</span>

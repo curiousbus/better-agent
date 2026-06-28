@@ -15,7 +15,7 @@ export const Route = createFileRoute("/reset-password")({
 
 function CenteredNotice({ text, cta }: { text: string; cta: string }) {
 	return (
-		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center sm:p-6">
 			<p className="text-sm">{text}</p>
 			<Button render={<Link to="/login" />}>{cta}</Button>
 		</div>
@@ -140,7 +140,7 @@ function ResetPasswordPage() {
 		return <CenteredNotice cta="Back to sign in" text="Invalid reset link." />;
 	}
 	return (
-		<div className="flex flex-1 items-center justify-center p-6">
+		<div className="flex flex-1 items-center justify-center p-4 sm:p-6">
 			<ResetForm token={token} />
 		</div>
 	);

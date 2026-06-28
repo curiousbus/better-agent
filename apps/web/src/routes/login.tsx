@@ -285,7 +285,7 @@ function LoginPage() {
 	const [mode, setMode] = useState<Mode>("signin");
 	const showToggle = mode === "signin" || mode === "create";
 	return (
-		<div className="flex flex-1 items-center justify-center p-6">
+		<div className="flex flex-1 items-center justify-center p-4 sm:p-6">
 			<div className="flex w-full max-w-sm flex-col gap-4">
 				<div>
 					<h1 className="font-semibold text-lg">{HEADINGS[mode]}</h1>

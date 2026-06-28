@@ -47,14 +47,14 @@ function ChatViewHeader({
 					<PlusIcon className="size-3.5" />
 					<span className="hidden sm:inline">New</span>
 				</Button>
-				<button
+				<Button
 					aria-label="Back to composer"
-					className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					onClick={onClose}
-					type="button"
+					size="icon"
+					variant="ghost"
 				>
 					<XIcon className="size-4" />
-				</button>
+				</Button>
 			</div>
 		</header>
 	);
