@@ -3,6 +3,7 @@ import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
+import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 
 interface ChatViewProps {
@@ -82,6 +83,7 @@ export function ChatView({
 			/>
 			<Conversation
 				agentClient={agentClient}
+				generativeUI={GENUI_CHAT_CONFIG}
 				initialText={initialText}
 				key={sessionId}
 				sessionId={sessionId}

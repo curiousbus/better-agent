@@ -1,11 +1,7 @@
-import { CopyAction } from "@better-agent/ui/components/actions";
-import { Avatar, AvatarFallback } from "@better-agent/ui/components/avatar";
-import { Bubble, BubbleContent } from "@better-agent/ui/components/bubble";
 import {
-	Message,
-	MessageAvatar,
-	MessageContent,
-} from "@better-agent/ui/components/message";
+	GenerativeUI,
+	type NodeProps,
+} from "@better-agent/ui/components/genui/generative-ui";
 import {
 	MessageScroller,
 	MessageScrollerButton,
@@ -14,151 +10,27 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import {
-	Reasoning,
-	ReasoningContent,
-	ReasoningTrigger,
-} from "@better-agent/ui/components/reasoning";
-import { Response } from "@better-agent/ui/components/response";
-import type { AgentClient } from "@curiousbus/agent-client";
-import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import type {
+	AgentClient,
+	ClientToolDef,
+	UIAction,
+} from "@curiousbus/agent-client";
+import type { ComponentType, ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { AttachmentImage } from "./attachment-image";
-import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
+import type { ChatMessage } from "./chat-blocks";
 import { ChatComposer } from "./chat-composer";
+import { ChatRow } from "./chat-row";
 import { RevealText } from "./reveal-text";
-import { ToolGroup } from "./tool";
 import { useChat } from "./use-chat";
 
-function BlockView({
-	block,
-	streaming,
-}: {
-	block: ChatBlock;
-	streaming: boolean;
-}) {
-	if (block.kind === "reasoning") {
-		return (
-			<Reasoning isStreaming={streaming}>
-				<ReasoningTrigger label="Reasoning" />
-				<ReasoningContent>{block.text}</ReasoningContent>
-			</Reasoning>
-		);
-	}
-	if (block.kind === "tool") {
-		return <ToolGroup tools={[block.tool]} />;
-	}
-	if (block.kind === "text") {
-		return <Response isAnimating={streaming}>{block.text}</Response>;
-	}
-	// `file` blocks belong to user messages and render outside the assistant body.
-	return null;
-}
-
-function AssistantBody({ message }: { message: ChatMessage }) {
-	const streaming = message.status === "streaming";
-	const fullText = messageText(message);
-	return (
-		<div className="flex flex-col gap-2">
-			{streaming && message.blocks.length === 0 ? (
-				<span className="shimmer font-medium text-sm">Thinking…</span>
-			) : null}
-			{message.blocks.map((block, index) => (
-				<BlockView
-					block={block}
-					// biome-ignore lint/suspicious/noArrayIndexKey: blocks are append-only and never reorder
-					key={`${index}-${block.kind}`}
-					streaming={streaming}
-				/>
-			))}
-			{message.status === "error" ? (
-				<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-destructive text-sm">
-					<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-					<span>
-						{message.errorText ?? "Something went wrong. Please try again."}
-					</span>
-				</div>
-			) : null}
-			{message.status === "complete" && fullText !== "" ? (
-				<CopyAction text={fullText} />
-			) : null}
-		</div>
-	);
-}
-
-function RoleAvatar({ from }: { from: "user" | "assistant" }) {
-	return (
-		<MessageAvatar>
-			<Avatar>
-				<AvatarFallback>
-					{from === "user" ? (
-						<UserIcon className="size-4" />
-					) : (
-						<BotIcon className="size-4" />
-					)}
-				</AvatarFallback>
-			</Avatar>
-		</MessageAvatar>
-	);
-}
-
-function fileBlocks(
-	message: ChatMessage
-): Extract<ChatBlock, { kind: "file" }>[] {
-	return message.blocks.filter(
-		(b): b is Extract<ChatBlock, { kind: "file" }> => b.kind === "file"
-	);
-}
-
-function ChatRow({
-	message,
-	agentClient,
-}: {
-	message: ChatMessage;
-	agentClient: AgentClient;
-}) {
-	if (message.role === "user") {
-		const text = messageText(message);
-		const files = fileBlocks(message);
-		return (
-			<Message align="end">
-				<RoleAvatar from="user" />
-				<MessageContent>
-					{files.length > 0 ? (
-						<div className="flex flex-wrap justify-end gap-2">
-							{files.map((b) => (
-								<AttachmentImage
-									agentClient={agentClient}
-									file={b.file}
-									key={b.file.attachmentId}
-								/>
-							))}
-						</div>
-					) : null}
-					{text.length > 0 ? (
-						<Bubble align="end">
-							<BubbleContent className="whitespace-pre-wrap text-sm">
-								{text}
-							</BubbleContent>
-						</Bubble>
-					) : null}
-				</MessageContent>
-			</Message>
-		);
-	}
-	return (
-		<Message align="start">
-			<RoleAvatar from="assistant" />
-			<MessageContent>
-				<Bubble variant="ghost">
-					<BubbleContent className="text-sm">
-						<AssistantBody message={message} />
-					</BubbleContent>
-				</Bubble>
-			</MessageContent>
-		</Message>
-	);
+/** Generative-UI wiring an app injects: its component renderers + schema/tools
+ * for the agent, and local handlers for client-target actions. */
+export interface GenerativeUIChatConfig {
+	handlers: Record<string, (payload: unknown) => void>;
+	outputSchema: Record<string, unknown>;
+	renderers: Record<string, ComponentType<NodeProps>>;
+	tools: ClientToolDef[];
 }
 
 function EmptyMessages() {
@@ -179,9 +51,11 @@ function EmptyMessages() {
 function ChatScroller({
 	messages,
 	agentClient,
+	renderTree,
 }: {
 	messages: ChatMessage[];
 	agentClient: AgentClient;
+	renderTree?: (tree: unknown) => ReactNode;
 }) {
 	return (
 		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
@@ -196,7 +70,11 @@ function ChatScroller({
 									key={message.id}
 									scrollAnchor={index === messages.length - 1}
 								>
-									<ChatRow agentClient={agentClient} message={message} />
+									<ChatRow
+										agentClient={agentClient}
+										message={message}
+										renderTree={renderTree}
+									/>
 								</MessageScrollerItem>
 							))
 						)}
@@ -208,25 +86,18 @@ function ChatScroller({
 	);
 }
 
-export function Conversation({
-	sessionId,
-	agentClient,
-	initialText,
-}: {
-	sessionId: string;
-	agentClient: AgentClient;
-	initialText?: string;
-}) {
-	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
+// Send the first message once the chat mounts. Defer it: a transient
+// mount/unmount during the composer→chat slide (or a dev double-invoke) cancels
+// the stale schedule via cleanup instead of aborting an already-started stream —
+// so the send fires exactly once, after things settle, and is never lost.
+function useInitialSend(
+	initialText: string | undefined,
+	send: (text: string) => void
+) {
 	const sendRef = useRef(send);
 	useLayoutEffect(() => {
 		sendRef.current = send;
 	});
-	// Send the first message once the chat mounts. Defer it: a transient
-	// mount/unmount during the composer→chat slide (or a dev double-invoke)
-	// cancels the stale schedule via cleanup instead of aborting an
-	// already-started stream — so the send fires exactly once, after things
-	// settle, and the first message is never lost.
 	useEffect(() => {
 		const id = initialText
 			? setTimeout(() => sendRef.current(initialText), 0)
@@ -237,13 +108,72 @@ export function Conversation({
 			}
 		};
 	}, [initialText]);
+}
+
+// Build the assistant-tree renderer (and its action router) for a chat, or
+// undefined when the app didn't wire generative UI. target:"client" actions run
+// a local handler; target:"agent" actions send a follow-up turn that re-renders.
+function buildRenderTree(
+	generativeUI: GenerativeUIChatConfig | undefined,
+	send: (text: string) => void
+): ((tree: unknown) => ReactNode) | undefined {
+	const onAction = (action: UIAction) => {
+		if (action.target === "client") {
+			generativeUI?.handlers[action.intent]?.(action.payload);
+		} else {
+			send(
+				`[ui-event] intent=${action.intent} payload=${JSON.stringify(action.payload ?? null)}`
+			);
+		}
+	};
+	return generativeUI
+		? (tree: unknown) => (
+				<GenerativeUI
+					onAction={onAction}
+					renderers={generativeUI.renderers}
+					tree={tree}
+				/>
+			)
+		: undefined;
+}
+
+export function Conversation({
+	sessionId,
+	agentClient,
+	initialText,
+	generativeUI,
+}: {
+	sessionId: string;
+	agentClient: AgentClient;
+	initialText?: string;
+	generativeUI?: GenerativeUIChatConfig;
+}) {
+	const [genuiOn, setGenuiOn] = useState(false);
+	const genuiConfig =
+		generativeUI && genuiOn
+			? { outputSchema: generativeUI.outputSchema, tools: generativeUI.tools }
+			: undefined;
+	const { messages, streaming, send, stop } = useChat(
+		sessionId,
+		agentClient,
+		genuiConfig
+	);
+	useInitialSend(initialText, send);
+	const renderTree = buildRenderTree(generativeUI, send);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<ChatScroller agentClient={agentClient} messages={messages} />
+			<ChatScroller
+				agentClient={agentClient}
+				messages={messages}
+				renderTree={renderTree}
+			/>
 			<ChatComposer
 				agentClient={agentClient}
+				genuiActive={genuiOn}
+				genuiAvailable={generativeUI !== undefined}
 				onSend={send}
 				onStop={stop}
+				onToggleGenui={() => setGenuiOn((v) => !v)}
 				sessionId={sessionId}
 				streaming={streaming}
 			/>

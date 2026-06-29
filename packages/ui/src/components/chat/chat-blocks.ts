@@ -31,7 +31,12 @@ export interface ChatMessage {
 	id: string;
 	role: "user" | "assistant" | "system";
 	status: "complete" | "streaming" | "error";
+	/** A generative-UI tree (the StructuredOutput result), when this turn rendered UI. */
+	structured?: unknown;
 }
+
+// The synthetic tool that carries structured output; its call args are the UI tree.
+const STRUCTURED_OUTPUT_TOOL = "StructuredOutput";
 
 function partStatus(status: SessionMessageRow["message"]["status"]) {
 	if (status === "complete") {
@@ -60,25 +65,37 @@ export function appendText(
 	}
 }
 
-/** Build the ordered blocks for a persisted message (parts are seq-ordered). */
-function buildBlocks(parts: SessionMessageRow["parts"]): ChatBlock[] {
+interface BuiltParts {
+	blocks: ChatBlock[];
+	structured?: unknown;
+}
+
+/** Build the ordered blocks for a persisted message (parts are seq-ordered).
+ * A StructuredOutput tool-call is lifted out as `structured` (the UI tree) rather
+ * than shown as a tool block. */
+function buildBlocks(parts: SessionMessageRow["parts"]): BuiltParts {
 	const blocks: ChatBlock[] = [];
 	const toolByCallId = new Map<string, ToolInvocation>();
+	let structured: unknown;
 	for (const part of parts) {
 		if (part.type === "text") {
 			appendText(blocks, "text", part.content.text);
 		} else if (part.type === "reasoning") {
 			appendText(blocks, "reasoning", part.content.text);
 		} else if (part.type === "tool-call") {
-			const tool: ToolInvocation = {
-				callId: part.content.callId,
-				toolName: part.content.toolName,
-				args: part.content.args,
-				isError: false,
-				status: "running",
-			};
-			blocks.push({ kind: "tool", tool });
-			toolByCallId.set(part.content.callId, tool);
+			if (part.content.toolName === STRUCTURED_OUTPUT_TOOL) {
+				structured = part.content.args;
+			} else {
+				const tool: ToolInvocation = {
+					callId: part.content.callId,
+					toolName: part.content.toolName,
+					args: part.content.args,
+					isError: false,
+					status: "running",
+				};
+				blocks.push({ kind: "tool", tool });
+				toolByCallId.set(part.content.callId, tool);
+			}
 		} else if (part.type === "tool-result") {
 			const tool = toolByCallId.get(part.content.callId);
 			if (tool) {
@@ -97,15 +114,17 @@ function buildBlocks(parts: SessionMessageRow["parts"]): ChatBlock[] {
 			});
 		}
 	}
-	return blocks;
+	return { blocks, structured };
 }
 
 export function toChatMessage(entry: SessionMessageRow): ChatMessage {
+	const { blocks, structured } = buildBlocks(entry.parts);
 	return {
 		id: entry.message.id,
 		role: entry.message.role,
 		status: partStatus(entry.message.status),
-		blocks: buildBlocks(entry.parts),
+		blocks,
+		structured,
 	};
 }
 

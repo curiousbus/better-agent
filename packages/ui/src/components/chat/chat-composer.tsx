@@ -6,135 +6,37 @@ import {
 	PromptInputToolbar,
 } from "@better-agent/ui/components/prompt-input";
 import type { AgentClient } from "@curiousbus/agent-client";
-import { ImagePlusIcon, Loader2Icon, XIcon } from "lucide-react";
+import { ImagePlusIcon, SparklesIcon } from "lucide-react";
 import { useRef, useState } from "react";
-
+import {
+	ChipRow,
+	readyAttachments,
+	usePendingAttachments,
+} from "./chat-attachments";
 import type { AttachmentRef } from "./chat-blocks";
 
 const ACCEPT_IMAGES = "image/png,image/jpeg,image/webp,image/gif";
 
-interface PendingAttachment {
-	attachmentId?: string;
-	localId: string;
-	mime: string;
-	name: string;
-	previewUrl: string;
-	status: "uploading" | "done" | "error";
-}
-
-function usePendingAttachments(agentClient: AgentClient, sessionId: string) {
-	const [items, setItems] = useState<PendingAttachment[]>([]);
-
-	const patch = (localId: string, next: Partial<PendingAttachment>) =>
-		setItems((prev) =>
-			prev.map((it) => (it.localId === localId ? { ...it, ...next } : it))
-		);
-
-	const addFiles = (files: File[]) => {
-		for (const file of files) {
-			const localId = crypto.randomUUID();
-			const item: PendingAttachment = {
-				localId,
-				previewUrl: URL.createObjectURL(file),
-				name: file.name,
-				mime: file.type,
-				status: "uploading",
-			};
-			setItems((prev) => [...prev, item]);
-			agentClient
-				.uploadAttachment(sessionId, file)
-				.then((res) => patch(localId, { status: "done", attachmentId: res.id }))
-				.catch(() => patch(localId, { status: "error" }));
-		}
-	};
-
-	const remove = (localId: string) =>
-		setItems((prev) => {
-			const target = prev.find((it) => it.localId === localId);
-			if (target) {
-				URL.revokeObjectURL(target.previewUrl);
-			}
-			return prev.filter((it) => it.localId !== localId);
-		});
-
-	const clear = () =>
-		setItems((prev) => {
-			for (const it of prev) {
-				URL.revokeObjectURL(it.previewUrl);
-			}
-			return [];
-		});
-
-	return { items, addFiles, remove, clear };
-}
-
-/** The attachments ready to send (uploaded successfully). */
-function readyAttachments(items: PendingAttachment[]): AttachmentRef[] {
-	const ready: AttachmentRef[] = [];
-	for (const it of items) {
-		if (it.status === "done" && it.attachmentId) {
-			ready.push({
-				attachmentId: it.attachmentId,
-				mime: it.mime,
-				name: it.name,
-			});
-		}
-	}
-	return ready;
-}
-
-function Chip({
-	item,
-	onRemove,
+function GenuiToggle({
+	active,
+	onToggle,
 }: {
-	item: PendingAttachment;
-	onRemove: (localId: string) => void;
+	active: boolean;
+	onToggle: () => void;
 }) {
 	return (
-		<div className="relative">
-			<img
-				alt={item.name}
-				className="size-14 rounded-md border object-cover"
-				height={56}
-				src={item.previewUrl}
-				width={56}
-			/>
-			{item.status === "uploading" ? (
-				<div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/40">
-					<Loader2Icon className="size-4 animate-spin text-white" />
-				</div>
-			) : null}
-			{item.status === "error" ? (
-				<div className="absolute inset-0 rounded-md ring-2 ring-destructive" />
-			) : null}
-			<button
-				aria-label={`Remove ${item.name}`}
-				className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full border bg-background text-muted-foreground hover:text-foreground"
-				onClick={() => onRemove(item.localId)}
-				type="button"
-			>
-				<XIcon className="size-3" />
-			</button>
-		</div>
-	);
-}
-
-function ChipRow({
-	items,
-	onRemove,
-}: {
-	items: PendingAttachment[];
-	onRemove: (localId: string) => void;
-}) {
-	if (items.length === 0) {
-		return null;
-	}
-	return (
-		<div className="flex flex-wrap gap-2 px-1 pb-2">
-			{items.map((it) => (
-				<Chip item={it} key={it.localId} onRemove={onRemove} />
-			))}
-		</div>
+		<Button
+			aria-label="Toggle generative UI"
+			aria-pressed={active}
+			className={active ? "text-primary" : "text-muted-foreground"}
+			onClick={onToggle}
+			size="icon"
+			title="Generative UI: agent replies render as interactive UI"
+			type="button"
+			variant="ghost"
+		>
+			<SparklesIcon className="size-4" />
+		</Button>
 	);
 }
 
@@ -167,28 +69,63 @@ function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) {
 	);
 }
 
+function ComposerToolbar({
+	onFiles,
+	genuiActive,
+	genuiAvailable,
+	onToggleGenui,
+	onStop,
+	streaming,
+}: {
+	genuiActive?: boolean;
+	genuiAvailable?: boolean;
+	onFiles: (files: File[]) => void;
+	onStop: () => void;
+	onToggleGenui?: () => void;
+	streaming: boolean;
+}) {
+	return (
+		<PromptInputToolbar>
+			<AttachButton onFiles={onFiles} />
+			{genuiAvailable && onToggleGenui ? (
+				<GenuiToggle active={genuiActive === true} onToggle={onToggleGenui} />
+			) : null}
+			<PromptInputSubmit
+				onStop={onStop}
+				status={streaming ? "streaming" : "idle"}
+			/>
+		</PromptInputToolbar>
+	);
+}
+
 interface ChatComposerProps {
 	agentClient: AgentClient;
+	genuiActive?: boolean;
+	genuiAvailable?: boolean;
 	onSend: (text: string, attachments: AttachmentRef[]) => void;
 	onStop: () => void;
+	onToggleGenui?: () => void;
 	sessionId: string;
 	streaming: boolean;
 }
 
-export function ChatComposer({
-	streaming,
-	onSend,
-	onStop,
+function useComposerState({
 	agentClient,
 	sessionId,
-}: ChatComposerProps) {
+	streaming,
+	onSend,
+}: {
+	agentClient: AgentClient;
+	onSend: (text: string, attachments: AttachmentRef[]) => void;
+	sessionId: string;
+	streaming: boolean;
+}) {
 	const [text, setText] = useState("");
 	const { items, addFiles, remove, clear } = usePendingAttachments(
 		agentClient,
 		sessionId
 	);
 	const uploading = items.some((it) => it.status === "uploading");
-
 	const submit = () => {
 		const trimmed = text.trim();
 		const ready = readyAttachments(items);
@@ -199,6 +136,25 @@ export function ChatComposer({
 		setText("");
 		clear();
 	};
+	return { text, setText, items, addFiles, remove, submit };
+}
+
+export function ChatComposer({
+	streaming,
+	onSend,
+	onStop,
+	agentClient,
+	sessionId,
+	genuiActive,
+	genuiAvailable,
+	onToggleGenui,
+}: ChatComposerProps) {
+	const { text, setText, items, addFiles, remove, submit } = useComposerState({
+		agentClient,
+		sessionId,
+		streaming,
+		onSend,
+	});
 
 	return (
 		<div className="shrink-0 px-3 pb-4 sm:px-4">
@@ -215,13 +171,14 @@ export function ChatComposer({
 						placeholder="Send a message…"
 						value={text}
 					/>
-					<PromptInputToolbar>
-						<AttachButton onFiles={addFiles} />
-						<PromptInputSubmit
-							onStop={onStop}
-							status={streaming ? "streaming" : "idle"}
-						/>
-					</PromptInputToolbar>
+					<ComposerToolbar
+						genuiActive={genuiActive}
+						genuiAvailable={genuiAvailable}
+						onFiles={addFiles}
+						onStop={onStop}
+						onToggleGenui={onToggleGenui}
+						streaming={streaming}
+					/>
 				</PromptInput>
 			</div>
 		</div>
