@@ -1,6 +1,5 @@
 import { type Context, Hono, type Next } from "hono";
 import { z } from "zod";
-import { ADMIN_PAGE } from "./admin-page";
 import { adminLogin, isValidAdminToken } from "./auth";
 import { createDb, type Db } from "./db";
 import {
@@ -133,7 +132,6 @@ function adminGuard(env: Env) {
 function buildApp(env: Env): Hono {
 	const db = createDb(env.AUTHZ_DATABASE_URL);
 	const app = new Hono();
-	app.get("/", (c) => c.html(ADMIN_PAGE));
 	registerServiceRoutes(app, db, env);
 	registerAdminRoutes(app, db, env);
 	return app;

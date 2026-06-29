@@ -13,3 +13,9 @@ NODE_ENV = "production"
 [[services]]
 binding = "MAIN"
 service = "better-agent-server"
+
+# SPA via static assets; worker handles API paths first.
+[assets]
+directory = "./app/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/admin/*", "/service/*"]
