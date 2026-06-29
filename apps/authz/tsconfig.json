@@ -7,5 +7,7 @@
       "@/*": ["./src/*"]
     },
     "strictNullChecks": true
-  }
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "./tsconfig.app.json" }]
 }

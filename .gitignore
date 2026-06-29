@@ -7,9 +7,12 @@ node_modules
 dist
 build
 *.tsbuildinfo
+.tsbuild
 
 # Generated files
 apps/web/src/routeTree.gen.ts
+apps/authz/app/routeTree.gen.ts
+apps/authz/app/dist
 
 # Environment variables
 .env

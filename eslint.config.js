@@ -9,6 +9,7 @@ export default [
 			"**/.turbo/**",
 			"**/*.config.{js,ts}",
 			"**/routeTree.gen.ts",
+			"apps/authz/app/**",
 		],
 	},
 	{

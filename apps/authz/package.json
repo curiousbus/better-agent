@@ -5,22 +5,39 @@
   "scripts": {
     "check-types": "tsc -b",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@better-agent/agent": "workspace:*",
-    "@neondatabase/serverless": "^1.1.0",
-    "drizzle-orm": "^0.45.1",
+    "@better-agent/ui": "workspace:*",
+    "@neondatabase/serverless": "1.1.0",
+    "@tanstack/react-query": "5.101.0",
+    "@tanstack/react-router": "1.170.15",
+    "drizzle-orm": "0.45.1",
     "hono": "catalog:",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@better-agent/config": "workspace:*",
-    "@cloudflare/workers-types": "^4.20260625.1",
+    "@cloudflare/workers-types": "4.20260625.1",
+    "@tailwindcss/vite": "4.3.1",
+    "@tanstack/router-plugin": "1.168.18",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "6.0.2",
     "dotenv": "catalog:",
-    "drizzle-kit": "^0.31.8",
-    "tsx": "^4.19.2",
-    "typescript": "catalog:"
+    "drizzle-kit": "0.31.8",
+    "tailwindcss": "4.3.1",
+    "tsx": "4.19.2",
+    "typescript": "catalog:",
+    "vite": "8.0.16",
+    "vitest": "4.1.9"
   }
 }
