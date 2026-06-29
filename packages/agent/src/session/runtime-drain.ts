@@ -4,6 +4,7 @@ import type { ToolDef } from "../tool/types";
 import { classifyError } from "./error-classify";
 import type { RunEvent } from "./events";
 import type { PartBuf } from "./part-buffer";
+import { completePartialJson } from "./partial-json";
 import type { StreamOutcome } from "./retry-helpers";
 import { mapFinishReason, mapUsage } from "./stream-mapping";
 import { STRUCTURED_OUTPUT_TOOL_NAME } from "./structured-output";
@@ -88,13 +89,53 @@ interface DrainBufs {
 	text: PartBuf;
 }
 
+interface StructuredBuf {
+	callId: string | null;
+	text: string;
+}
+
+function trackStructuredStart(
+	chunk: { type: string; toolCallId?: string; toolName?: string },
+	buf: StructuredBuf
+): void {
+	if (
+		chunk.type === "tool-input-start" &&
+		chunk.toolName === STRUCTURED_OUTPUT_TOOL_NAME
+	) {
+		buf.callId = chunk.toolCallId ?? null;
+	}
+}
+
+function structuredDelta(
+	chunk: { type: string; toolCallId?: string; inputTextDelta?: string },
+	buf: StructuredBuf
+): { type: "structured-delta"; partial: unknown } | null {
+	if (
+		chunk.type !== "tool-input-delta" ||
+		buf.callId === null ||
+		chunk.toolCallId !== buf.callId
+	) {
+		return null;
+	}
+	buf.text += chunk.inputTextDelta ?? "";
+	const partial = completePartialJson(buf.text);
+	return partial === undefined ? null : { type: "structured-delta", partial };
+}
+
 export async function* drainStream(
 	result: ReturnType<typeof streamText>,
 	bufs: DrainBufs,
 	state: StreamOutcome,
 	ctx: DrainCtx
 ): AsyncGenerator<RunEvent, void> {
+	const structured: StructuredBuf = { callId: null, text: "" };
 	for await (const chunk of result.fullStream) {
+		trackStructuredStart(chunk as never, structured);
+		const delta = structuredDelta(chunk as never, structured);
+		if (delta) {
+			yield delta;
+			continue;
+		}
 		if (chunk.type === "text-delta") {
 			state.emittedOutput = true;
 			await bufs.text.append(chunk.text);
