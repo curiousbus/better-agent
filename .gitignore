@@ -10,7 +10,8 @@ build
 .tsbuild
 
 # Generated files
-apps/web/src/routeTree.gen.ts
+# NOTE: web/admin commit their routeTree.gen.ts (CI type-checks them without a
+# build step). authz's is generated at build and not type-checked in CI yet.
 apps/authz/app/routeTree.gen.ts
 apps/authz/app/dist
 
