@@ -4,6 +4,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 
 import { downscaleImage } from "./downscale";
+import { streamPromptWithTools } from "./tool-stream";
 
 import type {
 	AgentClient,
@@ -70,18 +71,6 @@ export async function dispatchToolCall(
 	}
 }
 
-function stripToolDefs(tools: ClientToolDef[]): {
-	name: string;
-	description: string;
-	parameters: Record<string, unknown>;
-}[] {
-	return tools.map(({ name, description, parameters }) => ({
-		name,
-		description,
-		parameters,
-	}));
-}
-
 async function runWithTools(
 	client: Client,
 	stream: AgentClient["stream"],
@@ -114,36 +103,13 @@ async function* streamTurn(
 	text: string,
 	options: RunOptions | undefined
 ): AsyncGenerator<RunEvent> {
-	const toolDefs = options?.tools ? stripToolDefs(options.tools) : undefined;
-	const events = await client.sessions.prompt(
-		{
-			sessionId,
-			text,
-			tools: toolDefs,
-			outputSchema: options?.outputSchema,
-			attachmentIds: options?.attachmentIds,
-		},
-		{ signal: options?.signal }
-	);
-	const dispatches: Promise<void>[] = [];
-	for await (const event of events) {
-		yield event;
-		if (event.type === "tool-call" && options?.tools) {
-			const tools = options.tools;
-			const dispatch = dispatchToolCall(tools, event, (r) =>
-				client.sessions
-					.submitToolResult({
-						sessionId,
-						callId: r.callId,
-						result: r.result,
-						isError: r.isError,
-					})
-					.then(() => undefined)
-			);
-			dispatches.push(dispatch);
-		}
-	}
-	await Promise.all(dispatches);
+	yield* streamPromptWithTools({
+		sessionId,
+		text,
+		options,
+		prompt: (input, opts) => client.sessions.prompt(input, opts),
+		submit: (input) => client.sessions.submitToolResult(input),
+	});
 }
 
 /** Build the SDK from an existing oRPC client (eases testing/injection). */
@@ -221,18 +187,13 @@ export function createUserSessionClientFrom(
 		},
 		async *stream(text, options) {
 			const sessionId = await ensureSession(options?.sessionId);
-			const events = await client.userSessions.prompt(
-				{
-					sessionId,
-					text,
-					outputSchema: options?.outputSchema,
-					attachmentIds: options?.attachmentIds,
-				},
-				{ signal: options?.signal }
-			);
-			for await (const event of events) {
-				yield event;
-			}
+			yield* streamPromptWithTools({
+				sessionId,
+				text,
+				options,
+				prompt: (input, opts) => client.userSessions.prompt(input, opts),
+				submit: (input) => client.userSessions.submitToolResult(input),
+			});
 		},
 		listMessages(sessionId) {
 			return client.userSessions.listMessages({ sessionId });
