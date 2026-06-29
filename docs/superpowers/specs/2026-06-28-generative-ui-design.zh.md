@@ -195,10 +195,62 @@ schema 一身兼任契约**和**给模型的说明书 —— 不需要单独的�
 - **不可信输出** —— 经工具参数的结构化输出受 schema 约束、通常合法，但客户端仍把树当不可信处理：不 `eval`、限制树深度/大小、渲染前清洗字符串 prop。
 - **action 没有注册 handler**（`target:"client"`）→ log + 空操作，开发态可见。
 
+## 前端集成（apps/web —— 第一个消费者）
+
+apps/web 是第一个消费者，也是测试载体。它承载一个**独立的生成式 UI playground 路由**（S1），让能力在隔离环境里端到端跑通；渲染器做成可复用组件，将来能直接搬进聊天（S2 的演进路径）。
+
+已核实的 apps/web 事实（让集成贴合现有模式）：
+- TanStack 文件路由（`createFileRoute`），如 `apps/web/src/routes/index.tsx`。
+- `apps/web/src/utils/chat-client.ts` → `userAgentClient(agentId)` = `createUserSessionClientFrom(client, agentId)`。
+- agent/session 走 React Query + `orpc`（`orpc.agents.list`、`orpc.userSessions`）。现有聊天用 `@better-agent/ui` 的 `<Conversation>` 渲染。
+
+### 载体
+
+- 路由 `apps/web/src/routes/genui.tsx`（在正常 web 鉴权后面）。选一个 demo agent（复用 agent grid，或一个固定配置的 agent），用 `userAgentClient(agentId)` 拿到 client，渲染 `<GenerativeUIView>`。
+- `<GenerativeUIView>`：一个 prompt 框 + 实时渲染区。提交时调 `agentClient.stream(text, { sessionId, outputSchema: ui.outputSchema, tools })`，把 `structured-delta` partial（之后是最终 `structured`）喂给 renderer。
+
+### 客户端定义的组件库（apps/web 拥有）
+
+放在 `apps/web/src/genui/`：
+- `library.tsx` —— `ComponentDef` 清单（type、description、props Zod、children、actions）**以及**每个 type 的 React 渲染实现。起步集（~12 个，有代表性又在 L3 阈值内）：`Stack`、`Card`、`Heading`、`Text`、`Badge`、`Stat`、`Image`、`List`、`Table`、`Button`、`Form`、`TextField`、`Select`。覆盖容器（children）、叶子、typed props、action 四种情况。
+- `tools.ts` —— mock 数据工具（`ClientToolDef[]`）：如 `listTasks`、`getStats`、`searchItems`，返回内存数据，让 agent 先取数再渲染。可控、可复现；以后换真数据。
+- `handlers.ts` —— `target:"client"` intent 的本地 handler。
+
+`const ui = defineComponents(manifest)` 给出 `ui.outputSchema`（喂模型）和 `ui.components`（喂 renderer）。
+
+### 渲染器（@better-agent/ui，通用 + 可复用）
+
+`packages/ui/src/components/genui/generative-ui.tsx`：
+
+```ts
+interface GenerativeUIProps {
+  tree: unknown                                              // 流式中是 partial，结束后是最终
+  renderers: Record<string, React.ComponentType<NodeProps>> // type → 组件
+  onAction: (action: { intent: string; target: "agent" | "client"; payload?: Json }) => void
+}
+```
+
+职责：遍历树，按 `id` 给节点做 key，渲染已完成节点，末尾未完成节点显示为 skeleton（commit-on-complete），未知 `type` 回退，deep-partial 容错，尊重 `prefers-reduced-motion`。apps/web 提供 `renderers`（来自 `library.tsx`）和 `onAction`。
+
+### Action 接线（A2）
+
+`<GenerativeUIView>` 的 `onAction`：
+- `target:"client"` → 本地跑 `handlers[intent](payload)`。
+- `target:"agent"` → `agentClient.stream("[ui-event] intent=… payload=…", { sessionId, outputSchema, tools })` → 重渲染。
+
+### Demo agent
+
+在 admin 里配一个"Generative UI Demo" agent，系统提示让它先用数据工具取数、再用注册的组件组装成 UI 树、通过 `StructuredOutput` 返回。（没有逐轮系统提示通道；派生出的 `outputSchema` 已经强制产树 —— 提示只是提升选型质量。）
+
+### 外部消费者
+
+SDK（`@curiousbus/agent-client`）保持框架无关：它出 `defineComponents` + partial 流 + `validate`。React 渲染器放在 `@better-agent/ui`（内部）。外部 SDK 消费者自己写渲染器（或将来发布一个 React 渲染器包）。
+
 ## 包边界
 
 - `@curiousbus/agent-client`（框架无关 SDK）：`defineComponents`、schema 派生、`validate`、partial 流转发、action 路由 helper。不含 React。
-- `@better-agent/ui`（React）：消费 `ui.components` + partial/最终树的 renderer，含 skeleton/commit-on-complete 和 action dispatch 接线。
+- `@better-agent/ui`（React）：通用 `<GenerativeUI>` 渲染器，消费 `renderers` + partial/最终树，含 skeleton/commit-on-complete、未知类型回退、`onAction` dispatch。
+- `apps/web`（第一个消费者）：`genui/` 组件库（清单 + 渲染实现）、mock 数据工具、本地 action handler、`/genui` 路由、`<GenerativeUIView>`（流式 + partial + action 接线）。
 - `packages/agent`：`structured-delta` 事件 + `drainStream` 分支 + partial-JSON 解析 + 节流。缓存断点已存在；增加确定性 schema 序列化。
 
 ## 测试策略
@@ -210,6 +262,7 @@ schema 一身兼任契约**和**给模型的说明书 —— 不需要单独的�
 - **Partial 解析**：未终结的 string/array/object buffer 解析成预期的 best-available 值；末尾未完成元素被丢弃。
 - **Action 路由**：`target:"client"` 调用本地 handler；`target:"agent"` 用模板事件消息开启后续一轮。
 - **Renderer**：未知 `type` → 回退；partial 更新间 key 稳定；末尾未完成节点先 skeleton 后 commit。
+- **Web 冒烟（apps/web）**：`/genui` 路由能挂载；提交 prompt 后流式出一棵树、用起步组件库渲染出来；`Button`/`Form` 的 action 触发其 handler（client）或后续一轮（agent）。
 
 ## 分阶段
 
@@ -217,11 +270,12 @@ schema 一身兼任契约**和**给模型的说明书 —— 不需要单独的�
 - `ComponentDef` / `UINode` 契约 + `defineComponents` schema 派生。
 - `outputSchema` + 客户端工具数据闭环（已支持；接上 UI 路径）。
 - Action 路由（A2：本地/语义）。
-- 带未知类型回退的 React renderer。
+- 通用 `<GenerativeUI>` 渲染器（`@better-agent/ui`），带未知类型回退。
+- **apps/web playground**：`genui/` 组件库（~12 个）+ mock 数据工具 + 本地 handler + `/genui` 路由 + `<GenerativeUIView>` + 一个 demo agent。这就是可测载体。
 - L1 缓存（确定性序列化 + 验证）+ L2 瘦身。
 
 **第 1.5 阶段（同一波工作，高价值）：**
-- 组件级流式：`structured-delta` 事件 + `drainStream` 分支 + partial 解析 + 节流 + skeleton/commit-on-complete renderer。
+- 组件级流式：`structured-delta` 事件 + `drainStream` 分支 + partial 解析 + 节流 + skeleton/commit-on-complete renderer + playground 消费 partial。
 
 **第二阶段（推迟 / 待定）：**
 - L3 progressive disclosure（两阶段输出 schema 收窄）针对超大库。
@@ -231,6 +285,7 @@ schema 一身兼任契约**和**给模型的说明书 —— 不需要单独的�
 ## 已敲定的决定
 
 - **用途：** 客户端定义、可插拔的组件库（多租户）。
+- **第一个消费者 / 测试载体：** apps/web，一个独立的 `/genui` playground 路由（S1），渲染器做成可复用、以后能搬进聊天。
 - **机制：** A —— 组件清单 → SDK 派生 schema（一处真源；描述嵌进 schema）。
 - **交互：** A2 —— action 声明 `target: "agent" | "client"`；本地留本地，语义才往返。
 - **流式：** 流式解析 `StructuredOutput` 工具的 input-arg 增量（不用 `streamObject`）；新增 `structured-delta` 事件；commit-on-complete renderer。

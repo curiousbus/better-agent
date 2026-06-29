@@ -272,14 +272,98 @@ In `drainStream` (`runtime-drain.ts`):
 - **Action with no registered handler** (`target:"client"`) → log + no-op,
   surfaced in dev.
 
+## Frontend integration (apps/web — first consumer)
+
+apps/web is the first consumer and the test surface. It hosts a **dedicated
+generative-UI playground route** (S1) so the capability is exercised end-to-end
+in isolation, with the renderer built as a reusable component that can later
+drop into chat (S2 graduation path).
+
+Verified apps/web facts (so the integration matches existing patterns):
+- TanStack file routes (`createFileRoute`), e.g. `apps/web/src/routes/index.tsx`.
+- `apps/web/src/utils/chat-client.ts` → `userAgentClient(agentId)` =
+  `createUserSessionClientFrom(client, agentId)`.
+- Agents/sessions via React Query + `orpc` (`orpc.agents.list`,
+  `orpc.userSessions`). The existing chat renders `<Conversation>` from
+  `@better-agent/ui`.
+
+### Surface
+
+- Route `apps/web/src/routes/genui.tsx` (behind the normal web auth). Pick a
+  demo agent (reuse the agent grid, or a fixed configured agent), get a client
+  via `userAgentClient(agentId)`, render `<GenerativeUIView>`.
+- `<GenerativeUIView>`: a prompt box + a live render area. On submit it calls
+  `agentClient.stream(text, { sessionId, outputSchema: ui.outputSchema, tools })`
+  and feeds `structured-delta` partials (then the final `structured`) into the
+  renderer.
+
+### The client-defined component library (apps/web owns this)
+
+Co-located in `apps/web/src/genui/`:
+- `library.tsx` — the manifest of `ComponentDef`s (type, description, props Zod,
+  children, actions) **and** the React render implementation per type. Starter
+  set (~12, representative yet under the L3 threshold): `Stack`, `Card`,
+  `Heading`, `Text`, `Badge`, `Stat`, `Image`, `List`, `Table`, `Button`,
+  `Form`, `TextField`, `Select`. Covers containers (children), leaves, typed
+  props, and actions.
+- `tools.ts` — mock data tools (`ClientToolDef[]`): e.g. `listTasks`,
+  `getStats`, `searchItems` returning in-memory data, so the agent fetches then
+  renders. Controllable and reproducible; swap for real data later.
+- `handlers.ts` — local action handlers for `target:"client"` intents.
+
+`const ui = defineComponents(manifest)` yields `ui.outputSchema` (to the model)
+and `ui.components` (to the renderer).
+
+### The renderer (@better-agent/ui, generic + reusable)
+
+`packages/ui/src/components/genui/generative-ui.tsx`:
+
+```ts
+interface GenerativeUIProps {
+  tree: unknown                                              // partial during stream, final after
+  renderers: Record<string, React.ComponentType<NodeProps>> // type → component
+  onAction: (action: { intent: string; target: "agent" | "client"; payload?: Json }) => void
+}
+```
+
+Responsibilities: walk the tree, key nodes by `id`, render completed nodes,
+show the trailing incomplete node as a skeleton (commit-on-complete), fall back
+for unknown `type`, stay deep-partial tolerant, honor `prefers-reduced-motion`.
+apps/web supplies `renderers` (from `library.tsx`) and `onAction`.
+
+### Action wiring (A2)
+
+`<GenerativeUIView>`'s `onAction`:
+- `target:"client"` → run `handlers[intent](payload)` locally.
+- `target:"agent"` → `agentClient.stream("[ui-event] intent=… payload=…",
+  { sessionId, outputSchema, tools })` → re-render.
+
+### Demo agent
+
+Configure a "Generative UI Demo" agent in admin with a system prompt telling it
+to fetch via the data tools first, then compose the registered components into a
+UI tree via `StructuredOutput`. (There is no per-turn system-prompt channel; the
+derived `outputSchema` already forces the tree — the prompt only improves
+selection quality.)
+
+### External consumers
+
+The SDK (`@curiousbus/agent-client`) stays framework-agnostic: it ships
+`defineComponents` + partial-stream + `validate`. The React renderer lives in
+`@better-agent/ui` (internal). External SDK consumers write their own renderer
+(or a future published React-renderer package).
+
 ## Package boundaries
 
 - `@curiousbus/agent-client` (framework-agnostic SDK): `defineComponents`,
   schema derivation, `validate`, partial-stream forwarding, action routing
   helper. No React.
-- `@better-agent/ui` (React): the renderer that consumes `ui.components` +
-  partial/final trees, including skeleton/commit-on-complete and the action
-  dispatch wiring.
+- `@better-agent/ui` (React): the generic `<GenerativeUI>` renderer that
+  consumes `renderers` + partial/final trees, including skeleton/commit-on-
+  complete, unknown-type fallback, and `onAction` dispatch.
+- `apps/web` (first consumer): the `genui/` library (manifest + render impls),
+  mock data tools, local action handlers, the `/genui` route, and
+  `<GenerativeUIView>` (stream + partial + action wiring).
 - `packages/agent`: the `structured-delta` event + `drainStream` branch +
   partial-JSON parse + throttle. The cache breakpoint already exists; add
   deterministic schema serialization.
@@ -302,6 +386,9 @@ In `drainStream` (`runtime-drain.ts`):
   `target:"agent"` opens a follow-up turn with the templated event message.
 - **Renderer**: unknown `type` → fallback; stable keys across partial updates;
   trailing incomplete node renders as skeleton then commits.
+- **Web smoke (apps/web)**: the `/genui` route mounts; submitting a prompt
+  streams a tree that renders with the starter library; a `Button`/`Form`
+  action fires its handler (client) or a follow-up turn (agent).
 
 ## Phasing
 
@@ -309,12 +396,17 @@ In `drainStream` (`runtime-drain.ts`):
 - `ComponentDef` / `UINode` contracts + `defineComponents` schema derivation.
 - `outputSchema` + client-tools data loop (already supported; wire the UI path).
 - Action routing (A2: local/semantic).
-- React renderer with unknown-type fallback.
+- Generic `<GenerativeUI>` renderer (`@better-agent/ui`) with unknown-type
+  fallback.
+- **apps/web playground**: `genui/` library (~12 components) + mock data tools +
+  local handlers + `/genui` route + `<GenerativeUIView>` + a demo agent. This is
+  the testable surface.
 - L1 caching (deterministic serialization + verify) + L2 minification.
 
 **Phase 1.5 (same effort, high value):**
 - Component-level streaming: `structured-delta` event + `drainStream` branch +
-  partial parse + throttle + skeleton/commit-on-complete renderer.
+  partial parse + throttle + skeleton/commit-on-complete renderer + the
+  playground consuming partials.
 
 **Phase 2 (deferred / 待定):**
 - L3 progressive disclosure (two-phase output-schema narrowing) for very large
@@ -325,6 +417,8 @@ In `drainStream` (`runtime-drain.ts`):
 ## Resolved decisions
 
 - **Use case:** client-defined, pluggable component library (multi-tenant).
+- **First consumer / test surface:** apps/web, a dedicated `/genui` playground
+  route (S1), with the renderer built reusable for a later move into chat.
 - **Mechanism:** A — component manifest → SDK-derived schema (one source of
   truth; descriptions embedded in the schema).
 - **Interaction:** A2 — actions declare `target: "agent" | "client"`; local
