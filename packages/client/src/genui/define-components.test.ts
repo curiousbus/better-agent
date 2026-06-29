@@ -20,30 +20,31 @@ interface SchemaBranch {
 	description: string;
 	properties: {
 		action?: { properties: { intent: { enum: string[] } } };
-		children?: { items: { $ref: string } };
+		children?: { items: { anyOf: SchemaBranch[] } };
 		type: { const: string };
 	};
 }
 
 interface DerivedSchema {
-	$defs: { UINode: { anyOf: SchemaBranch[] } };
-	properties: { root: { $ref: string } };
+	properties: { root: { anyOf: SchemaBranch[] } };
 	required: string[];
 	type: string;
 }
 
 describe("defineComponents", () => {
-	it("derives an object schema wrapping a recursive UINode union", () => {
+	it("derives a self-contained bounded-depth UINode union (no $ref)", () => {
 		const ui = defineComponents(DEFS);
 		const schema = ui.outputSchema as unknown as DerivedSchema;
 		expect(schema.type).toBe("object");
-		expect(schema.properties.root.$ref).toBe("#/$defs/UINode");
 		expect(schema.required).toContain("root");
-		const branches = schema.$defs.UINode.anyOf;
+		// No $ref/$defs — recursive refs are inlined so any provider accepts it.
+		expect(JSON.stringify(schema)).not.toContain("$ref");
+		const branches = schema.properties.root.anyOf;
 		expect(branches).toHaveLength(DEFS.length);
 		const card = branches.find((b) => b.properties.type.const === "Card");
 		expect(card?.description).toBe("A titled container.");
-		expect(card?.properties.children?.items.$ref).toBe("#/$defs/UINode");
+		// children inline the union again (one level deeper), not a $ref.
+		expect(card?.properties.children?.items.anyOf).toHaveLength(DEFS.length);
 		const button = branches.find((b) => b.properties.type.const === "Button");
 		expect(button?.properties.children).toBeUndefined();
 		expect(button?.properties.action?.properties.intent.enum).toEqual([

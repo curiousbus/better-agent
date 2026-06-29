@@ -2,7 +2,14 @@ import type { ComponentDef, GenerativeUI, UINode } from "./types";
 
 export type { ComponentDef, GenerativeUI, UIAction, UINode } from "./types";
 
-const NODE_REF = "#/$defs/UINode";
+// How deep the agent may nest container components. The node union is INLINED
+// to this depth rather than expressed with a recursive `$ref`/`$defs`, because
+// several model providers (notably Anthropic) reject `$ref` in tool input
+// schemas — a recursive schema makes the whole turn fail. Inlining keeps the
+// schema self-contained and provider-portable; the depth bounds its size.
+// Depth 2 (e.g. Card › Stack › leaves) suffices for the demo and keeps the
+// inlined schema small; raising it multiplies size by the container count.
+const MAX_DEPTH = 2;
 
 function actionSchema(actions: string[]): Record<string, unknown> {
 	return {
@@ -17,14 +24,18 @@ function actionSchema(actions: string[]): Record<string, unknown> {
 	};
 }
 
-function branchSchema(def: ComponentDef): Record<string, unknown> {
+function branchSchema(
+	def: ComponentDef,
+	defs: ComponentDef[],
+	depth: number
+): Record<string, unknown> {
 	const properties: Record<string, unknown> = {
 		id: { type: "string" },
 		type: { const: def.type },
 		props: def.props,
 	};
-	if (def.children) {
-		properties.children = { type: "array", items: { $ref: NODE_REF } };
+	if (def.children && depth > 0) {
+		properties.children = { type: "array", items: nodeSchema(defs, depth - 1) };
 	}
 	if (def.actions && def.actions.length > 0) {
 		properties.action = actionSchema(def.actions);
@@ -38,13 +49,20 @@ function branchSchema(def: ComponentDef): Record<string, unknown> {
 	};
 }
 
+// A UINode at a given remaining depth: the union of every component branch.
+function nodeSchema(
+	defs: ComponentDef[],
+	depth: number
+): Record<string, unknown> {
+	return { anyOf: defs.map((def) => branchSchema(def, defs, depth)) };
+}
+
 function buildSchema(defs: ComponentDef[]): Record<string, unknown> {
 	return {
 		type: "object",
-		properties: { root: { $ref: NODE_REF } },
+		properties: { root: nodeSchema(defs, MAX_DEPTH) },
 		required: ["root"],
 		additionalProperties: false,
-		$defs: { UINode: { anyOf: defs.map(branchSchema) } },
 	};
 }
 

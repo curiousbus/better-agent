@@ -4,7 +4,9 @@ import {
 	PromptInputSubmit,
 	PromptInputTextarea,
 	PromptInputToolbar,
+	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
+import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { ImagePlusIcon, SparklesIcon } from "lucide-react";
 import { useRef, useState } from "react";
@@ -26,16 +28,20 @@ function GenuiToggle({
 }) {
 	return (
 		<Button
-			aria-label="Toggle generative UI"
+			aria-label="Generative UI"
 			aria-pressed={active}
-			className={active ? "text-primary" : "text-muted-foreground"}
+			className={cn(
+				"gap-1.5",
+				active && "bg-primary/10 text-primary hover:bg-primary/15"
+			)}
 			onClick={onToggle}
-			size="icon"
+			size="sm"
 			title="Generative UI: agent replies render as interactive UI"
 			type="button"
 			variant="ghost"
 		>
 			<SparklesIcon className="size-4" />
+			<span className="text-xs">Generative UI</span>
 		</Button>
 	);
 }
@@ -86,10 +92,12 @@ function ComposerToolbar({
 }) {
 	return (
 		<PromptInputToolbar>
-			<AttachButton onFiles={onFiles} />
-			{genuiAvailable && onToggleGenui ? (
-				<GenuiToggle active={genuiActive === true} onToggle={onToggleGenui} />
-			) : null}
+			<PromptInputTools>
+				<AttachButton onFiles={onFiles} />
+				{genuiAvailable && onToggleGenui ? (
+					<GenuiToggle active={genuiActive === true} onToggle={onToggleGenui} />
+				) : null}
+			</PromptInputTools>
 			<PromptInputSubmit
 				onStop={onStop}
 				status={streaming ? "streaming" : "idle"}
