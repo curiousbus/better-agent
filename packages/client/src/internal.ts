@@ -3,6 +3,8 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 
+import { downscaleImage } from "./downscale";
+
 import type {
 	AgentClient,
 	AgentClientConfig,
@@ -26,8 +28,8 @@ function attachmentMethods(
 	api: AttachmentApi
 ): Pick<AgentClient, "getAttachment" | "uploadAttachment"> {
 	return {
-		uploadAttachment: (sessionId, file) =>
-			api.uploadAttachment({ sessionId, file }),
+		uploadAttachment: async (sessionId, file) =>
+			api.uploadAttachment({ sessionId, file: await downscaleImage(file) }),
 		getAttachment: (id) => api.getAttachment({ id }),
 	};
 }
