@@ -37,6 +37,7 @@ async function collect(items: unknown[]) {
 }
 
 it("surfaces growing structured-delta partials for StructuredOutput", async () => {
+	// Each delta chunk is >=24 chars so the MIN_DELTA_GROWTH gate passes once per chunk.
 	const events = await collect([
 		{
 			type: "tool-input-start",
@@ -46,17 +47,20 @@ it("surfaces growing structured-delta partials for StructuredOutput", async () =
 		{
 			type: "tool-input-delta",
 			toolCallId: "c1",
-			inputTextDelta: '{"root":{"id":"x"',
+			inputTextDelta: '{"root":{"id":"node-1","type"',
 		},
 		{
 			type: "tool-input-delta",
 			toolCallId: "c1",
-			inputTextDelta: ',"type":"Card"}}',
+			inputTextDelta: ':"Card","label":"Hello"}}',
 		},
 	]);
 	const deltas = events.filter((e) => e.type === "structured-delta");
+	// Two chunks, each >=24 chars — both cross the gate and produce a partial.
 	expect(deltas).toHaveLength(2);
-	expect(deltas[1]?.partial).toEqual({ root: { id: "x", type: "Card" } });
+	expect(deltas[1]?.partial).toEqual({
+		root: { id: "node-1", type: "Card", label: "Hello" },
+	});
 });
 
 it("ignores tool-input deltas from other tools", async () => {

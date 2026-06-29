@@ -9,13 +9,18 @@ export interface NodeProps {
 }
 
 interface NodeViewProps {
+	depth?: number;
 	onAction: (action: UIAction) => void;
 	renderers: Record<string, ComponentType<NodeProps>>;
 	value: unknown;
 }
 
+const MAX_TREE_DEPTH = 32;
+
 function Skeleton() {
-	return <div className="h-6 w-32 animate-pulse rounded bg-muted" />;
+	return (
+		<div className="h-6 w-32 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+	);
 }
 
 function Unknown({ type }: { type: string }) {
@@ -26,7 +31,15 @@ function Unknown({ type }: { type: string }) {
 	);
 }
 
-export function NodeView({ value, renderers, onAction }: NodeViewProps) {
+export function NodeView({
+	value,
+	renderers,
+	onAction,
+	depth = 0,
+}: NodeViewProps) {
+	if (depth >= MAX_TREE_DEPTH) {
+		return null;
+	}
 	if (!nodeComplete(value)) {
 		return <Skeleton />;
 	}
@@ -38,6 +51,7 @@ export function NodeView({ value, renderers, onAction }: NodeViewProps) {
 	const renderChildren = (children?: UINode[]): ReactNode =>
 		(children ?? []).map((child) => (
 			<NodeView
+				depth={depth + 1}
 				key={child.id}
 				onAction={onAction}
 				renderers={renderers}

@@ -89,8 +89,11 @@ interface DrainBufs {
 	text: PartBuf;
 }
 
+const MIN_DELTA_GROWTH = 24;
+
 interface StructuredBuf {
 	callId: string | null;
+	emittedLen: number;
 	text: string;
 }
 
@@ -118,8 +121,15 @@ function structuredDelta(
 		return null;
 	}
 	buf.text += chunk.inputTextDelta ?? "";
+	if (buf.text.length - buf.emittedLen < MIN_DELTA_GROWTH) {
+		return null;
+	}
 	const partial = completePartialJson(buf.text);
-	return partial === undefined ? null : { type: "structured-delta", partial };
+	if (partial === undefined) {
+		return null;
+	}
+	buf.emittedLen = buf.text.length;
+	return { type: "structured-delta", partial };
 }
 
 export async function* drainStream(
@@ -128,7 +138,7 @@ export async function* drainStream(
 	state: StreamOutcome,
 	ctx: DrainCtx
 ): AsyncGenerator<RunEvent, void> {
-	const structured: StructuredBuf = { callId: null, text: "" };
+	const structured: StructuredBuf = { callId: null, emittedLen: 0, text: "" };
 	for await (const chunk of result.fullStream) {
 		trackStructuredStart(chunk as never, structured);
 		const delta = structuredDelta(chunk as never, structured);
