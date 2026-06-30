@@ -12,6 +12,12 @@ import {
 	nextPosition,
 } from "./board-store";
 
+interface HandlerCtx {
+	agentClient: AgentClient;
+	sessionId: string;
+	store: BoardStore;
+}
+
 function resolveDestStatus(
 	store: BoardStore,
 	overId: string
@@ -67,44 +73,56 @@ function applyDragEnd(
 		});
 }
 
+// TODO (Task 10): thread active sprint id via ctx and pass sprintId to createTask
+function applyCreate(
+	ctx: HandlerCtx,
+	status: BoardStatus,
+	title: string
+): void {
+	if (title.trim() === "") {
+		return;
+	}
+	const { store, agentClient, sessionId } = ctx;
+	const trimmed = title.trim();
+	const tempId = `temp-${crypto.randomUUID()}`;
+	const groups = groupByColumn(store.getSnapshot());
+	store.addLocal({
+		id: tempId,
+		title: trimmed,
+		description: "",
+		status,
+		position: nextPosition(groups[status]),
+		seq: 0,
+		sprintId: null,
+	});
+	agentClient
+		.runTool(sessionId, "createTask", { title: trimmed, status })
+		.then((result) => store.replaceLocal(tempId, parseTask(result)))
+		.catch(() => {
+			store.removeLocal(tempId);
+			toast.error("Could not create task.");
+		});
+}
+
 export function useBoardHandlers(
 	store: BoardStore,
 	agentClient: AgentClient,
 	sessionId: string
 ) {
+	const ctx: HandlerCtx = { store, agentClient, sessionId };
+
 	const onDragEnd = useCallback(
 		(event: DragEndEvent) => applyDragEnd(event, store, agentClient, sessionId),
 		[store, agentClient, sessionId]
 	);
 
 	const onCreate = useCallback(
-		(status: BoardStatus) => {
-			const tempId = `temp-${crypto.randomUUID()}`;
-			const groups = groupByColumn(store.getSnapshot());
-			store.addLocal({
-				id: tempId,
-				title: "New task",
-				description: "",
-				status,
-				position: nextPosition(groups[status]),
-				seq: 0,
-				sprintId: null,
-			});
-			agentClient
-				.runTool(sessionId, "createTask", { title: "New task", status })
-				.then((result) => store.replaceLocal(tempId, parseTask(result)))
-				.catch(() => {
-					store.removeLocal(tempId);
-					toast.error("Could not create task.");
-				});
-		},
-		[store, agentClient, sessionId]
+		(status: BoardStatus, title: string) => applyCreate(ctx, status, title),
+		[store, agentClient, sessionId] // ctx is derived from these three; safe to omit
 	);
 
 	const onDelete = useCallback(
 		(id: string) => {
-			// Keep the row so we can restore it if the server delete fails — never
-			// leave the board diverged from the server.
 			const previous = store.getSnapshot().find((t) => t.id === id);
 			store.removeLocal(id);
 			agentClient.runTool(sessionId, "deleteTask", { id }).catch(() => {

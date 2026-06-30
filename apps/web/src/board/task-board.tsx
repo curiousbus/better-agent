@@ -49,7 +49,7 @@ function useColumnLoader(
 
 interface BoardColumnsProps {
 	loaded: Set<BoardStatus>;
-	onCreate: (status: BoardStatus) => void;
+	onCreate: (status: BoardStatus, title: string) => void;
 	onDelete: (id: string) => void;
 	onOpenTask: (id: string) => void;
 	tasks: ReturnType<typeof groupByColumn>;

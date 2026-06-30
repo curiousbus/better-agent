@@ -1,11 +1,13 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import { Input } from "@better-agent/ui/components/input";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useDroppable } from "@dnd-kit/core";
 import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { type KeyboardEvent, useState } from "react";
 import type { BoardStatus, BoardTask } from "./board-store";
 import { TaskCard } from "./task-card";
 
@@ -40,9 +42,76 @@ function ColumnCards({ tasks, loaded, onOpen, onDelete }: CardListProps) {
 	));
 }
 
+interface ComposerProps {
+	onCancel: () => void;
+	onConfirm: (title: string) => void;
+}
+
+function ColumnComposer({ onConfirm, onCancel }: ComposerProps) {
+	const [value, setValue] = useState("");
+
+	const commit = () => {
+		const trimmed = value.trim();
+		if (trimmed) {
+			onConfirm(trimmed);
+			setValue("");
+		} else {
+			onCancel();
+		}
+	};
+
+	const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			commit();
+		} else if (e.key === "Escape") {
+			onCancel();
+		}
+	};
+
+	return (
+		<Input
+			autoFocus
+			onBlur={commit}
+			onChange={(e) => setValue(e.target.value)}
+			onKeyDown={handleKeyDown}
+			placeholder="Task title…"
+			value={value}
+		/>
+	);
+}
+
+interface ColumnFooterProps {
+	adding: boolean;
+	onCancel: () => void;
+	onConfirm: (title: string) => void;
+	onStartAdding: () => void;
+}
+
+function ColumnFooter({
+	adding,
+	onStartAdding,
+	onConfirm,
+	onCancel,
+}: ColumnFooterProps) {
+	if (adding) {
+		return <ColumnComposer onCancel={onCancel} onConfirm={onConfirm} />;
+	}
+	return (
+		<Button
+			className="w-full justify-start text-muted-foreground"
+			onClick={onStartAdding}
+			size="sm"
+			type="button"
+			variant="ghost"
+		>
+			+ Add
+		</Button>
+	);
+}
+
 interface TaskColumnProps extends CardListProps {
 	label: string;
-	onCreate: (status: BoardStatus) => void;
+	onCreate: (status: BoardStatus, title: string) => void;
 	status: BoardStatus;
 }
 
@@ -56,6 +125,8 @@ export function TaskColumn({
 	onCreate,
 }: TaskColumnProps) {
 	const { setNodeRef } = useDroppable({ id: status });
+	const [adding, setAdding] = useState(false);
+
 	return (
 		<div className="flex min-w-64 flex-1 flex-col gap-3 rounded-lg bg-muted/40 p-3">
 			<div className="flex items-center justify-between">
@@ -79,15 +150,14 @@ export function TaskColumn({
 					/>
 				</SortableContext>
 			</div>
-			<Button
-				className="w-full justify-start text-muted-foreground"
-				onClick={() => onCreate(status)}
-				size="sm"
-				type="button"
-				variant="ghost"
-			>
-				+ Add
-			</Button>
+			<ColumnFooter
+				adding={adding}
+				onCancel={() => setAdding(false)}
+				onConfirm={(title) => {
+					onCreate(status, title);
+				}}
+				onStartAdding={() => setAdding(true)}
+			/>
 		</div>
 	);
 }
