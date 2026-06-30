@@ -101,10 +101,16 @@ export function useBoardHandlers(
 
 	const onDelete = useCallback(
 		(id: string) => {
+			// Keep the row so we can restore it if the server delete fails — never
+			// leave the board diverged from the server.
+			const previous = store.getSnapshot().find((t) => t.id === id);
 			store.removeLocal(id);
-			agentClient
-				.runTool(sessionId, "deleteTask", { id })
-				.catch(() => toast.error("Failed to delete task."));
+			agentClient.runTool(sessionId, "deleteTask", { id }).catch(() => {
+				if (previous) {
+					store.addLocal(previous);
+				}
+				toast.error("Failed to delete task.");
+			});
 		},
 		[store, agentClient, sessionId]
 	);
