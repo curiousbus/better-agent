@@ -90,7 +90,7 @@ function LoginPage() {
 	};
 
 	return (
-		<div className="authz-enter flex min-h-screen items-center justify-center">
+		<div className="authz-enter flex min-h-screen items-center justify-center px-4">
 			<Card className="w-full max-w-sm">
 				<CardHeader>
 					<CardTitle>Sign in to authz</CardTitle>

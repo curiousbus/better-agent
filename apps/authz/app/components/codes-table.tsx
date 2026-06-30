@@ -19,6 +19,7 @@ import {
 } from "@better-agent/ui/components/table";
 import { useState } from "react";
 import type { Code } from "@/api";
+import { CodeCard } from "@/components/code-card";
 import { clampPage, filterCodes, pageCount, pageOf } from "@/lib/codes";
 
 function UsedCell({ code }: { code: Code }) {
@@ -138,8 +139,9 @@ function CodesToolbar({
 	onQuery: (q: string) => void;
 }) {
 	return (
-		<div className="mb-3">
+		<div className="mb-3 flex flex-wrap gap-2">
 			<Input
+				className="min-w-0 flex-1"
 				onChange={(e) => onQuery(e.target.value)}
 				placeholder="Search codes, labels, sources…"
 				type="search"
@@ -204,41 +206,62 @@ export function CodesTable({ codes, onRevoke }: CodesTableProps) {
 	return (
 		<div className="authz-enter">
 			<CodesToolbar onQuery={handleQuery} query={query} />
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Code</TableHead>
-						<TableHead>Label</TableHead>
-						<TableHead>Source</TableHead>
-						<TableHead>Used</TableHead>
-						<TableHead />
-					</TableRow>
-				</TableHeader>
-				<TableBody
-					className="fade-in slide-in-from-right-2 animate-in duration-200"
-					key={safePage}
-				>
-					{rows.map((code) => (
-						<CodeRow
-							code={code}
-							confirmingId={confirmingId}
-							key={code.id}
-							onConfirmRequest={setConfirmingId}
-							onRevoke={onRevoke}
-						/>
-					))}
-					{rows.length === 0 && (
+			<div
+				className="fade-in slide-in-from-right-2 flex animate-in flex-col gap-2 duration-200 sm:hidden"
+				key={`cards-${safePage}`}
+			>
+				{rows.map((code) => (
+					<CodeCard
+						code={code}
+						confirmingId={confirmingId}
+						key={code.id}
+						onConfirmRequest={setConfirmingId}
+						onRevoke={onRevoke}
+					/>
+				))}
+				{rows.length === 0 && (
+					<p className="py-8 text-center text-muted-foreground text-sm">
+						No codes found.
+					</p>
+				)}
+			</div>
+			<div className="hidden overflow-x-auto sm:block">
+				<Table>
+					<TableHeader>
 						<TableRow>
-							<TableCell
-								className="text-center text-muted-foreground"
-								colSpan={5}
-							>
-								No codes found.
-							</TableCell>
+							<TableHead>Code</TableHead>
+							<TableHead>Label</TableHead>
+							<TableHead>Source</TableHead>
+							<TableHead>Used</TableHead>
+							<TableHead />
 						</TableRow>
-					)}
-				</TableBody>
-			</Table>
+					</TableHeader>
+					<TableBody
+						className="fade-in slide-in-from-right-2 animate-in duration-200"
+						key={safePage}
+					>
+						{rows.map((code) => (
+							<CodeRow
+								code={code}
+								confirmingId={confirmingId}
+								key={code.id}
+								onConfirmRequest={setConfirmingId}
+								onRevoke={onRevoke}
+							/>
+						))}
+						{rows.length === 0 && (
+							<TableRow>
+								<TableCell
+									className="text-center text-muted-foreground"
+									colSpan={5}
+								>
+									No codes found.
+								</TableCell>
+							</TableRow>
+						)}
+					</TableBody>
+				</Table>
+			</div>
 			<CodesPagination onPage={setPage} page={safePage} total={total} />
 		</div>
 	);

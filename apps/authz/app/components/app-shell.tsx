@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 
 	return (
-		<div className="mx-auto w-full max-w-5xl px-4">
+		<div className="mx-auto w-full max-w-5xl px-4 sm:px-6">
 			<TopBar onSettingsClick={() => setSettingsOpen(true)} />
 			<SettingsDialog onOpenChange={setSettingsOpen} open={settingsOpen} />
 			{children}
