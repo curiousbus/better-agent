@@ -4,6 +4,8 @@ export interface BoardTask {
 	description: string;
 	id: string;
 	position: number;
+	seq: number;
+	sprintId: string | null;
 	status: BoardStatus;
 	title: string;
 }

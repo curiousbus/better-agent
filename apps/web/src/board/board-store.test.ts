@@ -14,6 +14,8 @@ const task = (over: Partial<BoardTask>): BoardTask => ({
 	description: "",
 	status: "todo",
 	position: 1,
+	seq: 0,
+	sprintId: null,
 	...over,
 });
 

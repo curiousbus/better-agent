@@ -11,6 +11,8 @@ export function parseColumn(result: unknown): BoardTask[] {
 		description: String((row as BoardTask).description ?? ""),
 		status: (row as BoardTask).status,
 		position: Number((row as BoardTask).position ?? 0),
+		seq: Number((row as BoardTask).seq ?? 0),
+		sprintId: ((row as BoardTask).sprintId ?? null) as string | null,
 	}));
 }
 
@@ -34,4 +36,31 @@ export async function loadColumns(
 	await client.runTools(sessionId, calls, (result) => {
 		onColumn(result.callId as BoardStatus, parseColumn(result.result));
 	});
+}
+
+export async function loadSprintColumns(
+	client: AgentClient,
+	sessionId: string,
+	sprintId: string,
+	onColumn: (status: BoardStatus, tasks: BoardTask[]) => void
+): Promise<void> {
+	const calls = (["todo", "in_progress", "done"] as BoardStatus[]).map(
+		(status) => ({
+			callId: status,
+			name: "listSprintColumn",
+			args: { sprintId, status },
+		})
+	);
+	await client.runTools(sessionId, calls, (result) => {
+		onColumn(result.callId as BoardStatus, parseColumn(result.result));
+	});
+}
+
+export async function loadBacklog(
+	client: AgentClient,
+	sessionId: string,
+	onBacklog: (tasks: BoardTask[]) => void
+): Promise<void> {
+	const result = await client.runTool(sessionId, "listBacklog", {});
+	onBacklog(parseColumn(result));
 }

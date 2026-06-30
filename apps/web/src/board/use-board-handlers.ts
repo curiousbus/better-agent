@@ -87,6 +87,8 @@ export function useBoardHandlers(
 				description: "",
 				status,
 				position: nextPosition(groups[status]),
+				seq: 0,
+				sprintId: null,
 			});
 			agentClient
 				.runTool(sessionId, "createTask", { title: "New task", status })
