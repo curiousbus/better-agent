@@ -71,6 +71,7 @@ async function sendMessage(
 		role: "assistant",
 		status: "streaming",
 		blocks: [],
+		live: true,
 	};
 	args.setDraft([user, assistant]);
 	try {

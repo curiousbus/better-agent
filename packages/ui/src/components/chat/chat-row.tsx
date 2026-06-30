@@ -73,6 +73,17 @@ function AssistantContent({
 	);
 }
 
+// Only the LIVE draft shimmers "Thinking…"; a refetched (or stopped/orphaned)
+// message stuck in `streaming` status must not shimmer forever.
+function isThinking(message: ChatMessage, hasTree: boolean): boolean {
+	return (
+		message.live === true &&
+		message.status === "streaming" &&
+		message.blocks.length === 0 &&
+		!hasTree
+	);
+}
+
 function AssistantBody({
 	message,
 	renderTree,
@@ -83,7 +94,7 @@ function AssistantBody({
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
 	const hasTree = message.structured !== undefined && renderTree !== undefined;
-	const showThinking = streaming && message.blocks.length === 0 && !hasTree;
+	const showThinking = isThinking(message, hasTree);
 	return (
 		<div className="flex flex-col gap-2">
 			{showThinking ? (

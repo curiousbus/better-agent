@@ -47,6 +47,7 @@ import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
 import { createRedisSessionLock } from "./redis-session-lock";
+import { createUpstashCancellationRegistry } from "./upstash-cancellation";
 import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
 
 type Db = Parameters<typeof createAgentStore>[0];
@@ -114,18 +115,19 @@ function buildProviderDeps(
 	};
 }
 
+// One Upstash REST client (when configured) for cross-isolate coordination on
+// Cloudflare Workers: the streaming request and the submit/cancel requests hit
+// different isolates, where ioredis pub/sub and in-memory maps don't reach.
+function upstashRedis(): UpstashRedis | null {
+	const url = env.UPSTASH_REDIS_REST_URL;
+	const token = env.UPSTASH_REDIS_REST_TOKEN;
+	return url && token ? new UpstashRedis({ url, token }) : null;
+}
+
 function buildPendingToolCallStore() {
-	// On Cloudflare Workers the stream request (park) and the submitToolResult
-	// request hit different isolates, so prefer Upstash REST (HTTP, cross-isolate)
-	// to coordinate client/remote tool-call results. ioredis pub/sub only works
-	// off-Workers; in-memory only works within one isolate.
-	if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
-		return createUpstashPendingToolCallStore(
-			new UpstashRedis({
-				url: env.UPSTASH_REDIS_REST_URL,
-				token: env.UPSTASH_REDIS_REST_TOKEN,
-			})
-		);
+	const upstash = upstashRedis();
+	if (upstash) {
+		return createUpstashPendingToolCallStore(upstash);
 	}
 	return env.REDIS_URL
 		? createRedisPendingToolCallStore(new Redis(env.REDIS_URL))
@@ -139,6 +141,10 @@ function buildSessionLock() {
 }
 
 function buildCancellation(): CancellationRegistry {
+	const upstash = upstashRedis();
+	if (upstash) {
+		return createUpstashCancellationRegistry(upstash);
+	}
 	return env.REDIS_URL
 		? createRedisCancellationRegistry(new Redis(env.REDIS_URL))
 		: createInMemoryCancellationRegistry();

@@ -29,6 +29,10 @@ export interface ChatMessage {
 	blocks: ChatBlock[];
 	errorText?: string;
 	id: string;
+	/** True only for the in-flight draft being streamed right now. Refetched
+	 * history messages are never live, so a stale `streaming` status (e.g. a
+	 * stopped/orphaned turn) won't show the "Thinking…" shimmer forever. */
+	live?: boolean;
 	role: "user" | "assistant" | "system";
 	status: "complete" | "streaming" | "error" | "stopped";
 	/** A generative-UI tree (the StructuredOutput result), when this turn rendered UI. */
