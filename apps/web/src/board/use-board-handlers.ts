@@ -1,6 +1,6 @@
 import type { AgentClient } from "@curiousbus/agent-client";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { loadColumns, parseTask } from "./board-client";
 import {
@@ -109,7 +109,10 @@ export function useBoardHandlers(
 	agentClient: AgentClient,
 	sessionId: string
 ) {
-	const ctx: HandlerCtx = { store, agentClient, sessionId };
+	const ctx: HandlerCtx = useMemo(
+		() => ({ store, agentClient, sessionId }),
+		[store, agentClient, sessionId]
+	);
 
 	const onDragEnd = useCallback(
 		(event: DragEndEvent) => applyDragEnd(event, store, agentClient, sessionId),
@@ -118,7 +121,7 @@ export function useBoardHandlers(
 
 	const onCreate = useCallback(
 		(status: BoardStatus, title: string) => applyCreate(ctx, status, title),
-		[store, agentClient, sessionId] // ctx is derived from these three; safe to omit
+		[ctx]
 	);
 
 	const onDelete = useCallback(
