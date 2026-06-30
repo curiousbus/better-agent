@@ -2,7 +2,7 @@ import type { AgentClient } from "@curiousbus/agent-client";
 import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { loadColumns, parseTask } from "./board-client";
+import { loadSprintColumns, parseTask } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
@@ -108,9 +108,12 @@ function applyDragEnd(event: DragEndEvent, ctx: HandlerCtx): void {
 		})
 		.catch(() => {
 			toast.error("Failed to move task.");
-			loadColumns(agentClient, sessionId, (s, tasks) =>
-				store.setColumn(s, tasks)
-			);
+			// Revert by reloading the active sprint's columns from the server.
+			if (activeSprintId) {
+				loadSprintColumns(agentClient, sessionId, activeSprintId, (s, tasks) =>
+					store.setColumn(s, tasks)
+				);
+			}
 		});
 }
 

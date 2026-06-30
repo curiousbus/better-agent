@@ -39,10 +39,7 @@ function attachmentMethods(
 /** The fully-typed oRPC client for the server router. Workspace-internal. */
 type Client = RouterClient<AppRouter>;
 
-/**
- * Parses a tool result value: JSON-parses strings (falls back to raw on
- * failure), and passes non-strings through as-is.
- */
+// JSON-parses string results (raw on failure); passes non-strings through.
 function parseToolResult(raw: unknown): unknown {
 	if (typeof raw !== "string") {
 		return raw;
@@ -52,6 +49,10 @@ function parseToolResult(raw: unknown): unknown {
 	} catch {
 		return raw;
 	}
+}
+
+function toErrorMessage(result: unknown): string {
+	return typeof result === "string" ? result : JSON.stringify(result);
 }
 
 type SubmitFn = (r: {
@@ -229,7 +230,7 @@ async function userRunTool(
 		throw new Error(`No result for tool ${name}`);
 	}
 	if (captured.isError) {
-		throw new Error(String(captured.result));
+		throw new Error(toErrorMessage(captured.result));
 	}
 	return captured.result;
 }

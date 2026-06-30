@@ -83,8 +83,12 @@ function useSprintMutations(
 			try {
 				await agentClient.runTool(sessionId, tool, args);
 				refresh();
-			} catch {
-				toast.error(msg);
+			} catch (error) {
+				const detail =
+					error instanceof Error && error.message.includes("already_active")
+						? "Complete the current sprint first."
+						: msg;
+				toast.error(detail);
 			}
 		},
 		[agentClient, sessionId, refresh]
