@@ -77,21 +77,31 @@ function applyDragOver(event: DragOverEvent, ctx: HandlerCtx): void {
 }
 
 function applyDragEnd(event: DragEndEvent, ctx: HandlerCtx): void {
-	const { active } = event;
-	const { store, agentClient, sessionId } = ctx;
-	const activeId = String(active.id);
-	const snapshot = store.getSnapshot();
-	const current = snapshot.find((t) => t.id === activeId);
-	if (!current) {
+	const { active, over } = event;
+	if (!over) {
 		return;
 	}
-	const { sprintId, status, position } = current;
+	const { store, agentClient, sessionId, activeSprintId } = ctx;
+	const activeId = String(active.id);
+	// onDragEnd is the source of truth for the final position: onDragOver only
+	// applies CROSS-container moves live, so a same-column reorder would otherwise
+	// persist the stale pre-drag position. Recompute from the drop target.
+	const target = resolveDrop(
+		store.getSnapshot(),
+		activeId,
+		String(over.id),
+		activeSprintId
+	);
+	if (!target) {
+		return;
+	}
+	store.applyMove(activeId, target);
 	agentClient
 		.runTool(sessionId, "moveTask", {
 			id: activeId,
-			sprintId,
-			status,
-			position,
+			sprintId: target.sprintId,
+			status: target.status,
+			position: target.position,
 		})
 		.catch(() => {
 			toast.error("Failed to move task.");
