@@ -17,32 +17,42 @@ the agent's tool layer:
   for task #5") go through the **model** over the existing SSE stream, which
   calls the *same* tools and can update the page (e.g. open a task modal).
 
-One tool layer, two invocation modes. The agent truly knows who you are (the
-authenticated user-session identity), and every task is scoped to that user.
+One tool layer, ONE interface (the agent's SSE stream), two modes. The agent
+truly knows who you are (the authenticated user-session identity), and every task
+is scoped to that user.
 
 ## Architecture principle (the hard rule)
 
+There is exactly **one interface for the whole project: the user-session SSE
+stream** (`userSessions.prompt`). There is NO separate endpoint — not even a
+generic `callTool`. The stream accepts two kinds of input and runs the SAME
+server-side tools:
+
 ```
-                ┌─────────────────────────────────────────┐
-                │     task tools (server-side data layer)  │
-                │  listTasks / createTask / moveTask /     │
-                │  updateTask / deleteTask / getTask       │
-                │  — all scoped to session.authedUser.id   │
-                └───────────────▲───────────────▲──────────┘
-   direct call (no model)       │               │   model call (SSE stream)
-   for EXPLICIT ops             │               │   for CONVERSATIONAL ops
-                ┌───────────────┴──┐         ┌──┴──────────────────┐
-                │  callTool() proc │         │  prompt/stream turn │
-                │  (one generic    │         │  (existing agent    │
-                │   tool endpoint) │         │   SSE interface)    │
-                └───────────────▲──┘         └──┬──────────────────┘
-                  <TaskBoard> widget            floating chat (Conversation)
+              ┌─────────────────────────────────────────┐
+              │     task tools (server-side data layer)  │
+              │  listTasks / createTask / moveTask /     │
+              │  updateTask / deleteTask / getTask       │
+              │  — all scoped to session.authedUser.id   │
+              └───────────────▲───────────────▲──────────┘
+                              │               │
+              ┌───────────────┴───────────────┴──────────┐
+              │   THE ONE INTERFACE: userSessions stream  │
+              │                                           │
+              │  { toolCall: { name, args } }   { text }  │
+              │   → run the tool DIRECTLY,       → model  │
+              │     NO model, stream result        turn   │
+              └───────────────▲───────────────▲──────────┘
+   EXPLICIT ops (no model)    │               │   CONVERSATIONAL ops (model)
+                <TaskBoard> widget            floating chat (Conversation)
 ```
 
-- **No `tasks.create` / `tasks.move` REST procedures.** The only data entry points
-  are: (1) `callTool({ name, args })` — a single generic "invoke a named agent
-  tool" procedure, and (2) the existing model stream. Both run the same tool
-  functions with the same identity.
+- **No `tasks.create` / `tasks.move` REST procedures, and no `callTool` endpoint.**
+  The stream input becomes a union: `{ text, … }` (a model turn) OR
+  `{ toolCall: { name, args } }` (execute that named server tool directly, no
+  model, and stream the result back). Both paths run the same user-scoped tools.
+- The board's explicit ops send a `toolCall` frame; the chat sends `text`. One
+  endpoint, one tool layer.
 
 ## Non-goals
 
@@ -50,6 +60,27 @@ authenticated user-session identity), and every task is scoped to that user.
 - No realtime multi-user sync (single user's board; optimistic local updates +
   tool persistence are enough).
 - Drag-drop does NOT invoke the model (that was explicitly rejected — too slow).
+
+## Frontend constraint (hard rule)
+
+Every UI element is built from `@better-agent/ui` (shadcn) components — Card,
+Button, Input, Textarea, Dialog, Badge, Separator, DropdownMenu, etc. No
+ad-hoc `<div>`-with-classes widgets where a ui component exists. The only
+exceptions are layout containers (flex/grid wrappers) and the dnd-kit drag
+primitives, which wrap ui components.
+
+## Streaming rendering (hard rule)
+
+SSE arrives frame-by-frame, not as one finished JSON blob — so the chat must
+**render progressively as it streams, never wait for the turn to finish**:
+- Generative-UI replies render via the already-built `structured-delta` partial
+  stream: each delta best-effort-parses the growing tool-input into a deep-
+  partial tree; completed nodes render immediately, the trailing incomplete node
+  shows a skeleton, and the validated tree from `done` reconciles at the end.
+  (No "wait for the full object" anywhere.)
+- Text replies stream token-by-token (existing `text-delta`).
+- The board's direct `toolCall` results are small, single payloads — rendered
+  immediately on the `tool-result` event (no progressive needed there).
 
 ## Data model
 
@@ -88,28 +119,32 @@ TaskStore with `userId`:
 
 These are SERVER-side tools (DB access). They are added to the agent's tool set
 for user-session turns (so the model can call them), AND are individually
-invokable via `callTool` (so the board can call them directly).
+invokable via the stream `toolCall` mode (so the board can call them directly).
 
-## The generic tool endpoint (no per-resource API)
+## Direct tool execution over the one stream (no separate endpoint)
 
-`packages/api/src/routers/user-sessions.ts` gains ONE procedure:
+`userSessions.prompt`'s input becomes a union — keep the existing model-turn
+shape, and add a direct-tool shape:
 
 ```ts
-callTool: authorizedUserProcedure
-  .input(z.object({ agentId: z.string(), name: z.string(), args: z.record(z.string(), z.unknown()).default({}) }))
-  .handler(async ({ context, input }) => {
-    const defs = buildTaskToolDefs(context.services.taskStore, context.authedUser.id);
-    const tool = defs.find((d) => d.name === input.name);
-    if (!tool) { throw new ORPCError("NOT_FOUND", { message: `Unknown tool ${input.name}` }); }
-    return await tool.execute(input.args, { sessionId: "", callId: "", abortSignal: undefined });
-  })
+// existing: { sessionId, text, tools?, outputSchema?, attachmentIds? }
+// added:    { sessionId, toolCall: { name: string, args: Record<string, unknown> } }
 ```
 
-This is the single generic data interface for the board. It runs the same task
-tools the model uses, with the same identity. No `tasks.*` REST procedures exist.
+In `streamUserTurn`, when `input.toolCall` is present, DO NOT run the model:
+build the task tools bound to `context.authedUser.id`, find the named one,
+execute it with `input.toolCall.args`, and stream back a single result —
+`yield { type: "tool-result", callId, result, isError }` then `done`. Unknown
+tool name → an `error` event. This reuses the existing RunEvent stream; no new
+endpoint, no new transport.
 
-SDK: `@curiousbus/agent-client` gains `callTool(name, args)` on the user-plane
-client, forwarding to this procedure.
+SDK: `@curiousbus/agent-client`'s user-plane client gains
+`runTool(sessionId, name, args): Promise<unknown>` — it opens the stream with a
+`toolCall` input, reads the `tool-result` event, and resolves its `result` (or
+rejects on the `error` event). The board uses `runTool` for every explicit op.
+
+There are NO `tasks.*` REST procedures and NO `callTool` procedure — the only
+network interface the board touches is the user-session stream.
 
 ## apps/web — the board
 
@@ -122,21 +157,21 @@ home) and **Board**, and a `/board` route (behind the normal web auth).
 ### `<TaskBoard>` widget
 
 `apps/web/src/board/task-board.tsx` — a real Jira-style board:
-- On mount: `agentClient.callTool("listTasks", {})` → render three columns
+- On mount: `agentClient.runTool("listTasks", {})` → render three columns
   (To Do / In Progress / Done), tasks sorted by `position`.
 - **Drag-drop** between/within columns (use `@dnd-kit/core` + `@dnd-kit/sortable`,
   pinned): on drop, **optimistically** move the card, then
-  `callTool("moveTask", { id, status, position })`; on failure, revert + toast.
-- **Create**: an "Add" affordance per column → `callTool("createTask", { title, status })` → optimistic append.
-- **Delete**: per-card → `callTool("deleteTask", { id })` → optimistic remove.
+  `runTool("moveTask", { id, status, position })`; on failure, revert + toast.
+- **Create**: an "Add" affordance per column → `runTool("createTask", { title, status })` → optimistic append.
+- **Delete**: per-card → `runTool("deleteTask", { id })` → optimistic remove.
 - **Open detail**: clicking a card opens `<TaskModal>`.
-- A local store mirrors the data so optimistic updates are instant; `callTool`
+- A local store mirrors the data so optimistic updates are instant; `runTool`
   results reconcile it. (Same external-store pattern as the existing TodoList.)
 
 ### `<TaskModal>`
 
 `apps/web/src/board/task-modal.tsx` — a Dialog showing a task's title, status,
-and an editable description (save → `callTool("updateTask", { id, description })`).
+and an editable description (save → `runTool("updateTask", { id, description })`).
 Opened by: clicking a card, OR a chat action (below).
 
 ### Floating chat
@@ -147,7 +182,7 @@ the task tools + the generative-UI config. Conversational commands:
 - "write a completion description for task #5" → the model calls `getTask` +
   `updateTask`, then emits a **client action** `{ intent: "openTask", target: "client", payload: { id } }`.
 - The board's `onAction` handles `openTask` → opens `<TaskModal>` for that task,
-  showing the freshly written description. The board also refreshes (re-`callTool`
+  showing the freshly written description. The board also refreshes (re-`runTool`
   listTasks) so the card reflects changes.
 
 So the chat can both mutate data (via the model→tools) AND drive the page (open a
@@ -156,13 +191,13 @@ modal, refresh the board) — "user asks → agent updates the page".
 ## Identity / auth
 
 Everything is user-scoped via the user-session's `context.authedUser.id`:
-`callTool` builds the task tools bound to that id; the model-path turn likewise
+The `toolCall` path builds the task tools bound to that id; the model-path turn likewise
 builds task tools bound to the session's user. A user only ever sees/edits their
 own tasks. No task id is trusted from the client without the userId filter.
 
 ## Error handling
 
-- `callTool` unknown name → `NOT_FOUND`; the board surfaces a toast.
+- an unknown `toolCall` name → an `error` event; the board surfaces a toast.
 - Optimistic mutations that fail → revert local state + toast.
 - `getTask`/`updateTask` on a missing/foreign id → not-found (the store filters by
   userId, so a foreign id simply isn't found).
@@ -182,11 +217,11 @@ data layer + the conversational brain.
   user's task (integration test).
 - `task-tools`: each tool calls the store with the bound userId; `moveTask`
   updates status+position; `deleteTask` returns ok.
-- `callTool` router: dispatches to the named tool with the authed user; unknown
+- stream `toolCall` mode: dispatches to the named tool with the authed user; unknown
   name → NOT_FOUND; a foreign task id is not found.
 - board pure logic: column grouping + sort by position; optimistic move/insert
-  helpers; reconciliation against a `callTool` result.
-- SDK `callTool` forwards name/args to the user-plane procedure (stub test).
+  helpers; reconciliation against a `runTool` result.
+- SDK `runTool` sends a toolCall frame and resolves the result name/args to the user-plane procedure (stub test).
 
 ## File structure
 
@@ -194,9 +229,9 @@ data layer + the conversational brain.
 - `packages/db/src/repositories/task-store.ts` (new) + test
 - `packages/agent/src/tool/task-tools.ts` (new) + test
 - `packages/agent/src/ports.ts` — `TaskStore` port (if the agent needs the type)
-- `packages/api/src/routers/user-sessions.ts` — `callTool` procedure
+- `packages/api/src/routers/user-sessions.ts` — add the `toolCall` stream-input mode + direct-exec branch
 - `packages/api/src/services.ts` + `apps/server/src/services.ts` — wire `taskStore`
-- `packages/client/src/types.ts` + `internal.ts` — `callTool` on the user-plane client
+- `packages/client/src/types.ts` + `internal.ts` — `runTool` on the user-plane client
 - `apps/web/src/routes/board.tsx` (new route)
 - `apps/web/src/components/app-shell-nav.tsx` or a new sidebar (Chat / Board)
 - `apps/web/src/board/task-board.tsx`, `task-card.tsx`, `task-modal.tsx`, `board-chat.tsx`, `board-store.ts` (+ tests for pure logic)
@@ -206,20 +241,20 @@ data layer + the conversational brain.
 
 1. `tasks` table + migration + `TaskStore` (+ tests).
 2. `buildTaskToolDefs` task tools (+ tests).
-3. `callTool` generic procedure + wire `taskStore` into services (+ test).
-4. SDK `callTool` on the user-plane client (+ test).
+3. `toolCall` stream mode (direct tool exec, no model) + wire `taskStore` into services (+ test).
+4. SDK `runTool` (toolCall over the stream) on the user-plane client (+ test).
 5. Board pure logic (`board-store`: group/sort/optimistic) (+ tests).
 6. `/board` route + sidebar (Chat / Board) scaffold.
-7. `<TaskBoard>` + `<TaskCard>` — render columns from `callTool("listTasks")`.
-8. Drag-drop (`@dnd-kit`) → optimistic + `callTool("moveTask")`; create/delete.
-9. `<TaskModal>` (open from card; edit description → `callTool("updateTask")`).
+7. `<TaskBoard>` + `<TaskCard>` — render columns from `runTool("listTasks")`.
+8. Drag-drop (`@dnd-kit`) → optimistic + `runTool("moveTask")`; create/delete.
+9. `<TaskModal>` (open from card; edit description → `runTool("updateTask")`).
 10. Floating chat (`<BoardChat>`) — Conversation + task tools + genui; `openTask` action opens the modal + refreshes.
 11. Bind the task tools into the user-session model turn so the chat can call them.
 12. Polish + responsive + deploy.
 
 ## Resolved decisions
 
-- **No per-resource REST API.** One generic `callTool` + the model stream; both run
+- **No per-resource REST API and no callTool endpoint.** One stream with a `toolCall` mode + the model turn; both run
   the same user-scoped task tools.
 - **Explicit ops (render/drag/create/delete) call tools directly** (no model);
   **conversational ops go through the model**.
