@@ -47,6 +47,39 @@ function useColumnLoader(
 	return loaded;
 }
 
+interface BoardColumnsProps {
+	loaded: Set<BoardStatus>;
+	onCreate: (status: BoardStatus) => void;
+	onDelete: (id: string) => void;
+	onOpenTask: (id: string) => void;
+	tasks: ReturnType<typeof groupByColumn>;
+}
+
+function BoardColumns({
+	loaded,
+	tasks,
+	onCreate,
+	onDelete,
+	onOpenTask,
+}: BoardColumnsProps) {
+	return (
+		<div className="flex h-full gap-4 overflow-x-auto p-4">
+			{COLUMNS.map((column) => (
+				<TaskColumn
+					key={column.status}
+					label={column.label}
+					loaded={loaded.has(column.status)}
+					onCreate={onCreate}
+					onDelete={onDelete}
+					onOpen={onOpenTask}
+					status={column.status}
+					tasks={tasks[column.status]}
+				/>
+			))}
+		</div>
+	);
+}
+
 export function TaskBoard({
 	agentClient,
 	sessionId,
@@ -80,20 +113,13 @@ export function TaskBoard({
 			onDragEnd={onDragEnd}
 			sensors={sensors}
 		>
-			<div className="flex h-full gap-4 overflow-x-auto p-4">
-				{COLUMNS.map((column) => (
-					<TaskColumn
-						key={column.status}
-						label={column.label}
-						loaded={loaded.has(column.status)}
-						onCreate={onCreate}
-						onDelete={onDelete}
-						onOpen={onOpenTask}
-						status={column.status}
-						tasks={groupByColumn(tasks)[column.status]}
-					/>
-				))}
-			</div>
+			<BoardColumns
+				loaded={loaded}
+				onCreate={onCreate}
+				onDelete={onDelete}
+				onOpenTask={onOpenTask}
+				tasks={groupByColumn(tasks)}
+			/>
 		</DndContext>
 	);
 }

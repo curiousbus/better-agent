@@ -11,6 +11,14 @@ import { TaskCard } from "./task-card";
 
 const SKELETON_ROWS = [0, 1];
 
+function EmptyColumn() {
+	return (
+		<p className="py-2 text-center text-muted-foreground text-sm">
+			No tasks yet
+		</p>
+	);
+}
+
 interface CardListProps {
 	loaded: boolean;
 	onDelete: (id: string) => void;
@@ -23,6 +31,9 @@ function ColumnCards({ tasks, loaded, onOpen, onDelete }: CardListProps) {
 		return SKELETON_ROWS.map((row) => (
 			<Skeleton className="h-12 w-full" key={row} />
 		));
+	}
+	if (tasks.length === 0) {
+		return <EmptyColumn />;
 	}
 	return tasks.map((task) => (
 		<TaskCard key={task.id} onDelete={onDelete} onOpen={onOpen} task={task} />

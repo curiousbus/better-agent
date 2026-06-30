@@ -7,6 +7,7 @@ import {
 } from "@better-agent/ui/components/card";
 import type { GenerativeUIChatConfig } from "@better-agent/ui/components/chat/conversation";
 import { Conversation } from "@better-agent/ui/components/chat/conversation";
+import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { MessageCircle, X } from "lucide-react";
 import { useState } from "react";
@@ -20,15 +21,15 @@ interface BoardChatProps {
 function ChatPanel({ agentClient, sessionId, generativeUI }: BoardChatProps) {
 	return (
 		<Card
-			className={[
+			className={cn(
 				"fixed right-6 bottom-24 z-50",
 				"w-[24rem] max-w-[calc(100vw-3rem)]",
 				"h-[600px] max-h-[70vh]",
 				"flex flex-col",
 				"fade-in slide-in-from-bottom-2 animate-in",
 				"motion-reduce:animate-none",
-				"shadow-xl",
-			].join(" ")}
+				"shadow-xl"
+			)}
 		>
 			<CardHeader className="border-b py-3">
 				<CardTitle>Assistant</CardTitle>

@@ -1,18 +1,17 @@
 import { Card } from "@better-agent/ui/components/card";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TrashIcon } from "lucide-react";
 import type { BoardTask } from "./board-store";
 
-export function TaskCard({
-	task,
-	onOpen,
-	onDelete,
-}: {
-	task: BoardTask;
-	onOpen: (id: string) => void;
+interface TaskCardProps {
 	onDelete: (id: string) => void;
-}) {
+	onOpen: (id: string) => void;
+	task: BoardTask;
+}
+
+function useCardDnd(id: string) {
 	const {
 		attributes,
 		listeners,
@@ -20,16 +19,27 @@ export function TaskCard({
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: task.id });
-
-	const style = {
-		transform: CSS.Transform.toString(transform),
-		transition,
+	} = useSortable({ id });
+	return {
+		attributes,
+		listeners,
+		setNodeRef,
+		style: { transform: CSS.Transform.toString(transform), transition },
+		isDragging,
 	};
+}
+
+export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
+	const { attributes, listeners, setNodeRef, style, isDragging } = useCardDnd(
+		task.id
+	);
 
 	return (
 		<Card
-			className={`fade-in group flex animate-in items-start justify-between gap-2 p-3 text-sm duration-150 ${isDragging ? "opacity-60 shadow-lg" : ""}`}
+			className={cn(
+				"fade-in group flex animate-in items-start justify-between gap-2 p-3 text-sm duration-150",
+				isDragging && "opacity-60 shadow-lg"
+			)}
 			ref={setNodeRef}
 			style={style}
 		>
