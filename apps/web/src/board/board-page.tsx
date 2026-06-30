@@ -13,6 +13,7 @@ import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
 import { BoardChat } from "./board-chat";
+import { loadBoardSessionId, saveBoardSessionId } from "./board-session";
 import { TaskBoard } from "./task-board";
 import { TaskModal } from "./task-modal";
 
@@ -56,11 +57,17 @@ function useBoardClient() {
 		if (!agentClient) {
 			return () => undefined;
 		}
+		const stored = loadBoardSessionId();
+		if (stored) {
+			setSessionId(stored);
+			return () => undefined;
+		}
 		let active = true;
 		agentClient
 			.createSession()
 			.then((s) => {
 				if (active) {
+					saveBoardSessionId(s.sessionId);
 					setSessionId(s.sessionId);
 				}
 			})
