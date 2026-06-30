@@ -8,14 +8,18 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@better-agent/ui/components/dialog";
-import { Label } from "@better-agent/ui/components/label";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
-import { Textarea } from "@better-agent/ui/components/textarea";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { parseTask } from "./board-client";
 import type { BoardTask } from "./board-store";
+import {
+	TaskModalControls,
+	TaskModalFields,
+	useSaveTask,
+} from "./task-modal-parts";
+import type { BoardSprint } from "./use-sprints";
 
 interface TaskDetail {
 	loading: boolean;
@@ -65,10 +69,12 @@ function useTaskDetail(
 }
 
 export interface TaskModalProps {
+	activeSprintId: string | null;
 	agentClient: AgentClient;
 	onClose: () => void;
 	onSaved: () => void;
 	sessionId: string;
+	sprints: BoardSprint[];
 	taskId: string | null;
 }
 
@@ -78,9 +84,15 @@ function TaskModalSkeleton() {
 			<DialogHeader>
 				<Skeleton className="h-4 w-3/4" />
 			</DialogHeader>
-			<div className="flex flex-col gap-2 py-2">
+			<div className="flex flex-col gap-3 py-2">
 				<Skeleton className="h-3 w-16" />
-				<Skeleton className="min-h-32 w-full rounded-md" />
+				<Skeleton className="h-8 w-full rounded-md" />
+				<Skeleton className="h-3 w-16" />
+				<Skeleton className="min-h-24 w-full rounded-md" />
+				<div className="grid grid-cols-2 gap-3">
+					<Skeleton className="h-8 w-full rounded-md" />
+					<Skeleton className="h-8 w-full rounded-md" />
+				</div>
 			</div>
 			<DialogFooter>
 				<Skeleton className="h-7 w-16" />
@@ -94,19 +106,8 @@ interface TaskModalFormProps {
 	onClose: () => void;
 	onSaved: () => void;
 	sessionId: string;
+	sprints: BoardSprint[];
 	task: BoardTask;
-}
-
-async function saveTask(
-	agentClient: AgentClient,
-	sessionId: string,
-	taskId: string,
-	description: string
-): Promise<void> {
-	await agentClient.runTool(sessionId, "updateTask", {
-		id: taskId,
-		description,
-	});
 }
 
 function TaskModalForm({
@@ -114,38 +115,34 @@ function TaskModalForm({
 	onClose,
 	onSaved,
 	sessionId,
+	sprints,
 	task,
 }: TaskModalFormProps) {
-	const [description, setDescription] = useState(task.description);
-	const [saving, setSaving] = useState(false);
-
-	const handleSave = async () => {
-		setSaving(true);
-		try {
-			await saveTask(agentClient, sessionId, task.id, description);
-			onSaved();
-			onClose();
-		} catch {
-			toast.error("Failed to save task. Please try again.");
-		} finally {
-			setSaving(false);
-		}
-	};
+	const { title, setTitle, description, setDescription, saving, handleSave } =
+		useSaveTask({ agentClient, onClose, onSaved, sessionId, task });
 
 	return (
 		<>
 			<DialogHeader>
-				<DialogTitle>{task.title}</DialogTitle>
+				<p className="font-mono text-muted-foreground text-xs">
+					TASK-{task.seq}
+				</p>
+				<DialogTitle className="mt-1">Edit task</DialogTitle>
 			</DialogHeader>
-			<div className="flex flex-col gap-2 py-2">
-				<Label htmlFor="task-description">Description</Label>
-				<Textarea
-					className="min-h-32"
+			<div className="flex flex-col gap-3 py-2">
+				<TaskModalFields
+					description={description}
 					disabled={saving}
-					id="task-description"
-					onChange={(e) => setDescription(e.target.value)}
-					placeholder="Add a description…"
-					value={description}
+					onDescriptionChange={setDescription}
+					onTitleChange={setTitle}
+					title={title}
+				/>
+				<TaskModalControls
+					agentClient={agentClient}
+					onSaved={onSaved}
+					sessionId={sessionId}
+					sprints={sprints}
+					task={task}
 				/>
 			</div>
 			<DialogFooter showCloseButton>
@@ -157,16 +154,27 @@ function TaskModalForm({
 	);
 }
 
+interface TaskModalBodyProps {
+	activeSprintId: string | null;
+	agentClient: AgentClient;
+	onClose: () => void;
+	onSaved: () => void;
+	sessionId: string;
+	sprints: BoardSprint[];
+	taskId: string | null;
+}
+
 function TaskModalBody({
+	activeSprintId: _activeSprintId,
 	agentClient,
 	sessionId,
 	taskId,
 	onClose,
 	onSaved,
-}: TaskModalProps) {
+	sprints,
+}: TaskModalBodyProps) {
 	const { task, loading } = useTaskDetail(agentClient, sessionId, taskId);
 
-	// Dialog is closed — don't render a skeleton into the hidden content.
 	if (!taskId) {
 		return null;
 	}
@@ -180,16 +188,19 @@ function TaskModalBody({
 			onClose={onClose}
 			onSaved={onSaved}
 			sessionId={sessionId}
+			sprints={sprints}
 			task={task}
 		/>
 	);
 }
 
 export function TaskModal({
+	activeSprintId,
 	agentClient,
 	onClose,
 	onSaved,
 	sessionId,
+	sprints,
 	taskId,
 }: TaskModalProps) {
 	return (
@@ -203,10 +214,12 @@ export function TaskModal({
 		>
 			<DialogContent className="sm:max-w-md">
 				<TaskModalBody
+					activeSprintId={activeSprintId}
 					agentClient={agentClient}
 					onClose={onClose}
 					onSaved={onSaved}
 					sessionId={sessionId}
+					sprints={sprints}
 					taskId={taskId}
 				/>
 			</DialogContent>

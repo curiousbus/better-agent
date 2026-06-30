@@ -139,21 +139,23 @@ function useSprintActions(
 
 interface BoardContentProps {
 	agentClient: ReadyClient;
+	openTaskId: string | null;
 	refreshKey: number;
 	sessionId: string;
-	setOpenTaskId: (id: string) => void;
+	setOpenTaskId: (id: string | null) => void;
 	setRefreshKey: Dispatch<SetStateAction<number>>;
 }
 
 function BoardContent({
 	agentClient,
+	openTaskId,
 	sessionId,
 	setOpenTaskId,
 	setRefreshKey,
 	refreshKey,
 }: BoardContentProps) {
 	const sprintHook = useSprints(agentClient, sessionId);
-	const boardGenui = useBoardGenui(setOpenTaskId, setRefreshKey);
+	const boardGenui = useBoardGenui((id) => setOpenTaskId(id), setRefreshKey);
 	const { onComplete, onCreate, onStart } = useSprintActions(
 		sprintHook,
 		setRefreshKey
@@ -172,7 +174,7 @@ function BoardContent({
 			<TaskBoard
 				activeSprintId={sprintHook.active?.id ?? null}
 				agentClient={agentClient}
-				onOpenTask={setOpenTaskId}
+				onOpenTask={(id) => setOpenTaskId(id)}
 				refreshKey={refreshKey}
 				sessionId={sessionId}
 			/>
@@ -180,6 +182,15 @@ function BoardContent({
 				agentClient={agentClient}
 				generativeUI={boardGenui}
 				sessionId={sessionId}
+			/>
+			<TaskModal
+				activeSprintId={sprintHook.active?.id ?? null}
+				agentClient={agentClient}
+				onClose={() => setOpenTaskId(null)}
+				onSaved={() => setRefreshKey((k) => k + 1)}
+				sessionId={sessionId}
+				sprints={sprintHook.sprints}
+				taskId={openTaskId}
 			/>
 		</>
 	);
@@ -197,21 +208,13 @@ export function BoardPage() {
 		return <BoardEmpty />;
 	}
 	return (
-		<>
-			<BoardContent
-				agentClient={agentClient}
-				refreshKey={refreshKey}
-				sessionId={sessionId}
-				setOpenTaskId={setOpenTaskId}
-				setRefreshKey={setRefreshKey}
-			/>
-			<TaskModal
-				agentClient={agentClient}
-				onClose={() => setOpenTaskId(null)}
-				onSaved={() => setRefreshKey((k) => k + 1)}
-				sessionId={sessionId}
-				taskId={openTaskId}
-			/>
-		</>
+		<BoardContent
+			agentClient={agentClient}
+			openTaskId={openTaskId}
+			refreshKey={refreshKey}
+			sessionId={sessionId}
+			setOpenTaskId={setOpenTaskId}
+			setRefreshKey={setRefreshKey}
+		/>
 	);
 }
