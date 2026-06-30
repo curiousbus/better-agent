@@ -6,6 +6,11 @@ import { createRoot } from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
 
+// Apply the persisted theme before first paint so a dark-mode choice survives reloads.
+if (localStorage.getItem("authz_theme") === "dark") {
+	document.documentElement.classList.add("dark");
+}
+
 const queryClient = new QueryClient();
 
 const router = createRouter({
