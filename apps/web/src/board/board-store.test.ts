@@ -70,7 +70,7 @@ describe("createBoardStore", () => {
 	it("applyMove changes status/position; removeLocal drops it", () => {
 		const store = createBoardStore();
 		store.setColumn("todo", [task({ id: "x" })]);
-		store.applyMove("x", "done", 5);
+		store.applyMove("x", { sprintId: null, status: "done", position: 5 });
 		expect(store.getSnapshot()[0]).toMatchObject({
 			status: "done",
 			position: 5,

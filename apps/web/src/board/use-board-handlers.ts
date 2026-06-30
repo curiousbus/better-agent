@@ -1,76 +1,21 @@
 import type { AgentClient } from "@curiousbus/agent-client";
-import type { DragEndEvent } from "@dnd-kit/core";
+import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { loadColumns, parseTask } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
-	COLUMNS,
 	groupByColumn,
-	midpoint,
 	nextPosition,
 } from "./board-store";
+import { containerOf, resolveDrop } from "./drag-resolve";
 
 interface HandlerCtx {
+	activeSprintId: string | null;
 	agentClient: AgentClient;
 	sessionId: string;
 	store: BoardStore;
-}
-
-function resolveDestStatus(
-	store: BoardStore,
-	overId: string
-): BoardStatus | null {
-	const statuses = COLUMNS.map((c) => c.status);
-	if ((statuses as string[]).includes(overId)) {
-		return overId as BoardStatus;
-	}
-	return store.getSnapshot().find((t) => t.id === overId)?.status ?? null;
-}
-
-function applyDragEnd(
-	event: DragEndEvent,
-	store: BoardStore,
-	agentClient: AgentClient,
-	sessionId: string
-): void {
-	const { active, over } = event;
-	if (!over) {
-		return;
-	}
-	const activeId = String(active.id);
-	const overId = String(over.id);
-	const destStatus = resolveDestStatus(store, overId);
-	if (!destStatus) {
-		return;
-	}
-	const groups = groupByColumn(store.getSnapshot());
-	const column = groups[destStatus].filter((t) => t.id !== activeId);
-	const overIndex = column.findIndex((t) => t.id === overId);
-	const insertAt = overIndex === -1 ? column.length : overIndex;
-	const position = midpoint(column[insertAt - 1], column[insertAt]);
-	const current = store.getSnapshot().find((t) => t.id === activeId);
-	if (
-		current &&
-		current.status === destStatus &&
-		current.position === position
-	) {
-		return;
-	}
-	store.applyMove(activeId, destStatus, position);
-	agentClient
-		.runTool(sessionId, "moveTask", {
-			id: activeId,
-			status: destStatus,
-			position,
-		})
-		.catch(() => {
-			toast.error("Failed to move task.");
-			loadColumns(agentClient, sessionId, (s, tasks) =>
-				store.setColumn(s, tasks)
-			);
-		});
 }
 
 // TODO (Task 10): thread active sprint id via ctx and pass sprintId to createTask
@@ -104,19 +49,77 @@ function applyCreate(
 		});
 }
 
+function applyDragOver(event: DragOverEvent, ctx: HandlerCtx): void {
+	const { active, over } = event;
+	if (!over) {
+		return;
+	}
+	const { store, activeSprintId } = ctx;
+	const activeId = String(active.id);
+	const overId = String(over.id);
+	const snapshot = store.getSnapshot();
+	const activeTask = snapshot.find((t) => t.id === activeId);
+	if (!activeTask) {
+		return;
+	}
+	const target = resolveDrop(snapshot, activeId, overId, activeSprintId);
+	if (!target) {
+		return;
+	}
+	// Guard: only move when the container actually changes (avoid same-container thrash)
+	const currentContainer = containerOf(activeTask);
+	const targetContainer: string =
+		target.sprintId === null ? "backlog" : target.status;
+	if (currentContainer === targetContainer) {
+		return;
+	}
+	store.applyMove(activeId, target);
+}
+
+function applyDragEnd(event: DragEndEvent, ctx: HandlerCtx): void {
+	const { active } = event;
+	const { store, agentClient, sessionId } = ctx;
+	const activeId = String(active.id);
+	const snapshot = store.getSnapshot();
+	const current = snapshot.find((t) => t.id === activeId);
+	if (!current) {
+		return;
+	}
+	const { sprintId, status, position } = current;
+	agentClient
+		.runTool(sessionId, "moveTask", {
+			id: activeId,
+			sprintId,
+			status,
+			position,
+		})
+		.catch(() => {
+			toast.error("Failed to move task.");
+			loadColumns(agentClient, sessionId, (s, tasks) =>
+				store.setColumn(s, tasks)
+			);
+		});
+}
+
 export function useBoardHandlers(
 	store: BoardStore,
 	agentClient: AgentClient,
-	sessionId: string
+	sessionId: string,
+	activeSprintId: string | null
 ) {
 	const ctx: HandlerCtx = useMemo(
-		() => ({ store, agentClient, sessionId }),
-		[store, agentClient, sessionId]
+		() => ({ store, agentClient, sessionId, activeSprintId }),
+		[store, agentClient, sessionId, activeSprintId]
+	);
+
+	const onDragOver = useCallback(
+		(event: DragOverEvent) => applyDragOver(event, ctx),
+		[ctx]
 	);
 
 	const onDragEnd = useCallback(
-		(event: DragEndEvent) => applyDragEnd(event, store, agentClient, sessionId),
-		[store, agentClient, sessionId]
+		(event: DragEndEvent) => applyDragEnd(event, ctx),
+		[ctx]
 	);
 
 	const onCreate = useCallback(
@@ -138,5 +141,5 @@ export function useBoardHandlers(
 		[store, agentClient, sessionId]
 	);
 
-	return { onDragEnd, onCreate, onDelete };
+	return { onDragEnd, onDragOver, onCreate, onDelete };
 }

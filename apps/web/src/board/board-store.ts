@@ -86,8 +86,11 @@ export function createBoardStore() {
 		replaceLocal(id: string, task: BoardTask) {
 			set(cache.map((t) => (t.id === id ? task : t)));
 		},
-		applyMove(id: string, status: BoardStatus, position: number) {
-			set(cache.map((t) => (t.id === id ? { ...t, status, position } : t)));
+		applyMove(
+			id: string,
+			patch: { sprintId: string | null; status: BoardStatus; position: number }
+		) {
+			set(cache.map((t) => (t.id === id ? { ...t, ...patch } : t)));
 		},
 		removeLocal(id: string) {
 			set(cache.filter((t) => t.id !== id));

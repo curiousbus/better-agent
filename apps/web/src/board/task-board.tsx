@@ -97,10 +97,11 @@ export function TaskBoard({
 		store.getSnapshot
 	);
 	const loaded = useColumnLoader(store, agentClient, sessionId);
-	const { onDragEnd, onCreate, onDelete } = useBoardHandlers(
+	const { onDragEnd, onDragOver, onCreate, onDelete } = useBoardHandlers(
 		store,
 		agentClient,
-		sessionId
+		sessionId,
+		null // Task 10 wires the real activeSprintId
 	);
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -111,6 +112,7 @@ export function TaskBoard({
 		<DndContext
 			collisionDetection={closestCorners}
 			onDragEnd={onDragEnd}
+			onDragOver={onDragOver}
 			sensors={sensors}
 		>
 			<BoardColumns
