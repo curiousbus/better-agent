@@ -6,7 +6,7 @@ export function parseColumn(result: unknown): BoardTask[] {
 		return [];
 	}
 	return result.map((row) => {
-		const r = row as BoardTask & { createdAt?: string };
+		const r = row as BoardTask;
 		return {
 			id: String(r.id),
 			title: String(r.title),

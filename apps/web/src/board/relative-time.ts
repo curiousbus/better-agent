@@ -6,8 +6,9 @@ const SECS_PER_WEEK = 604_800;
 const SECS_PER_MONTH = 2_592_000;
 const SECS_PER_YEAR = 31_536_000;
 
+const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
 export function relativeTime(iso: string): string {
-	const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 	const diffSec = Math.round(
 		(new Date(iso).getTime() - Date.now()) / MS_PER_SEC
 	);

@@ -54,12 +54,12 @@ function CardMenu({ onOpen, onDelete }: CardMenuProps) {
 	);
 }
 
-interface CardFooterProps {
+interface TaskCardFooterProps {
 	createdAt: string | undefined;
 	initial: string;
 }
 
-function CardFooter({ initial, createdAt }: CardFooterProps) {
+function TaskCardFooter({ initial, createdAt }: TaskCardFooterProps) {
 	return (
 		<div className="flex items-center justify-between pt-1">
 			<Avatar size="sm">
@@ -112,7 +112,7 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 					{task.description}
 				</p>
 			) : null}
-			<CardFooter createdAt={task.createdAt} initial={initial} />
+			<TaskCardFooter createdAt={task.createdAt} initial={initial} />
 		</Card>
 	);
 }
