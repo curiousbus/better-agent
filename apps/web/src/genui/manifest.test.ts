@@ -2,18 +2,15 @@ import { defineComponents } from "@curiousbus/agent-client";
 import { expect, it } from "vitest";
 import { COMPONENT_TYPES, MANIFEST } from "./manifest";
 
-interface UINodeSchema {
-	anyOf: unknown[];
-}
-
 interface OutputSchema {
-	$defs: { UINode: UINodeSchema };
+	properties: { root: { anyOf: unknown[] } };
 }
 
 it("compiles into a schema with one branch per component", () => {
 	const ui = defineComponents(MANIFEST);
 	const schema = ui.outputSchema as unknown as OutputSchema;
-	expect(schema.$defs.UINode.anyOf).toHaveLength(MANIFEST.length);
+	// The node union is inlined under `root` (no $ref), one branch per component.
+	expect(schema.properties.root.anyOf).toHaveLength(MANIFEST.length);
 	expect(new Set(ui.types)).toEqual(new Set(COMPONENT_TYPES));
 });
 
