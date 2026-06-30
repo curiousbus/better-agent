@@ -13,6 +13,7 @@ import type {
 	RunEvent,
 	RunOptions,
 	RunResult,
+	ToolCallResult,
 	UploadedAttachment,
 } from "./types";
 
@@ -37,6 +38,21 @@ function attachmentMethods(
 
 /** The fully-typed oRPC client for the server router. Workspace-internal. */
 type Client = RouterClient<AppRouter>;
+
+/**
+ * Parses a tool result value: JSON-parses strings (falls back to raw on
+ * failure), and passes non-strings through as-is.
+ */
+function parseToolResult(raw: unknown): unknown {
+	if (typeof raw !== "string") {
+		return raw;
+	}
+	try {
+		return JSON.parse(raw);
+	} catch {
+		return raw;
+	}
+}
 
 type SubmitFn = (r: {
 	callId: string;
@@ -161,6 +177,50 @@ export function createAgentClientFrom(client: Client): AgentClient {
 	return agentClient;
 }
 
+async function userRunTools(
+	client: Client,
+	sessionId: string,
+	calls: Parameters<AgentClient["runTools"]>[1],
+	onResult: Parameters<AgentClient["runTools"]>[2]
+): Promise<void> {
+	const stream = await client.userSessions.prompt({
+		sessionId,
+		toolCalls: calls,
+	});
+	for await (const event of stream) {
+		if (event.type === "tool-result") {
+			onResult({
+				callId: event.callId,
+				name: event.name ?? "",
+				result: parseToolResult(event.result),
+				isError: event.isError,
+			});
+		} else if (event.type === "error") {
+			throw new Error(event.message);
+		}
+	}
+}
+
+async function userRunTool(
+	client: Client,
+	sessionId: string,
+	name: string,
+	args: Record<string, unknown>
+): Promise<unknown> {
+	const callId = crypto.randomUUID();
+	let captured: ToolCallResult | undefined;
+	await userRunTools(client, sessionId, [{ callId, name, args }], (result) => {
+		captured = result;
+	});
+	if (!captured) {
+		throw new Error(`No result for tool ${name}`);
+	}
+	if (captured.isError) {
+		throw new Error(String(captured.result));
+	}
+	return captured.result;
+}
+
 /** Build a user-plane SDK from an existing oRPC client (userSessions router, bound to an agentId). */
 export function createUserSessionClientFrom(
 	client: Client,
@@ -168,6 +228,7 @@ export function createUserSessionClientFrom(
 ): AgentClient {
 	const ensureSession = async (sessionId?: string): Promise<string> =>
 		sessionId ?? (await client.userSessions.create({ agentId })).id;
+
 	return {
 		async createSession() {
 			const session = await client.userSessions.create({ agentId });
@@ -204,6 +265,11 @@ export function createUserSessionClientFrom(
 		async cancel(sessionId) {
 			await client.userSessions.cancel({ sessionId });
 		},
+
+		runTools: (sessionId, calls, onResult) =>
+			userRunTools(client, sessionId, calls, onResult),
+		runTool: (sessionId, name, args) =>
+			userRunTool(client, sessionId, name, args),
 	};
 }
 
