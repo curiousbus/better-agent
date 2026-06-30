@@ -5,15 +5,19 @@ export function parseColumn(result: unknown): BoardTask[] {
 	if (!Array.isArray(result)) {
 		return [];
 	}
-	return result.map((row) => ({
-		id: String((row as BoardTask).id),
-		title: String((row as BoardTask).title),
-		description: String((row as BoardTask).description ?? ""),
-		status: (row as BoardTask).status,
-		position: Number((row as BoardTask).position ?? 0),
-		seq: Number((row as BoardTask).seq ?? 0),
-		sprintId: ((row as BoardTask).sprintId ?? null) as string | null,
-	}));
+	return result.map((row) => {
+		const r = row as BoardTask & { createdAt?: string };
+		return {
+			id: String(r.id),
+			title: String(r.title),
+			description: String(r.description ?? ""),
+			status: r.status,
+			position: Number(r.position ?? 0),
+			seq: Number(r.seq ?? 0),
+			sprintId: (r.sprintId ?? null) as string | null,
+			createdAt: r.createdAt,
+		};
+	});
 }
 
 export function parseTask(result: unknown): BoardTask {

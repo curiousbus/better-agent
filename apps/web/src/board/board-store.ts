@@ -1,6 +1,7 @@
 export type BoardStatus = "todo" | "in_progress" | "done";
 
 export interface BoardTask {
+	createdAt?: string;
 	description: string;
 	id: string;
 	position: number;
