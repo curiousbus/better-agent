@@ -166,6 +166,10 @@ function TaskModalBody({
 }: TaskModalProps) {
 	const { task, loading } = useTaskDetail(agentClient, sessionId, taskId);
 
+	// Dialog is closed — don't render a skeleton into the hidden content.
+	if (!taskId) {
+		return null;
+	}
 	if (loading || !task) {
 		return <TaskModalSkeleton />;
 	}
