@@ -22,6 +22,7 @@ import type {
 	SessionInput,
 	SessionStatus,
 } from "./session/types";
+import type { Task, TaskStatus } from "./task/types";
 
 export interface ProviderCatalogStore {
 	get(providerId: string): Promise<ProviderCatalogEntry | null>;
@@ -237,4 +238,26 @@ export interface GoogleOAuth {
 	authUrl(state: string): string;
 	/** Exchange the authorization code for the user's verified email. */
 	exchangeCode(code: string): Promise<GoogleProfile>;
+}
+
+export interface TaskStore {
+	create(
+		userId: string,
+		input: { status?: TaskStatus; title: string }
+	): Promise<Task>;
+	get(userId: string, id: string): Promise<Task | null>;
+	list(userId: string): Promise<Task[]>;
+	listColumn(userId: string, status: TaskStatus): Promise<Task[]>;
+	move(
+		userId: string,
+		id: string,
+		status: TaskStatus,
+		position: number
+	): Promise<Task | null>;
+	remove(userId: string, id: string): Promise<boolean>;
+	update(
+		userId: string,
+		id: string,
+		patch: { description?: string; title?: string }
+	): Promise<Task | null>;
 }

@@ -6,4 +6,5 @@ export * from "./composio";
 export * from "./providers";
 export * from "./sessions";
 export * from "./settings";
+export * from "./task-board";
 export * from "./web-authz";
