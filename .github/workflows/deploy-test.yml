@@ -87,6 +87,8 @@ jobs:
           AUTHZ_DATABASE_URL: ${{ secrets.AUTHZ_DATABASE_URL }}
           AUTHZ_ADMIN_EMAIL: ${{ secrets.AUTHZ_ADMIN_EMAIL }}
           AUTHZ_ADMIN_PASSWORD: ${{ secrets.AUTHZ_ADMIN_PASSWORD }}
+      - name: Build authz SPA
+        run: pnpm -F authz build
       - name: Deploy authz
         uses: cloudflare/wrangler-action@v3
         with:
