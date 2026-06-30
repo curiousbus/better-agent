@@ -1,5 +1,11 @@
 import type { AgentClient } from "@curiousbus/agent-client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { toast } from "sonner";
 import { loadColumns } from "./board-client";
 import {
@@ -37,17 +43,6 @@ function useColumnLoader(
 	return loaded;
 }
 
-function makeDeleteHandler(
-	store: BoardStore,
-	agentClient: AgentClient,
-	sessionId: string
-) {
-	return (id: string) => {
-		store.removeLocal(id);
-		agentClient.runTool(sessionId, "deleteTask", { id }).catch(() => undefined);
-	};
-}
-
 export function TaskBoard({
 	agentClient,
 	sessionId,
@@ -66,7 +61,15 @@ export function TaskBoard({
 	);
 	const loaded = useColumnLoader(store, agentClient, sessionId);
 	const groups = groupByColumn(tasks);
-	const onDelete = makeDeleteHandler(store, agentClient, sessionId);
+	const onDelete = useCallback(
+		(id: string) => {
+			store.removeLocal(id);
+			agentClient
+				.runTool(sessionId, "deleteTask", { id })
+				.catch(() => toast.error("Failed to delete task."));
+		},
+		[store, agentClient, sessionId]
+	);
 
 	return (
 		<div className="flex h-full gap-4 overflow-x-auto p-4">

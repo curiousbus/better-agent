@@ -26,7 +26,10 @@ export function TaskColumn({
 				<span className="font-medium text-sm">{label}</span>
 				<Badge variant="secondary">{tasks.length}</Badge>
 			</div>
-			<div className="flex flex-col gap-2 overflow-y-auto" data-status={status}>
+			<div
+				className="fade-in flex animate-in flex-col gap-2 overflow-y-auto"
+				data-status={status}
+			>
 				{loaded
 					? tasks.map((task) => (
 							<TaskCard

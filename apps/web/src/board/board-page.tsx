@@ -1,6 +1,7 @@
 import { buttonVariants } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
@@ -24,9 +25,9 @@ function BoardEmpty() {
 			<p className="text-muted-foreground text-sm">
 				Create an agent to use the board.
 			</p>
-			<a className={buttonVariants({ variant: "default" })} href="/agents/new">
-				Create agent
-			</a>
+			<Link className={buttonVariants({ variant: "default" })} to="/">
+				Create an agent
+			</Link>
 		</div>
 	);
 }
@@ -62,11 +63,8 @@ export function BoardPage() {
 	if (agentsQuery.isPending || (agent && sessionId === "")) {
 		return <BoardLoading />;
 	}
-	if (!agent) {
+	if (!(agent && agentClient)) {
 		return <BoardEmpty />;
-	}
-	if (!agentClient) {
-		return <BoardLoading />;
 	}
 	return (
 		<TaskBoard
