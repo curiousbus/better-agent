@@ -21,11 +21,6 @@ import { useState } from "react";
 import type { Code } from "@/api";
 import { clampPage, filterCodes, pageCount, pageOf } from "@/lib/codes";
 
-interface CodeRowProps {
-	code: Code;
-	onRevoke: (id: string) => void;
-}
-
 function UsedCell({ code }: { code: Code }) {
 	if (!code.active) {
 		return <span className="text-muted-foreground">revoked</span>;
@@ -37,7 +32,67 @@ function UsedCell({ code }: { code: Code }) {
 	);
 }
 
-function CodeRow({ code, onRevoke }: CodeRowProps) {
+interface CodeRowProps {
+	code: Code;
+	confirmingId: string | null;
+	onConfirmRequest: (id: string | null) => void;
+	onRevoke: (id: string) => void;
+}
+
+function RevokeCell({
+	code,
+	isConfirming,
+	onRevoke,
+	onConfirmRequest,
+}: {
+	code: Code;
+	isConfirming: boolean;
+	onRevoke: (id: string) => void;
+	onConfirmRequest: (id: string | null) => void;
+}) {
+	if (!code.active) {
+		return null;
+	}
+	if (isConfirming) {
+		return (
+			<div className="flex items-center gap-1">
+				<Button
+					onClick={() => {
+						onRevoke(code.id);
+						onConfirmRequest(null);
+					}}
+					size="xs"
+					variant="destructive"
+				>
+					Confirm?
+				</Button>
+				<Button
+					onClick={() => onConfirmRequest(null)}
+					size="xs"
+					variant="outline"
+				>
+					Cancel
+				</Button>
+			</div>
+		);
+	}
+	return (
+		<Button
+			onClick={() => onConfirmRequest(code.id)}
+			size="xs"
+			variant="destructive"
+		>
+			Revoke
+		</Button>
+	);
+}
+
+function CodeRow({
+	code,
+	confirmingId,
+	onRevoke,
+	onConfirmRequest,
+}: CodeRowProps) {
 	return (
 		<TableRow key={code.id}>
 			<TableCell>
@@ -51,15 +106,12 @@ function CodeRow({ code, onRevoke }: CodeRowProps) {
 				<UsedCell code={code} />
 			</TableCell>
 			<TableCell>
-				{code.active && (
-					<Button
-						onClick={() => onRevoke(code.id)}
-						size="xs"
-						variant="destructive"
-					>
-						Revoke
-					</Button>
-				)}
+				<RevokeCell
+					code={code}
+					isConfirming={confirmingId === code.id}
+					onConfirmRequest={onConfirmRequest}
+					onRevoke={onRevoke}
+				/>
 			</TableCell>
 		</TableRow>
 	);
@@ -137,6 +189,7 @@ function CodesPagination({
 export function CodesTable({ codes, onRevoke }: CodesTableProps) {
 	const [query, setQuery] = useState("");
 	const [page, setPage] = useState(0);
+	const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
 	const filtered = filterCodes(codes, query);
 	const safePage = clampPage(page, filtered.length);
@@ -166,7 +219,13 @@ export function CodesTable({ codes, onRevoke }: CodesTableProps) {
 					key={safePage}
 				>
 					{rows.map((code) => (
-						<CodeRow code={code} key={code.id} onRevoke={onRevoke} />
+						<CodeRow
+							code={code}
+							confirmingId={confirmingId}
+							key={code.id}
+							onConfirmRequest={setConfirmingId}
+							onRevoke={onRevoke}
+						/>
 					))}
 					{rows.length === 0 && (
 						<TableRow>
