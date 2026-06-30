@@ -114,7 +114,8 @@ async function* streamUserTurn(
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
 		const toolDefs = await agentToolDefs(context, session.agentId);
-		const allDefs = [...remoteDefs, ...toolDefs];
+		const taskDefs = buildTaskToolDefs(context.services.stores.task, userId);
+		const allDefs = [...remoteDefs, ...toolDefs, ...taskDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,
