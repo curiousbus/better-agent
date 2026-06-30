@@ -124,10 +124,12 @@ function TaskModalForm({
 	return (
 		<>
 			<DialogHeader>
-				<p className="font-mono text-muted-foreground text-xs">
+				<DialogTitle>
 					TASK-{task.seq}
-				</p>
-				<DialogTitle className="mt-1">Edit task</DialogTitle>
+					<span className="ml-2 font-normal text-muted-foreground text-xs">
+						{task.title}
+					</span>
+				</DialogTitle>
 			</DialogHeader>
 			<div className="flex flex-col gap-3 py-2">
 				<TaskModalFields

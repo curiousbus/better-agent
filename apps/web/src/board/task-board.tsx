@@ -157,9 +157,7 @@ function useBoardState(props: TaskBoardProps) {
 
 interface DndShellProps {
 	children: React.ReactNode;
-	onDragEnd: ReturnType<typeof useSensors> extends never
-		? never
-		: Parameters<typeof DndContext>[0]["onDragEnd"];
+	onDragEnd: Parameters<typeof DndContext>[0]["onDragEnd"];
 	onDragOver: Parameters<typeof DndContext>[0]["onDragOver"];
 	sensors: ReturnType<typeof useSensors>;
 }

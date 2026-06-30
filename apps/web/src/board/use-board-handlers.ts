@@ -3,12 +3,7 @@ import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { loadSprintColumns, parseTask } from "./board-client";
-import {
-	type BoardStatus,
-	type BoardStore,
-	groupByColumn,
-	nextPosition,
-} from "./board-store";
+import { type BoardStatus, type BoardStore, nextPosition } from "./board-store";
 import { containerOf, resolveDrop } from "./drag-resolve";
 
 interface HandlerCtx {
@@ -35,13 +30,15 @@ function optimisticCreate(
 	const { status, sprintId } = opts;
 	const trimmed = title.trim();
 	const tempId = `temp-${crypto.randomUUID()}`;
-	const groups = groupByColumn(store.getSnapshot());
+	const bucket = store
+		.getSnapshot()
+		.filter((t) => t.sprintId === sprintId && t.status === status);
 	store.addLocal({
 		id: tempId,
 		title: trimmed,
 		description: "",
 		status,
-		position: nextPosition(groups[status]),
+		position: nextPosition(bucket),
 		seq: 0,
 		sprintId,
 	});
