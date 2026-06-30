@@ -18,6 +18,7 @@ import type {
 	RefreshTokenStore,
 	SessionStore,
 	SettingsStore,
+	SprintStore,
 	TaskStore,
 	UserStore,
 	WebAuthzCacheStore,
@@ -64,6 +65,7 @@ export interface AgentServices {
 		refreshToken: RefreshTokenStore;
 		settings: SettingsStore;
 		composioAccount: ComposioAccountStore;
+		sprint: SprintStore;
 		task: TaskStore;
 		webAuthzCache: WebAuthzCacheStore;
 	};

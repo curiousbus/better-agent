@@ -2,22 +2,23 @@ import type { TaskStore } from "../ports";
 import type { TaskStatus } from "../task/types";
 import type { ExecuteResult, JsonSchema, ToolDef } from "./types";
 
-const STATUS_VALUES: TaskStatus[] = ["todo", "in_progress", "done"];
+export const STATUS_VALUES: TaskStatus[] = ["todo", "in_progress", "done"];
 
-const statusSchema = {
+export const statusSchema = {
 	type: "string",
 	enum: STATUS_VALUES,
 } as const;
 
-const ok = (value: unknown): ExecuteResult => ({
+export const ok = (value: unknown): ExecuteResult => ({
 	output: JSON.stringify(value),
 });
-const notFound = (): ExecuteResult => ({
+
+export const notFound = (): ExecuteResult => ({
 	output: JSON.stringify({ error: "not_found" }),
 	isError: true,
 });
 
-function asString(args: unknown, key: string): string {
+export function asString(args: unknown, key: string): string {
 	const value = (args as Record<string, unknown>)[key];
 	if (typeof value !== "string") {
 		throw new Error(`Missing string arg: ${key}`);
@@ -25,19 +26,19 @@ function asString(args: unknown, key: string): string {
 	return value;
 }
 
-function optionalString(args: unknown, key: string): string | undefined {
+export function optionalString(args: unknown, key: string): string | undefined {
 	const value = (args as Record<string, unknown>)[key];
 	return typeof value === "string" ? value : undefined;
 }
 
-function asStatus(value: unknown): TaskStatus {
+export function asStatus(value: unknown): TaskStatus {
 	if (STATUS_VALUES.includes(value as TaskStatus)) {
 		return value as TaskStatus;
 	}
 	throw new Error(`Invalid status: ${String(value)}`);
 }
 
-const objectSchema = (
+export const objectSchema = (
 	properties: JsonSchema,
 	required: string[]
 ): JsonSchema => ({
@@ -47,18 +48,32 @@ const objectSchema = (
 	additionalProperties: false,
 });
 
-const listColumnTool = (store: TaskStore, userId: string): ToolDef => ({
-	name: "listColumn",
+const listSprintColumnTool = (store: TaskStore, userId: string): ToolDef => ({
+	name: "listSprintColumn",
 	description:
-		"List the current user's tasks in one column (status). Returns an array.",
-	parameters: objectSchema({ status: statusSchema }, ["status"]),
-	execute: async (args) =>
-		ok(
-			await store.listColumn(
-				userId,
-				asStatus((args as Record<string, unknown>).status)
-			)
-		),
+		"List tasks in a sprint column (sprintId + status). Pass null sprintId for backlog column.",
+	parameters: objectSchema(
+		{
+			sprintId: { type: ["string", "null"] },
+			status: statusSchema,
+		},
+		["sprintId", "status"]
+	),
+	execute: async (args) => {
+		const record = args as Record<string, unknown>;
+		const sprintId =
+			typeof record.sprintId === "string" ? record.sprintId : null;
+		return ok(
+			await store.listColumn(userId, sprintId, asStatus(record.status))
+		);
+	},
+});
+
+const listBacklogTool = (store: TaskStore, userId: string): ToolDef => ({
+	name: "listBacklog",
+	description: "List all backlog tasks (not assigned to any sprint).",
+	parameters: objectSchema({}, []),
+	execute: async () => ok(await store.listBacklog(userId)),
 });
 
 const createTaskTool = (store: TaskStore, userId: string): ToolDef => ({
@@ -66,15 +81,23 @@ const createTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	description:
 		"Create a task for the current user. Defaults to the todo column.",
 	parameters: objectSchema(
-		{ title: { type: "string" }, status: statusSchema },
+		{
+			title: { type: "string" },
+			status: statusSchema,
+			sprintId: { type: ["string", "null"] },
+		},
 		["title"]
 	),
 	execute: async (args) => {
 		const status = optionalString(args, "status");
+		const record = args as Record<string, unknown>;
+		const sprintId =
+			typeof record.sprintId === "string" ? record.sprintId : undefined;
 		return ok(
 			await store.create(userId, {
 				title: asString(args, "title"),
 				status: status ? asStatus(status) : undefined,
+				sprintId,
 			})
 		);
 	},
@@ -82,23 +105,31 @@ const createTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 
 const moveTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "moveTask",
-	description: "Move a task to a column and position.",
+	description: "Move a task to a column/sprint and position.",
 	parameters: objectSchema(
 		{
 			id: { type: "string" },
 			status: statusSchema,
 			position: { type: "number" },
+			sprintId: { type: ["string", "null"] },
 		},
 		["id", "status", "position"]
 	),
 	execute: async (args) => {
 		const record = args as Record<string, unknown>;
-		const moved = await store.move(
-			userId,
-			asString(args, "id"),
-			asStatus(record.status),
-			typeof record.position === "number" ? record.position : 0
-		);
+		const patch: {
+			position: number;
+			sprintId?: string | null;
+			status: TaskStatus;
+		} = {
+			status: asStatus(record.status),
+			position: typeof record.position === "number" ? record.position : 0,
+		};
+		if ("sprintId" in (args as object)) {
+			patch.sprintId =
+				typeof record.sprintId === "string" ? record.sprintId : null;
+		}
+		const moved = await store.move(userId, asString(args, "id"), patch);
 		return moved ? ok(moved) : notFound();
 	},
 });
@@ -145,7 +176,8 @@ const getTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 
 export function buildTaskToolDefs(store: TaskStore, userId: string): ToolDef[] {
 	return [
-		listColumnTool(store, userId),
+		listSprintColumnTool(store, userId),
+		listBacklogTool(store, userId),
 		createTaskTool(store, userId),
 		moveTaskTool(store, userId),
 		updateTaskTool(store, userId),

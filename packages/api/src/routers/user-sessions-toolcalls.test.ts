@@ -1,4 +1,4 @@
-import type { TaskStore } from "@better-agent/agent/ports";
+import type { SprintStore, TaskStore } from "@better-agent/agent/ports";
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Task } from "@better-agent/agent/task/types";
 import { createFakeSessionStore } from "@better-agent/agent/testing/fakes";
@@ -15,10 +15,16 @@ function memoryTaskStore(): TaskStore {
 	const rows: Task[] = [];
 	let seq = 0;
 	return {
-		list: (u) => Promise.resolve(rows.filter((r) => r.userId === u)),
-		listColumn: (u, status) =>
+		listBacklog: (u) =>
 			Promise.resolve(
-				rows.filter((r) => r.userId === u && r.status === status)
+				rows.filter((r) => r.userId === u && r.sprintId === null)
+			),
+		listColumn: (u, sprintId, status) =>
+			Promise.resolve(
+				rows.filter(
+					(r) =>
+						r.userId === u && r.sprintId === sprintId && r.status === status
+				)
 			),
 		get: (u, id) =>
 			Promise.resolve(rows.find((r) => r.userId === u && r.id === id) ?? null),
@@ -26,10 +32,12 @@ function memoryTaskStore(): TaskStore {
 			seq += 1;
 			const task: Task = {
 				id: `t${seq}`,
+				seq,
 				userId: u,
 				title: input.title,
 				description: "",
 				status: input.status ?? "todo",
+				sprintId: input.sprintId ?? null,
 				position: seq,
 				createdAt: STAMP,
 				updatedAt: STAMP,
@@ -43,6 +51,18 @@ function memoryTaskStore(): TaskStore {
 	};
 }
 
+function memorySprintStore(): SprintStore {
+	return {
+		list: () => Promise.resolve([]),
+		active: () => Promise.resolve(null),
+		get: () => Promise.resolve(null),
+		create: () => Promise.reject(new Error("not implemented")),
+		update: () => Promise.resolve(null),
+		setStatus: () => Promise.resolve(null),
+		remove: () => Promise.resolve(false),
+	};
+}
+
 async function setup() {
 	const sessionStore = createFakeSessionStore();
 	const session = await sessionStore.create({
@@ -51,7 +71,11 @@ async function setup() {
 	});
 	const services = {
 		authz: { enabled: false },
-		stores: { session: sessionStore, task: memoryTaskStore() },
+		stores: {
+			session: sessionStore,
+			task: memoryTaskStore(),
+			sprint: memorySprintStore(),
+		},
 	};
 	const client = createRouterClient(appRouter, {
 		context: {

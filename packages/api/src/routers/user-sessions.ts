@@ -6,6 +6,7 @@ import {
 	type ComposioService,
 } from "@better-agent/agent/tool/composio-tools";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
+import { buildSprintToolDefs } from "@better-agent/agent/tool/sprint-tools";
 import { buildTaskToolDefs } from "@better-agent/agent/tool/task-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
@@ -115,7 +116,11 @@ async function* streamUserTurn(
 			: [];
 		const toolDefs = await agentToolDefs(context, session.agentId);
 		const taskDefs = buildTaskToolDefs(context.services.stores.task, userId);
-		const allDefs = [...remoteDefs, ...toolDefs, ...taskDefs];
+		const sprintDefs = buildSprintToolDefs(
+			context.services.stores.sprint,
+			userId
+		);
+		const allDefs = [...remoteDefs, ...toolDefs, ...taskDefs, ...sprintDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,
@@ -139,7 +144,10 @@ async function* streamToolCalls(
 ): AsyncGenerator<RunEvent, void> {
 	try {
 		await requireUserSession(context, userId, input.sessionId);
-		const defs = buildTaskToolDefs(context.services.stores.task, userId);
+		const defs = [
+			...buildTaskToolDefs(context.services.stores.task, userId),
+			...buildSprintToolDefs(context.services.stores.sprint, userId),
+		];
 		const byName = new Map(defs.map((def) => [def.name, def] as const));
 		const work = input.toolCalls.map((call) =>
 			executeToolCall(byName.get(call.name), call, input.sessionId, signal)

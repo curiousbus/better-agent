@@ -2,7 +2,7 @@ import type {
 	LanguageModelV3,
 	LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import type { TaskStore } from "@better-agent/agent/ports";
+import type { SprintStore, TaskStore } from "@better-agent/agent/ports";
 import type { RunEvent } from "@better-agent/agent/session/events";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
@@ -47,10 +47,16 @@ function memoryTaskStore(): TaskStore {
 	const rows: Task[] = [];
 	let seq = 0;
 	return {
-		list: (u) => Promise.resolve(rows.filter((r) => r.userId === u)),
-		listColumn: (u, status) =>
+		listBacklog: (u) =>
 			Promise.resolve(
-				rows.filter((r) => r.userId === u && r.status === status)
+				rows.filter((r) => r.userId === u && r.sprintId === null)
+			),
+		listColumn: (u, sprintId, status) =>
+			Promise.resolve(
+				rows.filter(
+					(r) =>
+						r.userId === u && r.sprintId === sprintId && r.status === status
+				)
 			),
 		get: (u, id) =>
 			Promise.resolve(rows.find((r) => r.userId === u && r.id === id) ?? null),
@@ -58,10 +64,12 @@ function memoryTaskStore(): TaskStore {
 			seq += 1;
 			const task: Task = {
 				id: `t${seq}`,
+				seq,
 				userId: u,
 				title: input.title,
 				description: "",
 				status: input.status ?? "todo",
+				sprintId: input.sprintId ?? null,
 				position: seq,
 				createdAt: STAMP,
 				updatedAt: STAMP,
@@ -71,6 +79,19 @@ function memoryTaskStore(): TaskStore {
 		},
 		update: () => Promise.resolve(null),
 		move: () => Promise.resolve(null),
+		remove: () => Promise.resolve(false),
+	};
+}
+
+// ── in-memory SprintStore (stub) ─────────────────────────────────────────────
+function memorySprintStore(): SprintStore {
+	return {
+		list: () => Promise.resolve([]),
+		active: () => Promise.resolve(null),
+		get: () => Promise.resolve(null),
+		create: () => Promise.reject(new Error("not implemented")),
+		update: () => Promise.resolve(null),
+		setStatus: () => Promise.resolve(null),
 		remove: () => Promise.resolve(false),
 	};
 }
@@ -136,6 +157,7 @@ function buildModelToolServices(model: LanguageModelV3, taskStore: TaskStore) {
 			session: sessionStore,
 			message: messageStore,
 			task: taskStore,
+			sprint: memorySprintStore(),
 		},
 	};
 	return { agentStore, sessionStore, services };
@@ -182,7 +204,7 @@ it("model turn can call createTask and the task is persisted in the store", asyn
 		events.push(e);
 	}
 
-	const tasks = await taskStore.list(USER_ID);
+	const tasks = await taskStore.listBacklog(USER_ID);
 	expect(tasks).toHaveLength(1);
 	expect(tasks[0]?.title).toBe("from model");
 });

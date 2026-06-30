@@ -32,6 +32,7 @@ import {
 } from "@better-agent/db/repositories/provider-stores";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
+import { createSprintStore } from "@better-agent/db/repositories/sprint-store";
 import { createTaskStore } from "@better-agent/db/repositories/task-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
@@ -52,14 +53,11 @@ import { createUpstashCancellationRegistry } from "./upstash-cancellation";
 import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
 
 type Db = Parameters<typeof createAgentStore>[0];
-
 const ACCESS_TTL = 900;
 const REFRESH_TTL = 2_592_000;
 const MAGIC_LINK_TTL = 900;
 
-// The secret box derives its key with scrypt (~tens of ms), so it must not be
-// rebuilt per request. It depends only on the (process-wide) secret, so memoize
-// it per isolate even though the rest of the services are built per request.
+// scrypt key derivation is slow — memoize the secret box per isolate.
 let cachedSecretBox: ReturnType<typeof createSecretBox> | null = null;
 function getSecretBox() {
 	cachedSecretBox ??= createSecretBox(env.CREDENTIALS_SECRET);
@@ -116,9 +114,7 @@ function buildProviderDeps(
 	};
 }
 
-// One Upstash REST client (when configured) for cross-isolate coordination on
-// Cloudflare Workers: the streaming request and the submit/cancel requests hit
-// different isolates, where ioredis pub/sub and in-memory maps don't reach.
+// Upstash REST client for cross-isolate coordination on Cloudflare Workers.
 function upstashRedis(): UpstashRedis | null {
 	const url = env.UPSTASH_REDIS_REST_URL;
 	const token = env.UPSTASH_REDIS_REST_TOKEN;
@@ -189,6 +185,7 @@ function buildStores(parts: {
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
@@ -203,6 +200,7 @@ function buildStores(parts: {
 		attachment: parts.attachmentStore,
 		settings: parts.settings,
 		composioAccount: parts.composioAccount,
+		sprint: parts.sprintStore,
 		task: parts.taskStore,
 		webAuthzCache: parts.webAuthzCache,
 		...authStores,
@@ -220,6 +218,7 @@ function assembleServices(parts: {
 	runtime: ReturnType<typeof buildRuntime>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
@@ -251,6 +250,7 @@ function assembleServices(parts: {
 			attachmentStore: parts.attachmentStore,
 			settings: parts.settings,
 			composioAccount: parts.composioAccount,
+			sprintStore: parts.sprintStore,
 			taskStore: parts.taskStore,
 			webAuthzCache: parts.webAuthzCache,
 			authStores: auth.authStores,
@@ -267,6 +267,7 @@ export function buildServices(
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
+	const sprintStore = createSprintStore(db);
 	const taskStore = createTaskStore(db);
 	const attachmentStore = createAttachmentStore(
 		createAttachmentMetaStore(db),
@@ -287,6 +288,7 @@ export function buildServices(
 		attachmentStore,
 		sessionStore,
 		messageStore,
+		sprintStore,
 		taskStore,
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),

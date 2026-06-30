@@ -7,14 +7,19 @@ const USER = "user-1";
 const STAMP = "2026-06-30T00:00:00.000Z";
 
 function makeCreate(rows: Task[], counter: { n: number }) {
-	return (u: string, input: { title: string; status?: Task["status"] }) => {
+	return (
+		u: string,
+		input: { title: string; status?: Task["status"]; sprintId?: string | null }
+	) => {
 		counter.n += 1;
 		const task: Task = {
 			id: `t${counter.n}`,
+			seq: counter.n,
 			userId: u,
 			title: input.title,
 			description: "",
 			status: input.status ?? "todo",
+			sprintId: input.sprintId ?? null,
 			position: counter.n,
 			createdAt: STAMP,
 			updatedAt: STAMP,
@@ -25,13 +30,24 @@ function makeCreate(rows: Task[], counter: { n: number }) {
 }
 
 function makeMove(rows: Task[]) {
-	return (u: string, id: string, status: Task["status"], position: number) => {
+	return (
+		u: string,
+		id: string,
+		patch: {
+			position: number;
+			sprintId?: string | null;
+			status: Task["status"];
+		}
+	) => {
 		const task = rows.find((r) => r.userId === u && r.id === id);
 		if (!task) {
 			return Promise.resolve(null);
 		}
-		task.status = status;
-		task.position = position;
+		task.status = patch.status;
+		task.position = patch.position;
+		if ("sprintId" in patch) {
+			task.sprintId = patch.sprintId ?? null;
+		}
 		return Promise.resolve(task);
 	};
 }
@@ -40,10 +56,16 @@ function fakeStore(): TaskStore {
 	const rows: Task[] = [];
 	const counter = { n: 0 };
 	return {
-		list: (u) => Promise.resolve(rows.filter((r) => r.userId === u)),
-		listColumn: (u, status) =>
+		listBacklog: (u) =>
 			Promise.resolve(
-				rows.filter((r) => r.userId === u && r.status === status)
+				rows.filter((r) => r.userId === u && r.sprintId === null)
+			),
+		listColumn: (u, sprintId, status) =>
+			Promise.resolve(
+				rows.filter(
+					(r) =>
+						r.userId === u && r.sprintId === sprintId && r.status === status
+				)
 			),
 		get: (u, id) =>
 			Promise.resolve(rows.find((r) => r.userId === u && r.id === id) ?? null),
@@ -76,18 +98,54 @@ const byName = (defs: ReturnType<typeof buildTaskToolDefs>, name: string) => {
 	return def;
 };
 
-it("createTask then listColumn returns the task as JSON", async () => {
+function ctx() {
+	return {
+		abortSignal: new AbortController().signal,
+		agentId: "a1",
+		callId: "c1",
+		messageId: "m1",
+		sessionId: "s1",
+	};
+}
+
+it("createTask round-trip: creates and is retrievable", async () => {
 	const defs = buildTaskToolDefs(fakeStore(), USER);
 	const created = await byName(defs, "createTask").execute(
 		{ title: "hello" },
 		ctx()
 	);
-	expect(JSON.parse(created.output).title).toBe("hello");
-	const list = await byName(defs, "listColumn").execute(
-		{ status: "todo" },
+	const parsed = JSON.parse(created.output);
+	expect(parsed.title).toBe("hello");
+	expect(parsed.seq).toBe(1);
+	expect(parsed.sprintId).toBeNull();
+});
+
+it("listBacklog returns tasks not assigned to a sprint", async () => {
+	const store = fakeStore();
+	const defs = buildTaskToolDefs(store, USER);
+	await byName(defs, "createTask").execute({ title: "backlog task" }, ctx());
+	const list = await byName(defs, "listBacklog").execute({}, ctx());
+	expect(JSON.parse(list.output)).toHaveLength(1);
+});
+
+it("listSprintColumn filters by sprintId and status", async () => {
+	const store = fakeStore();
+	const defs = buildTaskToolDefs(store, USER);
+	// Create a task assigned to sprint-1
+	await store.create(USER, {
+		title: "sprint task",
+		sprintId: "sprint-1",
+		status: "todo",
+	});
+	// Create a backlog task
+	await store.create(USER, { title: "backlog task" });
+	const list = await byName(defs, "listSprintColumn").execute(
+		{ sprintId: "sprint-1", status: "todo" },
 		ctx()
 	);
-	expect(JSON.parse(list.output)).toHaveLength(1);
+	const results = JSON.parse(list.output);
+	expect(results).toHaveLength(1);
+	expect(results[0].title).toBe("sprint task");
 });
 
 it("moveTask on a missing id returns isError not_found", async () => {
@@ -99,13 +157,3 @@ it("moveTask on a missing id returns isError not_found", async () => {
 	expect(res.isError).toBe(true);
 	expect(JSON.parse(res.output).error).toBe("not_found");
 });
-
-function ctx() {
-	return {
-		abortSignal: new AbortController().signal,
-		agentId: "a1",
-		callId: "c1",
-		messageId: "m1",
-		sessionId: "s1",
-	};
-}
