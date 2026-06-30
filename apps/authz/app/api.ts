@@ -72,3 +72,21 @@ export async function revokeCode(
 	});
 	assertOk(res);
 }
+
+export function decodeJwtEmail(token: string | null): string | null {
+	if (token === null) {
+		return null;
+	}
+	const parts = token.split(".");
+	if (parts.length !== 3) {
+		return null;
+	}
+	try {
+		const [, middle] = parts;
+		const segment = (middle ?? "").replace(/-/g, "+").replace(/_/g, "/");
+		const payload = JSON.parse(atob(segment)) as { email?: unknown };
+		return typeof payload.email === "string" ? payload.email : null;
+	} catch {
+		return null;
+	}
+}
