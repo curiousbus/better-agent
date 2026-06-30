@@ -1,11 +1,12 @@
 import type { AgentClient } from "@curiousbus/agent-client";
 import {
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-	useSyncExternalStore,
-} from "react";
+	closestCorners,
+	DndContext,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { loadColumns } from "./board-client";
 import {
@@ -16,6 +17,9 @@ import {
 	groupByColumn,
 } from "./board-store";
 import { TaskColumn } from "./task-column";
+import { useBoardHandlers } from "./use-board-handlers";
+
+const ACTIVATION_DISTANCE = 4;
 
 function useColumnLoader(
 	store: BoardStore,
@@ -60,30 +64,36 @@ export function TaskBoard({
 		store.getSnapshot
 	);
 	const loaded = useColumnLoader(store, agentClient, sessionId);
-	const groups = groupByColumn(tasks);
-	const onDelete = useCallback(
-		(id: string) => {
-			store.removeLocal(id);
-			agentClient
-				.runTool(sessionId, "deleteTask", { id })
-				.catch(() => toast.error("Failed to delete task."));
-		},
-		[store, agentClient, sessionId]
+	const { onDragEnd, onCreate, onDelete } = useBoardHandlers(
+		store,
+		agentClient,
+		sessionId
 	);
-
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: { distance: ACTIVATION_DISTANCE },
+		})
+	);
 	return (
-		<div className="flex h-full gap-4 overflow-x-auto p-4">
-			{COLUMNS.map((column) => (
-				<TaskColumn
-					key={column.status}
-					label={column.label}
-					loaded={loaded.has(column.status)}
-					onDelete={onDelete}
-					onOpen={onOpenTask}
-					status={column.status}
-					tasks={groups[column.status]}
-				/>
-			))}
-		</div>
+		<DndContext
+			collisionDetection={closestCorners}
+			onDragEnd={onDragEnd}
+			sensors={sensors}
+		>
+			<div className="flex h-full gap-4 overflow-x-auto p-4">
+				{COLUMNS.map((column) => (
+					<TaskColumn
+						key={column.status}
+						label={column.label}
+						loaded={loaded.has(column.status)}
+						onCreate={onCreate}
+						onDelete={onDelete}
+						onOpen={onOpenTask}
+						status={column.status}
+						tasks={groupByColumn(tasks)[column.status]}
+					/>
+				))}
+			</div>
+		</DndContext>
 	);
 }
