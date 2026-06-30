@@ -7,6 +7,7 @@
 // binding into a config object and pass it explicitly to buildServices/env.
 // The human iterates this via `wrangler dev` — do not over-engineer here.
 import { createNeonDb } from "@better-agent/db/neon-db";
+import { createNodeDb } from "@better-agent/db/node-db";
 import { buildApp } from "./app";
 import type { R2Bucket } from "./attachment-store";
 import type { ServiceBinding } from "./authz-client";
@@ -17,6 +18,9 @@ import { buildServices } from "./services";
 interface WorkerEnv {
 	AUTHZ?: ServiceBinding;
 	DATABASE_URL: string;
+	// Hyperdrive binding (pools + accelerates Postgres). When present, the worker
+	// connects through it via node-postgres instead of the Neon serverless driver.
+	HYPERDRIVE?: { connectionString: string };
 	// R2 bucket for chat attachments (images/files). Optional so the worker still
 	// boots without it; attachment uploads error clearly until it's bound.
 	UPLOADS?: R2Bucket;
@@ -33,7 +37,9 @@ export default {
 		// earlier request throws an uncaught exception ("Cannot perform I/O on
 		// behalf of a different request", surfaced as a 1101). The one expensive
 		// piece (the scrypt-derived secret box) is memoized inside buildServices.
-		const db = createNeonDb(environment.DATABASE_URL);
+		const db = environment.HYPERDRIVE
+			? createNodeDb(environment.HYPERDRIVE.connectionString)
+			: createNeonDb(environment.DATABASE_URL);
 		const services = buildServices(db, environment.AUTHZ, environment.UPLOADS);
 		return buildApp(services).fetch(request);
 	},

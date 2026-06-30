@@ -21,3 +21,10 @@ service = "better-agent-authz"
 [[r2_buckets]]
 binding = "UPLOADS"
 bucket_name = "better-agent-uploads"
+
+# Hyperdrive: pools + edge-accelerates the Neon Postgres connection. The worker
+# connects to env.HYPERDRIVE.connectionString via node-postgres. Created with
+# `wrangler hyperdrive create better-agent-db --connection-string=<neon url>`.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "e163593dbccc4b2db57eeff3471d036b"
