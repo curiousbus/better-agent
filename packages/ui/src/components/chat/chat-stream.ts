@@ -168,6 +168,11 @@ export async function streamPrompt(args: StreamArgs) {
 			outputSchema: args.genui?.outputSchema,
 			tools: args.genui?.tools,
 		})) {
+			// Stop applying events the moment the user aborts, so a stream that
+			// doesn't unwind instantly can't keep re-rendering "Thinking…".
+			if (args.signal.aborted) {
+				break;
+			}
 			applyEvent(event, state);
 		}
 		sealReveal(state);

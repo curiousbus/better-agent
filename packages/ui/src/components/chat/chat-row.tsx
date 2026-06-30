@@ -95,6 +95,9 @@ function AssistantBody({
 				renderTree={renderTree}
 				streaming={streaming}
 			/>
+			{message.status === "stopped" ? (
+				<span className="text-muted-foreground text-sm">Stopped.</span>
+			) : null}
 			{message.status === "error" ? (
 				<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-destructive text-sm">
 					<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />

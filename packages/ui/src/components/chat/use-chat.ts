@@ -132,6 +132,17 @@ export function useChat(
 
 	const stop = () => {
 		abortRef.current?.abort();
+		// Reflect the stop immediately: mark the in-flight assistant draft stopped
+		// (so it stops showing "Thinking…") and free the composer, without waiting
+		// for the stream to actually unwind.
+		setStreaming(false);
+		setDraft((prev) =>
+			prev.map((message) =>
+				message.role === "assistant" && message.status === "streaming"
+					? { ...message, status: "stopped" }
+					: message
+			)
+		);
 		if (sessionId !== "") {
 			agentClient.cancel(sessionId).catch(() => undefined);
 		}

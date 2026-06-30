@@ -6,6 +6,12 @@ const props = (shape: z.ZodRawShape): Record<string, unknown> =>
 
 export const MANIFEST: ComponentDef[] = [
 	{
+		type: "TodoList",
+		description:
+			"A real, interactive todo list the user can add/check-off/delete in directly. Render this whenever the user wants to see or manage their todos. It reads the live todo store — no props or data needed.",
+		props: props({}),
+	},
+	{
 		type: "Stack",
 		description:
 			"Vertical or horizontal layout container for other components.",

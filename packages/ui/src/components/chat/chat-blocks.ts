@@ -30,7 +30,7 @@ export interface ChatMessage {
 	errorText?: string;
 	id: string;
 	role: "user" | "assistant" | "system";
-	status: "complete" | "streaming" | "error";
+	status: "complete" | "streaming" | "error" | "stopped";
 	/** A generative-UI tree (the StructuredOutput result), when this turn rendered UI. */
 	structured?: unknown;
 }

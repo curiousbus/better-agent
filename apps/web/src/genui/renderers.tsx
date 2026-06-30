@@ -1,10 +1,23 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@better-agent/ui/components/card";
 import type { NodeProps } from "@better-agent/ui/components/genui/generative-ui";
+import { Input } from "@better-agent/ui/components/input";
+import { Label } from "@better-agent/ui/components/label";
 import type { ComponentType } from "react";
+import { TodoList } from "./todo-list";
 
 const str = (v: unknown, fallback = ""): string =>
 	typeof v === "string" ? v : fallback;
+
+function TodoListNode(_: NodeProps) {
+	return <TodoList />;
+}
 
 function Stack({ node, renderChildren }: NodeProps) {
 	const horizontal = node.props.direction === "horizontal";
@@ -15,14 +28,18 @@ function Stack({ node, renderChildren }: NodeProps) {
 	);
 }
 
-function Card({ node, renderChildren }: NodeProps) {
+function CardNode({ node, renderChildren }: NodeProps) {
 	return (
-		<div className="rounded-lg border p-4">
+		<Card className="w-full max-w-md gap-3 py-4">
 			{node.props.title ? (
-				<h3 className="mb-2 font-medium text-sm">{str(node.props.title)}</h3>
+				<CardHeader className="px-4">
+					<CardTitle className="text-sm">{str(node.props.title)}</CardTitle>
+				</CardHeader>
 			) : null}
-			<div className="flex flex-col gap-2">{renderChildren(node.children)}</div>
-		</div>
+			<CardContent className="flex flex-col gap-2 px-4">
+				{renderChildren(node.children)}
+			</CardContent>
+		</Card>
 	);
 }
 
@@ -108,20 +125,20 @@ function FormNode({ node, onAction, renderChildren }: NodeProps) {
 
 function TextField({ node }: NodeProps) {
 	return (
-		<label className="flex flex-col gap-1 text-sm">
-			<span>{str(node.props.label)}</span>
-			<input
-				className="rounded border px-2 py-1"
+		<div className="flex flex-col gap-1.5">
+			<Label>{str(node.props.label)}</Label>
+			<Input
 				name={str(node.props.name)}
 				placeholder={str(node.props.placeholder)}
 			/>
-		</label>
+		</div>
 	);
 }
 
 export const RENDERERS: Record<string, ComponentType<NodeProps>> = {
+	TodoList: TodoListNode,
 	Stack,
-	Card,
+	Card: CardNode,
 	Heading,
 	Text,
 	Badge: BadgeNode,
