@@ -172,6 +172,19 @@ export function createAgentClientFrom(client: Client): AgentClient {
 		async cancel(sessionId) {
 			await client.sessions.cancel({ sessionId });
 		},
+
+		// Direct tool execution is a user-session capability (the agent-token chat
+		// plane has no `toolCalls` stream mode); reject clearly if misused here.
+		runTools() {
+			return Promise.reject(
+				new Error("runTools is only available on user sessions")
+			);
+		},
+		runTool() {
+			return Promise.reject(
+				new Error("runTool is only available on user sessions")
+			);
+		},
 	};
 
 	return agentClient;
