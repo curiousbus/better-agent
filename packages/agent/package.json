@@ -11,6 +11,7 @@
     "./crypto/*": "./src/crypto/*.ts",
     "./auth/*": "./src/auth/*.ts",
     "./tool/*": "./src/tool/*.ts",
+    "./task/*": "./src/task/*.ts",
     "./testing/*": "./src/testing/*.ts"
   },
   "scripts": {

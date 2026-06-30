@@ -14,6 +14,12 @@ export type RunEvent =
 	  }
 	| { type: "error"; message: string }
 	| { type: "tool-call"; callId: string; toolName: string; args: unknown }
-	| { type: "tool-result"; callId: string; result: unknown; isError: boolean }
+	| {
+			type: "tool-result";
+			callId: string;
+			name?: string;
+			result: unknown;
+			isError: boolean;
+	  }
 	| { type: "structured-delta"; partial: unknown }
 	| { type: "title"; title: string };

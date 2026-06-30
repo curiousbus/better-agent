@@ -6,6 +6,7 @@ import {
 	type ComposioService,
 } from "@better-agent/agent/tool/composio-tools";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
+import { buildTaskToolDefs } from "@better-agent/agent/tool/task-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -17,7 +18,17 @@ import {
 } from "../attachments";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
-import { drainWithStructured, errorMessage, promptInput } from "./sessions";
+import {
+	drainWithStructured,
+	errorMessage,
+	promptInput,
+	promptOrToolCallsInput,
+} from "./sessions";
+import {
+	executeToolCall,
+	streamSettled,
+	type ToolCall,
+} from "./tool-calls-stream";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -117,6 +128,28 @@ async function* streamUserTurn(
 	}
 }
 
+// Direct tool execution over the SAME stream: run the named task tools
+// concurrently with no model, yielding each result the instant it resolves.
+async function* streamToolCalls(
+	context: Context,
+	userId: string,
+	input: { sessionId: string; toolCalls: ToolCall[] },
+	signal: AbortSignal | undefined
+): AsyncGenerator<RunEvent, void> {
+	try {
+		await requireUserSession(context, userId, input.sessionId);
+		const defs = buildTaskToolDefs(context.services.stores.task, userId);
+		const byName = new Map(defs.map((def) => [def.name, def] as const));
+		const work = input.toolCalls.map((call) =>
+			executeToolCall(byName.get(call.name), call, input.sessionId, signal)
+		);
+		yield* streamSettled(work);
+		yield { type: "done", usage: null, finishReason: "stop" };
+	} catch (error) {
+		yield { type: "error", message: errorMessage(error) };
+	}
+}
+
 export const userSessionsRouter = {
 	create: authorizedUserProcedure
 		.input(z.object({ agentId: z.uuid() }))
@@ -200,10 +233,13 @@ export const userSessionsRouter = {
 		}),
 
 	prompt: authorizedUserProcedure
-		.input(promptInput)
-		.handler(({ input, context, signal }) =>
-			streamUserTurn(context, context.authedUser.id, input, signal)
-		),
+		.input(promptOrToolCallsInput)
+		.handler(({ input, context, signal }) => {
+			if ("toolCalls" in input) {
+				return streamToolCalls(context, context.authedUser.id, input, signal);
+			}
+			return streamUserTurn(context, context.authedUser.id, input, signal);
+		}),
 
 	cancel: authorizedUserProcedure
 		.input(sessionIdInput)

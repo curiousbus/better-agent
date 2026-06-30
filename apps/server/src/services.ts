@@ -32,6 +32,7 @@ import {
 } from "@better-agent/db/repositories/provider-stores";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
+import { createTaskStore } from "@better-agent/db/repositories/task-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
 import { Redis as UpstashRedis } from "@upstash/redis";
@@ -188,6 +189,7 @@ function buildStores(parts: {
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	taskStore: ReturnType<typeof createTaskStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, authStores } = parts;
@@ -201,6 +203,7 @@ function buildStores(parts: {
 		attachment: parts.attachmentStore,
 		settings: parts.settings,
 		composioAccount: parts.composioAccount,
+		task: parts.taskStore,
 		webAuthzCache: parts.webAuthzCache,
 		...authStores,
 	};
@@ -217,6 +220,7 @@ function assembleServices(parts: {
 	runtime: ReturnType<typeof buildRuntime>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	taskStore: ReturnType<typeof createTaskStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, auth } = parts;
@@ -247,6 +251,7 @@ function assembleServices(parts: {
 			attachmentStore: parts.attachmentStore,
 			settings: parts.settings,
 			composioAccount: parts.composioAccount,
+			taskStore: parts.taskStore,
 			webAuthzCache: parts.webAuthzCache,
 			authStores: auth.authStores,
 		}),
@@ -262,6 +267,7 @@ export function buildServices(
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
+	const taskStore = createTaskStore(db);
 	const attachmentStore = createAttachmentStore(
 		createAttachmentMetaStore(db),
 		uploads
@@ -281,6 +287,7 @@ export function buildServices(
 		attachmentStore,
 		sessionStore,
 		messageStore,
+		taskStore,
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),

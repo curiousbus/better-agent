@@ -18,6 +18,7 @@ import type {
 	RefreshTokenStore,
 	SessionStore,
 	SettingsStore,
+	TaskStore,
 	UserStore,
 	WebAuthzCacheStore,
 } from "@better-agent/agent/ports";
@@ -63,6 +64,7 @@ export interface AgentServices {
 		refreshToken: RefreshTokenStore;
 		settings: SettingsStore;
 		composioAccount: ComposioAccountStore;
+		task: TaskStore;
 		webAuthzCache: WebAuthzCacheStore;
 	};
 	tokenService: TokenService;
