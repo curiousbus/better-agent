@@ -2,9 +2,17 @@ import { buttonVariants } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import {
+	type Dispatch,
+	type SetStateAction,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
+import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
+import { BoardChat } from "./board-chat";
 import { TaskBoard } from "./task-board";
 import { TaskModal } from "./task-modal";
 
@@ -64,10 +72,33 @@ function useBoardClient() {
 	return { agent, agentClient, sessionId, pending: agentsQuery.isPending };
 }
 
+function useBoardGenui(
+	setOpenTaskId: (id: string) => void,
+	setRefreshKey: Dispatch<SetStateAction<number>>
+) {
+	return useMemo(
+		() => ({
+			...GENUI_CHAT_CONFIG,
+			handlers: {
+				...GENUI_CHAT_CONFIG.handlers,
+				openTask: (payload: unknown) => {
+					const id = (payload as { id?: string }).id;
+					if (id) {
+						setOpenTaskId(id);
+						setRefreshKey((k) => k + 1);
+					}
+				},
+			},
+		}),
+		[setOpenTaskId, setRefreshKey]
+	);
+}
+
 export function BoardPage() {
 	const { agent, agentClient, sessionId, pending } = useBoardClient();
 	const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 	const [refreshKey, setRefreshKey] = useState(0);
+	const boardGenui = useBoardGenui(setOpenTaskId, setRefreshKey);
 
 	if (pending || (agent && sessionId === "")) {
 		return <BoardLoading />;
@@ -89,6 +120,11 @@ export function BoardPage() {
 				onSaved={() => setRefreshKey((k) => k + 1)}
 				sessionId={sessionId}
 				taskId={openTaskId}
+			/>
+			<BoardChat
+				agentClient={agentClient}
+				generativeUI={boardGenui}
+				sessionId={sessionId}
 			/>
 		</>
 	);
