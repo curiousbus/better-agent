@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import {
 	type Dispatch,
 	type SetStateAction,
+	useCallback,
 	useEffect,
 	useMemo,
 	useState,
@@ -14,8 +15,10 @@ import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
 import { BoardChat } from "./board-chat";
 import { loadBoardSessionId, saveBoardSessionId } from "./board-session";
+import { SprintBar } from "./sprint-bar";
 import { TaskBoard } from "./task-board";
 import { TaskModal } from "./task-modal";
+import { useSprints } from "./use-sprints";
 
 function BoardLoading() {
 	return (
@@ -42,9 +45,6 @@ function BoardEmpty() {
 	);
 }
 
-// The board needs a user-session as a carrier for the tool stream; any of the
-// user's agents works (tasks are user-scoped, not agent-scoped). Pick the first
-// agent, build its client, and open one session.
 function useBoardClient() {
 	const agentsQuery = useQuery(orpc.agents.list.queryOptions());
 	const agent = agentsQuery.data?.[0] ?? null;
@@ -101,11 +101,94 @@ function useBoardGenui(
 	);
 }
 
+type ReadyClient = NonNullable<
+	ReturnType<typeof useBoardClient>["agentClient"]
+>;
+
+function useSprintActions(
+	sprintHook: ReturnType<typeof useSprints>,
+	setRefreshKey: Dispatch<SetStateAction<number>>
+) {
+	const bump = useCallback(() => {
+		sprintHook.refresh();
+		setRefreshKey((k) => k + 1);
+	}, [sprintHook, setRefreshKey]);
+	const onComplete = useCallback(
+		async (id: string) => {
+			await sprintHook.completeSprint(id);
+			bump();
+		},
+		[sprintHook, bump]
+	);
+	const onCreate = useCallback(
+		async (name: string, goal?: string) => {
+			await sprintHook.createSprint(name, goal);
+			bump();
+		},
+		[sprintHook, bump]
+	);
+	const onStart = useCallback(
+		async (id: string) => {
+			await sprintHook.startSprint(id);
+			bump();
+		},
+		[sprintHook, bump]
+	);
+	return { onComplete, onCreate, onStart };
+}
+
+interface BoardContentProps {
+	agentClient: ReadyClient;
+	refreshKey: number;
+	sessionId: string;
+	setOpenTaskId: (id: string) => void;
+	setRefreshKey: Dispatch<SetStateAction<number>>;
+}
+
+function BoardContent({
+	agentClient,
+	sessionId,
+	setOpenTaskId,
+	setRefreshKey,
+	refreshKey,
+}: BoardContentProps) {
+	const sprintHook = useSprints(agentClient, sessionId);
+	const boardGenui = useBoardGenui(setOpenTaskId, setRefreshKey);
+	const { onComplete, onCreate, onStart } = useSprintActions(
+		sprintHook,
+		setRefreshKey
+	);
+
+	return (
+		<>
+			<SprintBar
+				active={sprintHook.active}
+				loading={sprintHook.loading}
+				onComplete={onComplete}
+				onCreate={onCreate}
+				onStart={onStart}
+				sprints={sprintHook.sprints}
+			/>
+			<TaskBoard
+				activeSprintId={sprintHook.active?.id ?? null}
+				agentClient={agentClient}
+				onOpenTask={setOpenTaskId}
+				refreshKey={refreshKey}
+				sessionId={sessionId}
+			/>
+			<BoardChat
+				agentClient={agentClient}
+				generativeUI={boardGenui}
+				sessionId={sessionId}
+			/>
+		</>
+	);
+}
+
 export function BoardPage() {
 	const { agent, agentClient, sessionId, pending } = useBoardClient();
 	const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 	const [refreshKey, setRefreshKey] = useState(0);
-	const boardGenui = useBoardGenui(setOpenTaskId, setRefreshKey);
 
 	if (pending || (agent && sessionId === "")) {
 		return <BoardLoading />;
@@ -115,11 +198,12 @@ export function BoardPage() {
 	}
 	return (
 		<>
-			<TaskBoard
+			<BoardContent
 				agentClient={agentClient}
-				key={refreshKey}
-				onOpenTask={setOpenTaskId}
+				refreshKey={refreshKey}
 				sessionId={sessionId}
+				setOpenTaskId={setOpenTaskId}
+				setRefreshKey={setRefreshKey}
 			/>
 			<TaskModal
 				agentClient={agentClient}
@@ -127,11 +211,6 @@ export function BoardPage() {
 				onSaved={() => setRefreshKey((k) => k + 1)}
 				sessionId={sessionId}
 				taskId={openTaskId}
-			/>
-			<BoardChat
-				agentClient={agentClient}
-				generativeUI={boardGenui}
-				sessionId={sessionId}
 			/>
 		</>
 	);

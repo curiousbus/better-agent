@@ -18,7 +18,6 @@ interface HandlerCtx {
 	store: BoardStore;
 }
 
-// TODO (Task 10): thread active sprint id via ctx and pass sprintId to createTask
 function applyCreate(
 	ctx: HandlerCtx,
 	status: BoardStatus,
@@ -27,7 +26,7 @@ function applyCreate(
 	if (title.trim() === "") {
 		return;
 	}
-	const { store, agentClient, sessionId } = ctx;
+	const { store, agentClient, sessionId, activeSprintId } = ctx;
 	const trimmed = title.trim();
 	const tempId = `temp-${crypto.randomUUID()}`;
 	const groups = groupByColumn(store.getSnapshot());
@@ -38,10 +37,14 @@ function applyCreate(
 		status,
 		position: nextPosition(groups[status]),
 		seq: 0,
-		sprintId: null,
+		sprintId: activeSprintId,
 	});
 	agentClient
-		.runTool(sessionId, "createTask", { title: trimmed, status })
+		.runTool(sessionId, "createTask", {
+			title: trimmed,
+			status,
+			sprintId: activeSprintId,
+		})
 		.then((result) => store.replaceLocal(tempId, parseTask(result)))
 		.catch(() => {
 			store.removeLocal(tempId);

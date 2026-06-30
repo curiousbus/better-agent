@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { loadColumns } from "./board-client";
+import { loadSprintColumns } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
@@ -21,21 +21,36 @@ import { useBoardHandlers } from "./use-board-handlers";
 
 const ACTIVATION_DISTANCE = 4;
 
-function useColumnLoader(
-	store: BoardStore,
-	agentClient: AgentClient,
-	sessionId: string
-): Set<BoardStatus> {
+interface LoaderOpts {
+	activeSprintId: string | null;
+	agentClient: AgentClient;
+	refreshKey: number;
+	sessionId: string;
+	store: BoardStore;
+}
+
+function useColumnLoader(opts: LoaderOpts): Set<BoardStatus> {
+	const { agentClient, sessionId, store, activeSprintId, refreshKey } = opts;
 	const [loaded, setLoaded] = useState<Set<BoardStatus>>(new Set());
 	useEffect(() => {
+		if (!activeSprintId) {
+			setLoaded(new Set());
+			return () => undefined;
+		}
 		let active = true;
-		loadColumns(agentClient, sessionId, (status, columnTasks) => {
-			if (!active) {
-				return;
+		setLoaded(new Set());
+		loadSprintColumns(
+			agentClient,
+			sessionId,
+			activeSprintId,
+			(status, tasks) => {
+				if (!active) {
+					return;
+				}
+				store.setColumn(status, tasks);
+				setLoaded((prev) => new Set(prev).add(status));
 			}
-			store.setColumn(status, columnTasks);
-			setLoaded((prev) => new Set(prev).add(status));
-		}).catch(() => {
+		).catch(() => {
 			if (active) {
 				toast.error("Failed to load board columns. Please refresh.");
 			}
@@ -43,7 +58,7 @@ function useColumnLoader(
 		return () => {
 			active = false;
 		};
-	}, [agentClient, sessionId, store]);
+	}, [agentClient, sessionId, store, activeSprintId, refreshKey]);
 	return loaded;
 }
 
@@ -80,15 +95,16 @@ function BoardColumns({
 	);
 }
 
-export function TaskBoard({
-	agentClient,
-	sessionId,
-	onOpenTask,
-}: {
+interface TaskBoardProps {
+	activeSprintId: string | null;
 	agentClient: AgentClient;
-	sessionId: string;
 	onOpenTask: (id: string) => void;
-}) {
+	refreshKey?: number;
+	sessionId: string;
+}
+
+function useBoardState(props: TaskBoardProps) {
+	const { agentClient, sessionId, activeSprintId, refreshKey = 0 } = props;
 	const storeRef = useRef(createBoardStore());
 	const store = storeRef.current;
 	const tasks = useSyncExternalStore(
@@ -96,18 +112,42 @@ export function TaskBoard({
 		store.getSnapshot,
 		store.getSnapshot
 	);
-	const loaded = useColumnLoader(store, agentClient, sessionId);
-	const { onDragEnd, onDragOver, onCreate, onDelete } = useBoardHandlers(
+	const loaded = useColumnLoader({
+		agentClient,
+		sessionId,
+		store,
+		activeSprintId,
+		refreshKey,
+	});
+	const handlers = useBoardHandlers(
 		store,
 		agentClient,
 		sessionId,
-		null // Task 10 wires the real activeSprintId
+		activeSprintId
 	);
+	return { tasks, loaded, handlers };
+}
+
+export function TaskBoard(props: TaskBoardProps) {
+	const { activeSprintId, onOpenTask } = props;
+	const { tasks, loaded, handlers } = useBoardState(props);
+	const { onDragEnd, onDragOver, onCreate, onDelete } = handlers;
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: ACTIVATION_DISTANCE },
 		})
 	);
+
+	if (!activeSprintId) {
+		return (
+			<div className="flex h-full items-center justify-center">
+				<p className="text-muted-foreground text-sm">
+					Start a sprint to begin.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<DndContext
 			collisionDetection={closestCorners}
