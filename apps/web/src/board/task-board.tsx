@@ -8,7 +8,8 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { loadSprintColumns } from "./board-client";
+import { BacklogPanel } from "./backlog-panel";
+import { loadBacklog, loadSprintColumns } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
@@ -62,6 +63,30 @@ function useColumnLoader(opts: LoaderOpts): Set<BoardStatus> {
 	return loaded;
 }
 
+function useBacklogLoader(opts: LoaderOpts): boolean {
+	const { agentClient, sessionId, store, refreshKey } = opts;
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		let active = true;
+		setLoaded(false);
+		loadBacklog(agentClient, sessionId, (tasks) => {
+			if (!active) {
+				return;
+			}
+			store.setBacklog(tasks);
+			setLoaded(true);
+		}).catch(() => {
+			if (active) {
+				toast.error("Failed to load backlog. Please refresh.");
+			}
+		});
+		return () => {
+			active = false;
+		};
+	}, [agentClient, sessionId, store, refreshKey]);
+	return loaded;
+}
+
 interface BoardColumnsProps {
 	loaded: Set<BoardStatus>;
 	onCreate: (status: BoardStatus, title: string) => void;
@@ -78,7 +103,7 @@ function BoardColumns({
 	onOpenTask,
 }: BoardColumnsProps) {
 	return (
-		<div className="flex h-full gap-4 overflow-x-auto p-4">
+		<div className="flex h-full min-w-0 flex-1 gap-4 overflow-x-auto p-4">
 			{COLUMNS.map((column) => (
 				<TaskColumn
 					key={column.status}
@@ -107,47 +132,39 @@ function useBoardState(props: TaskBoardProps) {
 	const { agentClient, sessionId, activeSprintId, refreshKey = 0 } = props;
 	const storeRef = useRef(createBoardStore());
 	const store = storeRef.current;
-	const tasks = useSyncExternalStore(
+	const snapshot = useSyncExternalStore(
 		store.subscribe,
 		store.getSnapshot,
 		store.getSnapshot
 	);
-	const loaded = useColumnLoader({
+	const loaderOpts: LoaderOpts = {
 		agentClient,
 		sessionId,
 		store,
 		activeSprintId,
 		refreshKey,
-	});
+	};
+	const columnsLoaded = useColumnLoader(loaderOpts);
+	const backlogLoaded = useBacklogLoader(loaderOpts);
 	const handlers = useBoardHandlers(
 		store,
 		agentClient,
 		sessionId,
 		activeSprintId
 	);
-	return { tasks, loaded, handlers };
+	return { snapshot, columnsLoaded, backlogLoaded, handlers };
 }
 
-export function TaskBoard(props: TaskBoardProps) {
-	const { activeSprintId, onOpenTask } = props;
-	const { tasks, loaded, handlers } = useBoardState(props);
-	const { onDragEnd, onDragOver, onCreate, onDelete } = handlers;
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: { distance: ACTIVATION_DISTANCE },
-		})
-	);
+interface DndShellProps {
+	children: React.ReactNode;
+	onDragEnd: ReturnType<typeof useSensors> extends never
+		? never
+		: Parameters<typeof DndContext>[0]["onDragEnd"];
+	onDragOver: Parameters<typeof DndContext>[0]["onDragOver"];
+	sensors: ReturnType<typeof useSensors>;
+}
 
-	if (!activeSprintId) {
-		return (
-			<div className="flex h-full items-center justify-center">
-				<p className="text-muted-foreground text-sm">
-					Start a sprint to begin.
-				</p>
-			</div>
-		);
-	}
-
+function DndShell({ children, onDragEnd, onDragOver, sensors }: DndShellProps) {
 	return (
 		<DndContext
 			collisionDetection={closestCorners}
@@ -155,13 +172,57 @@ export function TaskBoard(props: TaskBoardProps) {
 			onDragOver={onDragOver}
 			sensors={sensors}
 		>
+			<div className="flex h-full">{children}</div>
+		</DndContext>
+	);
+}
+
+export function TaskBoard(props: TaskBoardProps) {
+	const { activeSprintId, onOpenTask } = props;
+	const { snapshot, columnsLoaded, backlogLoaded, handlers } =
+		useBoardState(props);
+	const { onDragEnd, onDragOver, onCreate, onDelete, onCreateBacklog } =
+		handlers;
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: { distance: ACTIVATION_DISTANCE },
+		})
+	);
+	const sprintTasks = snapshot.filter((t) => t.sprintId !== null);
+	const backlogTasks = snapshot.filter((t) => t.sprintId === null);
+	const backlogPanel = (
+		<BacklogPanel
+			loaded={backlogLoaded}
+			onCreateBacklog={onCreateBacklog}
+			onDelete={onDelete}
+			onOpen={onOpenTask}
+			tasks={backlogTasks}
+		/>
+	);
+
+	if (!activeSprintId) {
+		return (
+			<DndShell onDragEnd={onDragEnd} onDragOver={onDragOver} sensors={sensors}>
+				<div className="flex flex-1 items-center justify-center">
+					<p className="text-muted-foreground text-sm">
+						Start a sprint to begin.
+					</p>
+				</div>
+				{backlogPanel}
+			</DndShell>
+		);
+	}
+
+	return (
+		<DndShell onDragEnd={onDragEnd} onDragOver={onDragOver} sensors={sensors}>
 			<BoardColumns
-				loaded={loaded}
+				loaded={columnsLoaded}
 				onCreate={onCreate}
 				onDelete={onDelete}
 				onOpenTask={onOpenTask}
-				tasks={groupByColumn(tasks)}
+				tasks={groupByColumn(sprintTasks)}
 			/>
-		</DndContext>
+			{backlogPanel}
+		</DndShell>
 	);
 }

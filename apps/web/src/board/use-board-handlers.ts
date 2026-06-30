@@ -18,15 +18,21 @@ interface HandlerCtx {
 	store: BoardStore;
 }
 
-function applyCreate(
+interface CreateOpts {
+	sprintId: string | null;
+	status: BoardStatus;
+}
+
+function optimisticCreate(
 	ctx: HandlerCtx,
-	status: BoardStatus,
+	opts: CreateOpts,
 	title: string
 ): void {
 	if (title.trim() === "") {
 		return;
 	}
-	const { store, agentClient, sessionId, activeSprintId } = ctx;
+	const { store, agentClient, sessionId } = ctx;
+	const { status, sprintId } = opts;
 	const trimmed = title.trim();
 	const tempId = `temp-${crypto.randomUUID()}`;
 	const groups = groupByColumn(store.getSnapshot());
@@ -37,19 +43,23 @@ function applyCreate(
 		status,
 		position: nextPosition(groups[status]),
 		seq: 0,
-		sprintId: activeSprintId,
+		sprintId,
 	});
 	agentClient
-		.runTool(sessionId, "createTask", {
-			title: trimmed,
-			status,
-			sprintId: activeSprintId,
-		})
+		.runTool(sessionId, "createTask", { title: trimmed, status, sprintId })
 		.then((result) => store.replaceLocal(tempId, parseTask(result)))
 		.catch(() => {
 			store.removeLocal(tempId);
 			toast.error("Could not create task.");
 		});
+}
+
+function applyCreate(
+	ctx: HandlerCtx,
+	status: BoardStatus,
+	title: string
+): void {
+	optimisticCreate(ctx, { status, sprintId: ctx.activeSprintId }, title);
 }
 
 function applyDragOver(event: DragOverEvent, ctx: HandlerCtx): void {
@@ -157,5 +167,11 @@ export function useBoardHandlers(
 		[store, agentClient, sessionId]
 	);
 
-	return { onDragEnd, onDragOver, onCreate, onDelete };
+	const onCreateBacklog = useCallback(
+		(title: string) =>
+			optimisticCreate(ctx, { status: "todo", sprintId: null }, title),
+		[ctx]
+	);
+
+	return { onDragEnd, onDragOver, onCreate, onDelete, onCreateBacklog };
 }

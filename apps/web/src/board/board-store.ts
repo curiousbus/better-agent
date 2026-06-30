@@ -78,7 +78,13 @@ export function createBoardStore() {
 		},
 		getSnapshot: () => cache,
 		setColumn(status: BoardStatus, tasks: BoardTask[]) {
-			set([...cache.filter((t) => t.status !== status), ...tasks]);
+			set([
+				...cache.filter((t) => !(t.sprintId !== null && t.status === status)),
+				...tasks,
+			]);
+		},
+		setBacklog(tasks: BoardTask[]) {
+			set([...cache.filter((t) => t.sprintId !== null), ...tasks]);
 		},
 		addLocal(task: BoardTask) {
 			set([...cache, task]);

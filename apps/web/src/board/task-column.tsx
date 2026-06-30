@@ -1,14 +1,14 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import { Input } from "@better-agent/ui/components/input";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useDroppable } from "@dnd-kit/core";
 import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { type KeyboardEvent, useState } from "react";
+import { useState } from "react";
 import type { BoardStatus, BoardTask } from "./board-store";
+import { InlineComposer } from "./inline-composer";
 import { TaskCard } from "./task-card";
 
 const SKELETON_ROWS = [0, 1];
@@ -42,44 +42,6 @@ function ColumnCards({ tasks, loaded, onOpen, onDelete }: CardListProps) {
 	));
 }
 
-interface ComposerProps {
-	onCancel: () => void;
-	onConfirm: (title: string) => void;
-}
-
-function ColumnComposer({ onConfirm, onCancel }: ComposerProps) {
-	const [value, setValue] = useState("");
-
-	const commit = () => {
-		const trimmed = value.trim();
-		if (trimmed) {
-			onConfirm(trimmed);
-			setValue("");
-		} else {
-			onCancel();
-		}
-	};
-
-	const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-		if (e.key === "Enter") {
-			commit();
-		} else if (e.key === "Escape") {
-			onCancel();
-		}
-	};
-
-	return (
-		<Input
-			autoFocus
-			onBlur={commit}
-			onChange={(e) => setValue(e.target.value)}
-			onKeyDown={handleKeyDown}
-			placeholder="Task title…"
-			value={value}
-		/>
-	);
-}
-
 interface ColumnFooterProps {
 	adding: boolean;
 	onCancel: () => void;
@@ -94,7 +56,7 @@ function ColumnFooter({
 	onCancel,
 }: ColumnFooterProps) {
 	if (adding) {
-		return <ColumnComposer onCancel={onCancel} onConfirm={onConfirm} />;
+		return <InlineComposer onCancel={onCancel} onConfirm={onConfirm} />;
 	}
 	return (
 		<Button
