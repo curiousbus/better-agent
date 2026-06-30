@@ -243,16 +243,19 @@ export interface GoogleOAuth {
 export interface TaskStore {
 	create(
 		userId: string,
-		input: { status?: TaskStatus; title: string }
+		input: { sprintId?: string | null; status?: TaskStatus; title: string }
 	): Promise<Task>;
 	get(userId: string, id: string): Promise<Task | null>;
-	list(userId: string): Promise<Task[]>;
-	listColumn(userId: string, status: TaskStatus): Promise<Task[]>;
+	listBacklog(userId: string): Promise<Task[]>;
+	listColumn(
+		userId: string,
+		sprintId: string | null,
+		status: TaskStatus
+	): Promise<Task[]>;
 	move(
 		userId: string,
 		id: string,
-		status: TaskStatus,
-		position: number
+		patch: { position: number; sprintId?: string | null; status: TaskStatus }
 	): Promise<Task | null>;
 	remove(userId: string, id: string): Promise<boolean>;
 	update(
