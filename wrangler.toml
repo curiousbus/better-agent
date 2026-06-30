@@ -22,9 +22,12 @@ service = "better-agent-authz"
 binding = "UPLOADS"
 bucket_name = "better-agent-uploads"
 
-# Hyperdrive: pools + edge-accelerates the Neon Postgres connection. The worker
-# connects to env.HYPERDRIVE.connectionString via node-postgres. Created with
-# `wrangler hyperdrive create better-agent-db --connection-string=<neon url>`.
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "e163593dbccc4b2db57eeff3471d036b"
+# Hyperdrive (pools + accelerates Postgres) is TEMPORARILY DISABLED: its default
+# query caching returned stale (empty) reads for our persist-then-read-in-one-
+# request chat flow, causing "messages must not be empty" errors. Re-enable by
+# turning OFF query caching on the Hyperdrive config (dashboard), then restoring:
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "e163593dbccc4b2db57eeff3471d036b"
+# The worker keeps a dual-driver path: with the binding it uses node-postgres
+# through Hyperdrive, without it the Neon serverless driver.
