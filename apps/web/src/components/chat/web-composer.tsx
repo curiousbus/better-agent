@@ -7,17 +7,47 @@ import {
 	PromptInputToolbar,
 	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
-import { XIcon } from "lucide-react";
+import { cn } from "@better-agent/ui/lib/utils";
+import { SparklesIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 
 interface WebComposerProps {
 	agent: AgentRow;
+	genuiActive?: boolean;
 	onClose: () => void;
 	onSend: (text: string) => Promise<void>;
 	onSessionSelect: (sessionId: string) => void;
+	onToggleGenui?: () => void;
 	sending: boolean;
 	sessions: UserSessionRow[];
+}
+
+function GenuiToggle({
+	active,
+	onToggle,
+}: {
+	active: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<Button
+			aria-label="Generative UI"
+			aria-pressed={active}
+			className={cn(
+				"gap-1.5",
+				active && "bg-primary/10 text-primary hover:bg-primary/15"
+			)}
+			onClick={onToggle}
+			size="sm"
+			title="Generative UI: the agent replies with interactive UI"
+			type="button"
+			variant="ghost"
+		>
+			<SparklesIcon className="size-4" />
+			<span className="text-xs">Generative UI</span>
+		</Button>
+	);
 }
 
 function ComposerHeader({
@@ -62,14 +92,18 @@ function ComposerInput({
 	agentName,
 	text,
 	sending,
+	genuiActive,
 	onTextChange,
 	onSubmit,
+	onToggleGenui,
 }: {
 	agentName: string;
 	text: string;
 	sending: boolean;
+	genuiActive?: boolean;
 	onTextChange: (v: string) => void;
 	onSubmit: () => void;
+	onToggleGenui?: () => void;
 }) {
 	return (
 		<div className="flex flex-1 items-center justify-center px-4 py-8">
@@ -89,7 +123,14 @@ function ComposerInput({
 						value={text}
 					/>
 					<PromptInputToolbar>
-						<PromptInputTools />
+						<PromptInputTools>
+							{onToggleGenui ? (
+								<GenuiToggle
+									active={genuiActive === true}
+									onToggle={onToggleGenui}
+								/>
+							) : null}
+						</PromptInputTools>
 						<PromptInputSubmit onStop={() => undefined} status="idle" />
 					</PromptInputToolbar>
 				</PromptInput>
@@ -101,9 +142,11 @@ function ComposerInput({
 export function WebComposer({
 	agent,
 	sessions,
+	genuiActive,
 	onClose,
 	onSend,
 	onSessionSelect,
+	onToggleGenui,
 	sending,
 }: WebComposerProps) {
 	const [text, setText] = useState("");
@@ -127,8 +170,10 @@ export function WebComposer({
 			/>
 			<ComposerInput
 				agentName={agent.name}
+				genuiActive={genuiActive}
 				onSubmit={handleSubmit}
 				onTextChange={setText}
+				onToggleGenui={onToggleGenui}
 				sending={sending}
 				text={text}
 			/>

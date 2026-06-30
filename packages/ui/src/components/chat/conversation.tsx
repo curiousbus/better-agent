@@ -141,14 +141,18 @@ export function Conversation({
 	sessionId,
 	agentClient,
 	initialText,
+	initialGenui,
 	generativeUI,
 }: {
 	sessionId: string;
 	agentClient: AgentClient;
 	initialText?: string;
+	initialGenui?: boolean;
 	generativeUI?: GenerativeUIChatConfig;
 }) {
-	const [genuiOn, setGenuiOn] = useState(false);
+	// Start in the genui mode chosen on the landing composer, so the FIRST message
+	// (sent via initialText before the in-chat toggle is reachable) honors it.
+	const [genuiOn, setGenuiOn] = useState(initialGenui === true);
 	const genuiConfig =
 		generativeUI && genuiOn
 			? { outputSchema: generativeUI.outputSchema, tools: generativeUI.tools }

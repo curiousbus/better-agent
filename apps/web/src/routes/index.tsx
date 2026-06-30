@@ -147,6 +147,8 @@ function useHomeState() {
 	const [sessionId, setSessionId] = useState("");
 	const [initialText, setInitialText] = useState("");
 	const [sending, setSending] = useState(false);
+	// Generative-UI mode, chosen on the landing composer so the FIRST message uses it.
+	const [genuiOn, setGenuiOn] = useState(false);
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
@@ -170,6 +172,8 @@ function useHomeState() {
 		sessionId,
 		initialText,
 		sending,
+		genuiOn,
+		toggleGenui: () => setGenuiOn((v) => !v),
 		agentClient,
 		sessions,
 		...actions,
@@ -179,6 +183,7 @@ function useHomeState() {
 interface ChatPanelProps {
 	agent: AgentRow;
 	agentClient: AgentClient | null;
+	initialGenui: boolean;
 	initialText: string;
 	onClearInitialText: () => void;
 	onClose: () => void;
@@ -192,6 +197,7 @@ function ChatPanel({
 	agent,
 	agentClient,
 	initialText,
+	initialGenui,
 	onClearInitialText,
 	onClose,
 	onNewSession,
@@ -213,6 +219,7 @@ function ChatPanel({
 			<ChatView
 				agent={agent}
 				agentClient={agentClient}
+				initialGenui={initialGenui}
 				initialText={initialText}
 				onClose={onClose}
 				onNewSession={onNewSession}
@@ -241,9 +248,11 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 		return (
 			<WebComposer
 				agent={selectedAgent}
+				genuiActive={home.genuiOn}
 				onClose={home.closeComposer}
 				onSend={home.send}
 				onSessionSelect={home.selectSession}
+				onToggleGenui={home.toggleGenui}
 				sending={home.sending}
 				sessions={home.sessions}
 			/>
@@ -253,6 +262,7 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 		<ChatPanel
 			agent={selectedAgent}
 			agentClient={home.agentClient}
+			initialGenui={home.genuiOn}
 			initialText={home.initialText}
 			onClearInitialText={home.clearInitialText}
 			onClose={home.closeChat}

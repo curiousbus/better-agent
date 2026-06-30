@@ -9,6 +9,7 @@ import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 interface ChatViewProps {
 	agent: AgentRow;
 	agentClient: AgentClient;
+	initialGenui?: boolean;
 	initialText?: string;
 	onClose: () => void;
 	onNewSession: () => void;
@@ -65,6 +66,7 @@ export function ChatView({
 	agent,
 	agentClient,
 	initialText,
+	initialGenui,
 	sessionId,
 	sessions,
 	onClose,
@@ -84,6 +86,7 @@ export function ChatView({
 			<Conversation
 				agentClient={agentClient}
 				generativeUI={GENUI_CHAT_CONFIG}
+				initialGenui={initialGenui}
 				initialText={initialText}
 				key={sessionId}
 				sessionId={sessionId}
