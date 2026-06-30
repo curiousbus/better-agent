@@ -55,6 +55,8 @@ jobs:
             CORS_ORIGIN
             AUTHZ_URL
             AUTHZ_SERVICE_SECRET
+            UPSTASH_REDIS_REST_URL
+            UPSTASH_REDIS_REST_TOKEN
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
@@ -62,6 +64,8 @@ jobs:
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
           AUTHZ_URL: ${{ secrets.AUTHZ_URL }}
           AUTHZ_SERVICE_SECRET: ${{ secrets.AUTHZ_SERVICE_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
   authz:
     runs-on: ubuntu-latest

@@ -34,6 +34,7 @@ import { createSessionStore } from "@better-agent/db/repositories/session-store"
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
+import { Redis as UpstashRedis } from "@upstash/redis";
 import Redis from "ioredis";
 import { createAttachmentStore, type R2Bucket } from "./attachment-store";
 import { buildAuthzClient, type ServiceBinding } from "./authz-client";
@@ -46,6 +47,7 @@ import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
 import { createRedisSessionLock } from "./redis-session-lock";
+import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
 
 type Db = Parameters<typeof createAgentStore>[0];
 
@@ -113,6 +115,18 @@ function buildProviderDeps(
 }
 
 function buildPendingToolCallStore() {
+	// On Cloudflare Workers the stream request (park) and the submitToolResult
+	// request hit different isolates, so prefer Upstash REST (HTTP, cross-isolate)
+	// to coordinate client/remote tool-call results. ioredis pub/sub only works
+	// off-Workers; in-memory only works within one isolate.
+	if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+		return createUpstashPendingToolCallStore(
+			new UpstashRedis({
+				url: env.UPSTASH_REDIS_REST_URL,
+				token: env.UPSTASH_REDIS_REST_TOKEN,
+			})
+		);
+	}
 	return env.REDIS_URL
 		? createRedisPendingToolCallStore(new Redis(env.REDIS_URL))
 		: createInMemoryPendingToolCallStore();

@@ -17,6 +17,10 @@ export const env = createEnv({
 		CREDENTIALS_SECRET: z.string().min(32),
 		AUTH_JWT_SECRET: z.string().min(32),
 		REDIS_URL: z.string().optional(),
+		/** Upstash Redis REST — used on Cloudflare Workers (HTTP, cross-isolate)
+		 * to coordinate client/remote tool-call results. Both must be set. */
+		UPSTASH_REDIS_REST_URL: z.string().optional(),
+		UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 		RESEND_API_KEY: z.string().optional(),
 		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
 		WEB_URL: z.url().default("http://localhost:3001"),
