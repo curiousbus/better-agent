@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
 import { TaskBoard } from "./task-board";
+import { TaskModal } from "./task-modal";
 
 function BoardLoading() {
 	return (
@@ -32,7 +33,10 @@ function BoardEmpty() {
 	);
 }
 
-export function BoardPage() {
+// The board needs a user-session as a carrier for the tool stream; any of the
+// user's agents works (tasks are user-scoped, not agent-scoped). Pick the first
+// agent, build its client, and open one session.
+function useBoardClient() {
 	const agentsQuery = useQuery(orpc.agents.list.queryOptions());
 	const agent = agentsQuery.data?.[0] ?? null;
 	const agentClient = useMemo(
@@ -57,20 +61,35 @@ export function BoardPage() {
 			active = false;
 		};
 	}, [agentClient]);
-	// openTaskId is wired to the modal in Task 9; reserve the setter only for now.
-	const [, setOpenTaskId] = useState<string | null>(null);
+	return { agent, agentClient, sessionId, pending: agentsQuery.isPending };
+}
 
-	if (agentsQuery.isPending || (agent && sessionId === "")) {
+export function BoardPage() {
+	const { agent, agentClient, sessionId, pending } = useBoardClient();
+	const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+	const [refreshKey, setRefreshKey] = useState(0);
+
+	if (pending || (agent && sessionId === "")) {
 		return <BoardLoading />;
 	}
 	if (!(agent && agentClient)) {
 		return <BoardEmpty />;
 	}
 	return (
-		<TaskBoard
-			agentClient={agentClient}
-			onOpenTask={setOpenTaskId}
-			sessionId={sessionId}
-		/>
+		<>
+			<TaskBoard
+				agentClient={agentClient}
+				key={refreshKey}
+				onOpenTask={setOpenTaskId}
+				sessionId={sessionId}
+			/>
+			<TaskModal
+				agentClient={agentClient}
+				onClose={() => setOpenTaskId(null)}
+				onSaved={() => setRefreshKey((k) => k + 1)}
+				sessionId={sessionId}
+				taskId={openTaskId}
+			/>
+		</>
 	);
 }
