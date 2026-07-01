@@ -1,7 +1,9 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
+import type { AgentConfig } from "@better-agent/agent/agent/types";
+import type { AgentStore } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { adminProcedure, authorizedUserProcedure } from "../index";
+import { authorizedUserProcedure } from "../index";
 
 const paramsInput = z.object({
 	temperature: z.number().min(0).max(2).nullable().default(null),
@@ -32,26 +34,48 @@ async function assertValidAgent(
 	}
 }
 
+// Loads an agent and asserts the caller owns it. NOT_FOUND for both missing and
+// other-owner agents, so ownership never leaks.
+async function requireOwnedAgent(
+	store: AgentStore,
+	userId: string,
+	id: string
+): Promise<AgentConfig> {
+	const agent = await store.get(id);
+	if (!agent || agent.userId !== userId) {
+		throw new ORPCError("NOT_FOUND", { message: `Agent ${id} not found` });
+	}
+	return agent;
+}
+
 export const agentsRouter = {
 	list: authorizedUserProcedure.handler(({ context }) =>
-		context.services.stores.agent.list()
+		context.services.stores.agent.listByUser(context.authedUser.id)
 	),
 
-	get: adminProcedure
+	get: authorizedUserProcedure
 		.input(idInput)
 		.handler(({ input, context }) =>
-			context.services.stores.agent.get(input.id)
+			requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				input.id
+			)
 		),
 
-	// Returns the agent's current token so a trusted caller (the admin UI) can
-	// reuse it for chat instead of relying on a show-once copy.
-	getToken: adminProcedure
+	// Returns the agent's current token so its owner can reuse it for chat.
+	getToken: authorizedUserProcedure
 		.input(idInput)
-		.handler(({ input, context }) =>
-			context.services.stores.agent.getToken(input.id)
-		),
+		.handler(async ({ input, context }) => {
+			await requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				input.id
+			);
+			return context.services.stores.agent.getToken(input.id);
+		}),
 
-	create: adminProcedure
+	create: authorizedUserProcedure
 		.input(agentInput)
 		.handler(async ({ input, context }) => {
 			await assertValidAgent(context.services.agentValidator, {
@@ -63,13 +87,19 @@ export const agentsRouter = {
 				...input,
 				tokenHash: hash,
 				token,
+				userId: context.authedUser.id,
 			});
 			return { agent, token };
 		}),
 
-	rotateToken: adminProcedure
+	rotateToken: authorizedUserProcedure
 		.input(idInput)
 		.handler(async ({ input, context }) => {
+			await requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				input.id
+			);
 			const { token, hash } = context.services.tokenService.generate();
 			const agent = await context.services.stores.agent.rotateToken(
 				input.id,
@@ -84,10 +114,15 @@ export const agentsRouter = {
 			return { agent, token };
 		}),
 
-	update: adminProcedure
+	update: authorizedUserProcedure
 		.input(idInput.extend(agentInput.shape))
 		.handler(async ({ input, context }) => {
 			const { id, ...rest } = input;
+			await requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				id
+			);
 			await assertValidAgent(context.services.agentValidator, {
 				providerId: rest.providerId,
 				modelId: rest.modelId,
@@ -99,8 +134,15 @@ export const agentsRouter = {
 			return updated;
 		}),
 
-	delete: adminProcedure.input(idInput).handler(async ({ input, context }) => {
-		await context.services.stores.agent.delete(input.id);
-		return { ok: true };
-	}),
+	delete: authorizedUserProcedure
+		.input(idInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				input.id
+			);
+			await context.services.stores.agent.delete(input.id);
+			return { ok: true };
+		}),
 };

@@ -20,9 +20,11 @@ const AUTH_CONFIG = {
 	adminEmails: [] as string[],
 };
 
-function buildClient() {
+function buildClient(
+	authedUser = ADMIN_USER,
+	agentStore = createFakeAgentStore()
+) {
 	const tokenService = createTokenService();
-	const agentStore = createFakeAgentStore();
 	const services = {
 		authz: { enabled: false },
 		tokenService,
@@ -34,7 +36,7 @@ function buildClient() {
 		context: {
 			services: services as never,
 			authedAgent: null,
-			authedUser: ADMIN_USER,
+			authedUser,
 			clientIp: "127.0.0.1",
 			userAgent: null,
 		},
@@ -79,6 +81,26 @@ it("round-trips composioAccountIds on create and update", async () => {
 		composioAccountIds: [accountB, accountC],
 	});
 	expect(updated.composioAccountIds).toEqual([accountB, accountC]);
+});
+
+it("scopes agents to their owner (isolation)", async () => {
+	const store = createFakeAgentStore();
+	const alice = { id: "a-uid", email: "alice@x.com", createdAt: new Date() };
+	const bob = { id: "b-uid", email: "bob@x.com", createdAt: new Date() };
+	const aliceApi = buildClient(alice, store).client;
+	const bobApi = buildClient(bob, store).client;
+
+	const { agent } = await aliceApi.agents.create(INPUT);
+	expect((await aliceApi.agents.list()).map((a) => a.id)).toContain(agent.id);
+	expect(await bobApi.agents.list()).toHaveLength(0);
+
+	await expect(bobApi.agents.get({ id: agent.id })).rejects.toThrow();
+	await expect(bobApi.agents.getToken({ id: agent.id })).rejects.toThrow();
+	await expect(bobApi.agents.delete({ id: agent.id })).rejects.toThrow();
+	await expect(bobApi.agents.rotateToken({ id: agent.id })).rejects.toThrow();
+	await expect(
+		bobApi.agents.update({ id: agent.id, ...INPUT })
+	).rejects.toThrow();
 });
 
 it("rotateToken issues a new token and invalidates the old one", async () => {
