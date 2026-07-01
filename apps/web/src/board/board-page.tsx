@@ -119,6 +119,7 @@ function useSprintActions(
 
 interface BoardContentProps {
 	agentClient: ReadyClient;
+	agentName: string;
 	openTaskId: string | null;
 	refreshKey: number;
 	sessionId: string;
@@ -171,6 +172,7 @@ function BoardContent(props: BoardContentProps) {
 			<BoardCommandBar
 				activeSprintName={sprintHook.active?.name ?? null}
 				agentClient={agentClient}
+				agentName={props.agentName}
 				onDone={bump}
 				sessionId={sessionId}
 				tasks={tasks}
@@ -202,6 +204,7 @@ export function BoardPage() {
 	return (
 		<BoardContent
 			agentClient={agentClient}
+			agentName={agent.name}
 			openTaskId={openTaskId}
 			refreshKey={refreshKey}
 			sessionId={sessionId}

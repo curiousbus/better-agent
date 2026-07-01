@@ -3,12 +3,14 @@ import { Input } from "@better-agent/ui/components/input";
 import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { Loader2, SendHorizontal, Sparkles, X } from "lucide-react";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { BoardTask } from "./board-store";
 
 interface BoardCommandBarProps {
 	activeSprintName: string | null;
 	agentClient: AgentClient;
+	agentName: string;
 	onDone: () => void;
 	sessionId: string;
 	tasks: BoardTask[];
@@ -88,6 +90,11 @@ function MessageList({
 	busy: boolean;
 	messages: ChatMessage[];
 }) {
+	const bottomRef = useRef<HTMLDivElement>(null);
+	// Auto-scroll to the newest message / working indicator.
+	useEffect(() => {
+		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+	}, [messages, busy]);
 	return (
 		<div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 text-sm">
 			{messages.length === 0 ? (
@@ -118,6 +125,7 @@ function MessageList({
 					<Loader2 className="size-4 animate-spin" /> Working…
 				</span>
 			) : null}
+			<div ref={bottomRef} />
 		</div>
 	);
 }
@@ -168,7 +176,9 @@ function Drawer({
 	open,
 	onClose,
 	chat,
+	agentName,
 }: {
+	agentName: string;
 	chat: ReturnType<typeof useBoardChat>;
 	onClose: () => void;
 	open: boolean;
@@ -183,7 +193,10 @@ function Drawer({
 			)}
 		>
 			<header className="flex items-center justify-between border-b p-3">
-				<span className="font-medium text-sm">Assistant</span>
+				<div className="flex flex-col">
+					<span className="font-medium text-sm">Assistant</span>
+					<span className="text-muted-foreground text-xs">{agentName}</span>
+				</div>
 				<Button
 					aria-label="Close"
 					onClick={onClose}
@@ -203,7 +216,13 @@ export function BoardCommandBar(props: BoardCommandBarProps) {
 	const [open, setOpen] = useState(false);
 	const chat = useBoardChat(props);
 	const close = () => setOpen(false);
-	return (
+	if (typeof document === "undefined") {
+		return null;
+	}
+	// Portal to <body> so the drawer floats over the whole app (the board content
+	// sits under the route-transition transform, which would otherwise clip a
+	// position:fixed element to the main layout).
+	return createPortal(
 		<>
 			{open ? null : (
 				<Button
@@ -215,7 +234,13 @@ export function BoardCommandBar(props: BoardCommandBarProps) {
 					<Sparkles />
 				</Button>
 			)}
-			<Drawer chat={chat} onClose={close} open={open} />
-		</>
+			<Drawer
+				agentName={props.agentName}
+				chat={chat}
+				onClose={close}
+				open={open}
+			/>
+		</>,
+		document.body
 	);
 }

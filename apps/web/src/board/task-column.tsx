@@ -74,6 +74,7 @@ function ColumnFooter({
 
 interface TaskColumnProps extends CardListProps {
 	dragging: boolean;
+	isOver: boolean;
 	label: string;
 	onCreate: (status: BoardStatus, title: string) => void;
 	status: BoardStatus;
@@ -91,6 +92,7 @@ function columnClass(dragging: boolean, isOver: boolean) {
 
 export function TaskColumn({
 	dragging,
+	isOver,
 	label,
 	status,
 	tasks,
@@ -99,7 +101,7 @@ export function TaskColumn({
 	onDelete,
 	onCreate,
 }: TaskColumnProps) {
-	const { setNodeRef, isOver } = useDroppable({ id: status });
+	const { setNodeRef } = useDroppable({ id: status });
 	const [adding, setAdding] = useState(false);
 
 	return (

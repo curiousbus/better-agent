@@ -11,7 +11,6 @@ import { useEffect, useState } from "react";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
-import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
 import { client, orpc } from "@/utils/orpc";
 
@@ -61,7 +60,7 @@ function AuthedShell() {
 					<SidebarTrigger />
 					<span className="font-medium text-sm">better-agent</span>
 				</header>
-				<VerifyEmailBanner />
+				{/* Verify-email banner hidden for now (re-add when needed). */}
 				<div className="flex min-h-0 flex-1 flex-col overflow-auto">
 					<RouteTransition>
 						<Outlet />
