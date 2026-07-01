@@ -1,30 +1,48 @@
 import type { AgentParams } from "@better-agent/agent/agent/types";
-import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+	index,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+} from "drizzle-orm/pg-core";
+import { users } from "./auth";
 
-export const agents = pgTable("agents", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull(),
-	description: text("description").notNull(),
-	systemPrompt: text("system_prompt").notNull(),
-	providerId: text("provider_id").notNull(),
-	modelId: text("model_id").notNull(),
-	params: jsonb("params").$type<AgentParams>(),
-	// Linked composio account ids. An agent integrates every authenticated
-	// toolkit of each linked account.
-	composioAccountIds: jsonb("composio_account_ids")
-		.$type<string[]>()
-		.notNull()
-		.default([]),
-	// Enabled built-in tool ids (see packages/agent/src/tool/builtin-tools.ts).
-	builtinTools: jsonb("builtin_tools").$type<string[]>().notNull().default([]),
-	tokenHash: text("token_hash").notNull().unique(),
-	// The current token, encrypted (secret-box). Lets the admin reuse it for
-	// chat instead of relying on a show-once copy. Null for backfilled agents.
-	tokenCipher: text("token_cipher"),
-	createdAt: timestamp("created_at", { withTimezone: true })
-		.notNull()
-		.defaultNow(),
-	updatedAt: timestamp("updated_at", { withTimezone: true })
-		.notNull()
-		.defaultNow(),
-});
+export const agents = pgTable(
+	"agents",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		name: text("name").notNull(),
+		description: text("description").notNull(),
+		systemPrompt: text("system_prompt").notNull(),
+		providerId: text("provider_id").notNull(),
+		modelId: text("model_id").notNull(),
+		params: jsonb("params").$type<AgentParams>(),
+		// Owner (creator). Null for legacy/global agents created before per-user
+		// ownership — those are not listed for any web user (still usable by token).
+		userId: uuid("user_id").references(() => users.id),
+		// Linked composio account ids. An agent integrates every authenticated
+		// toolkit of each linked account.
+		composioAccountIds: jsonb("composio_account_ids")
+			.$type<string[]>()
+			.notNull()
+			.default([]),
+		// Enabled built-in tool ids (see packages/agent/src/tool/builtin-tools.ts).
+		builtinTools: jsonb("builtin_tools")
+			.$type<string[]>()
+			.notNull()
+			.default([]),
+		tokenHash: text("token_hash").notNull().unique(),
+		// The current token, encrypted (secret-box). Lets the admin reuse it for
+		// chat instead of relying on a show-once copy. Null for backfilled agents.
+		tokenCipher: text("token_cipher"),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [index("agents_user_id_idx").on(table.userId)]
+);

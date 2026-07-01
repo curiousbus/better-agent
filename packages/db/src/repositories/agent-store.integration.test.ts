@@ -1,6 +1,7 @@
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, expect, it } from "vitest";
+import { users } from "../schema/auth";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createAgentStore } from "./agent-store";
 
@@ -48,6 +49,36 @@ it("list returns all agents", async () => {
 	await store.create(INPUT);
 	await store.create({ ...INPUT, name: "Second", tokenHash: "hash-2" });
 	expect((await store.list()).length).toBe(2);
+});
+
+it("listByUser returns only that user's agents and excludes null-owner", async () => {
+	const store = createAgentStore(db, box);
+	const [alice] = await db
+		.insert(users)
+		.values({ email: "alice@x.com" })
+		.returning();
+	const [bob] = await db
+		.insert(users)
+		.values({ email: "bob@x.com" })
+		.returning();
+	const owned = await store.create({
+		...INPUT,
+		tokenHash: "h-a",
+		userId: alice?.id,
+	});
+	await store.create({
+		...INPUT,
+		name: "Bob",
+		tokenHash: "h-b",
+		userId: bob?.id,
+	});
+	await store.create({ ...INPUT, name: "Legacy", tokenHash: "h-legacy" });
+
+	const aliceAgents = await store.listByUser(alice?.id ?? "");
+	expect(aliceAgents).toHaveLength(1);
+	expect(aliceAgents[0]?.id).toBe(owned.id);
+	expect(aliceAgents[0]?.userId).toBe(alice?.id);
+	expect((await store.list()).length).toBe(3);
 });
 
 it("update changes fields and returns null for missing id", async () => {

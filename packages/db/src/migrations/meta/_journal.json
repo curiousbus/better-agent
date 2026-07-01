@@ -155,6 +155,13 @@
       "when": 1782827266367,
       "tag": "0021_remarkable_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782899680161,
+      "tag": "0022_busy_nick_fury",
+      "breakpoints": true
     }
   ]
 }

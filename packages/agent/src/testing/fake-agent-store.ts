@@ -14,6 +14,7 @@ function makeAgentTokenOps(
 				...rest,
 				composioAccountIds: rest.composioAccountIds ?? [],
 				builtinTools: rest.builtinTools ?? [],
+				userId: rest.userId ?? null,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -58,6 +59,11 @@ export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 		},
 		list() {
 			return Promise.resolve([...map.values()]);
+		},
+		listByUser(userId) {
+			return Promise.resolve(
+				[...map.values()].filter((agent) => agent.userId === userId)
+			);
 		},
 		update(id, input) {
 			const existing = map.get(id);

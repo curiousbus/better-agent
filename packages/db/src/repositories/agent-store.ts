@@ -21,6 +21,7 @@ function toAgentConfig(row: AgentRow) {
 		params: row.params ?? null,
 		composioAccountIds: row.composioAccountIds ?? [],
 		builtinTools: row.builtinTools ?? [],
+		userId: row.userId ?? null,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
@@ -102,6 +103,13 @@ export function createAgentStore(db: Db, box: SecretBox): AgentStore {
 		},
 		async list() {
 			const rows = await db.select().from(schema.agents);
+			return rows.map(toAgentConfig);
+		},
+		async listByUser(userId) {
+			const rows = await db
+				.select()
+				.from(schema.agents)
+				.where(eq(schema.agents.userId, userId));
 			return rows.map(toAgentConfig);
 		},
 		async update(id, input) {

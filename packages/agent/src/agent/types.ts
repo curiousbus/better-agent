@@ -16,6 +16,8 @@ export interface AgentConfig {
 	providerId: string;
 	systemPrompt: string;
 	updatedAt: Date;
+	/** Owner (creator) id; null for legacy/global agents. */
+	userId: string | null;
 }
 
 /** 创建/更新输入：无 id、无时间戳（由存储层生成）。 */

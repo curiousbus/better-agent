@@ -49,7 +49,7 @@ export interface ProviderCredentialStore {
 
 export interface AgentStore {
 	create(
-		input: AgentInput & { tokenHash: string; token?: string }
+		input: AgentInput & { tokenHash: string; token?: string; userId?: string }
 	): Promise<AgentConfig>;
 	delete(id: string): Promise<void>;
 	findByTokenHash(tokenHash: string): Promise<AgentConfig | null>;
@@ -57,6 +57,7 @@ export interface AgentStore {
 	/** The agent's current plaintext token, decrypted from storage (null if none). */
 	getToken(id: string): Promise<string | null>;
 	list(): Promise<AgentConfig[]>;
+	listByUser(userId: string): Promise<AgentConfig[]>;
 	rotateToken(
 		id: string,
 		tokenHash: string,
