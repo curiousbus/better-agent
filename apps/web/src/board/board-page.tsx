@@ -10,10 +10,9 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
-import { BoardChat } from "./board-chat";
+import { BoardCommandBar } from "./board-command-bar";
 import { loadBoardSessionId, saveBoardSessionId } from "./board-session";
 import { SprintBar } from "./sprint-bar";
 import { TaskBoard } from "./task-board";
@@ -79,28 +78,6 @@ function useBoardClient() {
 	return { agent, agentClient, sessionId, pending: agentsQuery.isPending };
 }
 
-function useBoardGenui(
-	setOpenTaskId: (id: string) => void,
-	setRefreshKey: Dispatch<SetStateAction<number>>
-) {
-	return useMemo(
-		() => ({
-			...GENUI_CHAT_CONFIG,
-			handlers: {
-				...GENUI_CHAT_CONFIG.handlers,
-				openTask: (payload: unknown) => {
-					const id = (payload as { id?: string }).id;
-					if (id) {
-						setOpenTaskId(id);
-						setRefreshKey((k) => k + 1);
-					}
-				},
-			},
-		}),
-		[setOpenTaskId, setRefreshKey]
-	);
-}
-
 type ReadyClient = NonNullable<
 	ReturnType<typeof useBoardClient>["agentClient"]
 >;
@@ -134,7 +111,7 @@ function useSprintActions(
 		},
 		[sprintHook, bump]
 	);
-	return { onComplete, onCreate, onStart };
+	return { bump, onComplete, onCreate, onStart };
 }
 
 interface BoardContentProps {
@@ -155,8 +132,7 @@ function BoardContent({
 	refreshKey,
 }: BoardContentProps) {
 	const sprintHook = useSprints(agentClient, sessionId);
-	const boardGenui = useBoardGenui((id) => setOpenTaskId(id), setRefreshKey);
-	const { onComplete, onCreate, onStart } = useSprintActions(
+	const { bump, onComplete, onCreate, onStart } = useSprintActions(
 		sprintHook,
 		setRefreshKey
 	);
@@ -178,9 +154,9 @@ function BoardContent({
 				refreshKey={refreshKey}
 				sessionId={sessionId}
 			/>
-			<BoardChat
+			<BoardCommandBar
 				agentClient={agentClient}
-				generativeUI={boardGenui}
+				onDone={bump}
 				sessionId={sessionId}
 			/>
 			<TaskModal

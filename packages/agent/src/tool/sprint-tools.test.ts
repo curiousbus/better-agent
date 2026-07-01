@@ -102,6 +102,21 @@ it("createSprint + listSprints round-trip", async () => {
 	expect(JSON.parse(list.output)).toHaveLength(1);
 });
 
+it("activeSprint returns null when none active, then the active sprint", async () => {
+	const store = fakeStore();
+	const defs = buildSprintToolDefs(store, USER);
+	const none = await byName(defs, "activeSprint").execute({}, ctx());
+	expect(none.isError).toBeUndefined();
+	expect(JSON.parse(none.output)).toBeNull();
+
+	const created = JSON.parse(
+		(await byName(defs, "createSprint").execute({ name: "S1" }, ctx())).output
+	);
+	await byName(defs, "startSprint").execute({ id: created.id }, ctx());
+	const active = await byName(defs, "activeSprint").execute({}, ctx());
+	expect(JSON.parse(active.output).id).toBe(created.id);
+});
+
 it("startSprint sets sprint to active", async () => {
 	const store = fakeStore();
 	const defs = buildSprintToolDefs(store, USER);

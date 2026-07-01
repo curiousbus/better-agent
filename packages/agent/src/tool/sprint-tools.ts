@@ -15,6 +15,13 @@ const listSprintsTool = (store: SprintStore, userId: string): ToolDef => ({
 	execute: async () => ok(await store.list(userId)),
 });
 
+const activeSprintTool = (store: SprintStore, userId: string): ToolDef => ({
+	name: "activeSprint",
+	description: "Get the current user's active sprint, or null if none.",
+	parameters: objectSchema({}, []),
+	execute: async () => ok(await store.active(userId)),
+});
+
 const createSprintTool = (store: SprintStore, userId: string): ToolDef => ({
 	name: "createSprint",
 	description: "Create a new sprint.",
@@ -135,6 +142,7 @@ export function buildSprintToolDefs(
 ): ToolDef[] {
 	return [
 		listSprintsTool(store, userId),
+		activeSprintTool(store, userId),
 		createSprintTool(store, userId),
 		getSprintTool(store, userId),
 		updateSprintTool(store, userId),
