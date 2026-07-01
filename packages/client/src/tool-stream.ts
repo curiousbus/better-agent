@@ -11,6 +11,7 @@ interface PromptInput {
 	attachmentIds?: string[];
 	outputSchema?: Record<string, unknown>;
 	sessionId: string;
+	surfaces?: string[];
 	text: string;
 	tools?: StrippedTool[];
 }
@@ -51,6 +52,7 @@ export async function* streamPromptWithTools(
 			tools: strip(options?.tools),
 			outputSchema: options?.outputSchema,
 			attachmentIds: options?.attachmentIds,
+			surfaces: options?.surfaces,
 		},
 		{ signal: options?.signal }
 	);

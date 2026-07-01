@@ -21,12 +21,15 @@ interface ChatMessage {
 	text: string;
 }
 
-const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq (given in the board below — never ask what a TASK-<n> is).
+const MAX_CONTEXT_TASKS = 40;
+
+const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq (a snapshot of the board is below — never ask what a TASK-<n> is).
 
 Rules:
-- Mark a task done → moveTask({ seq, status: "done" }). Status change only: it stays on the board, is never deleted, and keeps its sprint.
+- Mark a task done → moveTask({ seq, status: "done" }). Status change only: it stays on the board, is never deleted, keeps its sprint.
 - Move a task → moveTask({ seq, status }). Edit → updateTask({ seq, title?, description? }).
-- deleteTask / completeSprint only when the user explicitly asks. Reply briefly with what you did.`;
+- If a task isn't in the snapshot below, call listSprintColumn({ sprintId, status }) to find it by seq.
+- You cannot delete tasks or end sprints from here — if asked, tell the user to use the board's UI (card menu / sprint bar). Reply briefly with what you did.`;
 
 function boardContext(tasks: BoardTask[], activeSprintName: string | null) {
 	const header = activeSprintName
@@ -36,9 +39,15 @@ function boardContext(tasks: BoardTask[], activeSprintName: string | null) {
 		return `${header} The board has no tasks yet.`;
 	}
 	const lines = tasks
+		.slice(0, MAX_CONTEXT_TASKS)
 		.map((t) => `- TASK-${t.seq}: "${t.title}" [${t.status}]`)
 		.join("\n");
-	return `${header}\nCurrent tasks:\n${lines}`;
+	const extra = tasks.length - MAX_CONTEXT_TASKS;
+	const more =
+		extra > 0
+			? `\n(+${extra} more not shown — use listSprintColumn to find a task by seq.)`
+			: "";
+	return `${header}\nCurrent tasks:\n${lines}${more}`;
 }
 
 async function runTurn(
@@ -47,7 +56,10 @@ async function runTurn(
 	prompt: string
 ): Promise<string> {
 	let reply = "";
-	for await (const event of agentClient.stream(prompt, { sessionId })) {
+	for await (const event of agentClient.stream(prompt, {
+		sessionId,
+		surfaces: ["board"],
+	})) {
 		if (event.type === "text-delta") {
 			reply += event.delta;
 		} else if (event.type === "error") {

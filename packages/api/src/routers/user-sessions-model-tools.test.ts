@@ -3,7 +3,6 @@ import type {
 	LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import type { SprintStore, TaskStore } from "@better-agent/agent/ports";
-import type { RunEvent } from "@better-agent/agent/session/events";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import type { Task } from "@better-agent/agent/task/types";
@@ -168,7 +167,7 @@ function buildModelToolServices(model: LanguageModelV3, taskStore: TaskStore) {
 }
 
 // ── test ─────────────────────────────────────────────────────────────────────
-it("model turn can call createTask and the task is persisted in the store", async () => {
+async function runMakeTaskTurn(surfaces?: string[]): Promise<TaskStore> {
 	let callStep = 0;
 	const model = new MockLanguageModelV3({
 		doStream: () => {
@@ -177,19 +176,16 @@ it("model turn can call createTask and the task is persisted in the store", asyn
 			return Promise.resolve({ stream: simulateReadableStream({ chunks }) });
 		},
 	});
-
 	const taskStore = memoryTaskStore();
 	const { agentStore, sessionStore, services } = buildModelToolServices(
 		model,
 		taskStore
 	);
-
 	const agent = await agentStore.create(AGENT_SEED);
 	const session = await sessionStore.create({
 		agentId: agent.id,
 		userId: USER_ID,
 	});
-
 	const client = createRouterClient(appRouter, {
 		context: {
 			services: services as never,
@@ -199,16 +195,25 @@ it("model turn can call createTask and the task is persisted in the store", asyn
 			userAgent: null,
 		},
 	});
-
-	const events: RunEvent[] = [];
-	for await (const e of await client.userSessions.prompt({
+	for await (const _e of await client.userSessions.prompt({
 		sessionId: session.id,
 		text: "make a task",
+		surfaces,
 	})) {
-		events.push(e);
+		// drain the stream
 	}
+	return taskStore;
+}
 
+it("binds board tools when the turn opts into the board surface", async () => {
+	const taskStore = await runMakeTaskTurn(["board"]);
 	const tasks = await taskStore.listBacklog(USER_ID);
 	expect(tasks).toHaveLength(1);
 	expect(tasks[0]?.title).toBe("from model");
+});
+
+it("does NOT bind board tools without the board surface", async () => {
+	const taskStore = await runMakeTaskTurn();
+	const tasks = await taskStore.listBacklog(USER_ID);
+	expect(tasks).toHaveLength(0);
 });

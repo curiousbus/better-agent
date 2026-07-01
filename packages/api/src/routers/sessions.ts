@@ -44,6 +44,10 @@ export const promptInput = z
 		tools: z.array(remoteToolSchema).optional(),
 		outputSchema: z.record(z.string(), z.unknown()).optional(),
 		attachmentIds: z.array(z.uuid()).max(MAX_ATTACHMENTS).optional(),
+		// Surfaces this turn opts into (e.g. ["board"]). Only then are that
+		// surface's server tools bound to the model turn — the general agent stays
+		// clean instead of carrying board tools in every conversation.
+		surfaces: z.array(z.string()).optional(),
 	})
 	.refine(
 		(value) =>

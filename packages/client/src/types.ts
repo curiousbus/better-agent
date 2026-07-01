@@ -47,6 +47,8 @@ export interface RunOptions {
 	sessionId?: string;
 	/** Abort signal: cancels an in-flight run/stream. */
 	signal?: AbortSignal;
+	/** Opt-in surfaces (e.g. ["board"]) that bind that surface's server tools for this turn. */
+	surfaces?: string[];
 	/** Local tool definitions to execute on tool-call events from the server. */
 	tools?: ClientToolDef[];
 }

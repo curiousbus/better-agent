@@ -93,6 +93,22 @@ async function requireUserSession(
 	return session;
 }
 
+// Destructive board tools are kept OUT of the natural-language model turn — a
+// vague command shouldn't be able to delete a task or end a sprint. They remain
+// available on the direct (button-driven) toolCalls path.
+const NL_UNSAFE_TOOLS = new Set([
+	"deleteTask",
+	"deleteSprint",
+	"completeSprint",
+]);
+
+function boardModelDefs(context: Context, userId: string): ToolDef[] {
+	return [
+		...buildTaskToolDefs(context.services.stores.task, userId),
+		...buildSprintToolDefs(context.services.stores.sprint, userId),
+	].filter((def) => !NL_UNSAFE_TOOLS.has(def.name));
+}
+
 async function* streamUserTurn(
 	context: Context,
 	userId: string,
@@ -106,6 +122,7 @@ async function* streamUserTurn(
 		}>;
 		outputSchema?: Record<string, unknown>;
 		attachmentIds?: string[];
+		surfaces?: string[];
 	},
 	signal: AbortSignal | undefined
 ): AsyncGenerator<RunEvent, void> {
@@ -115,12 +132,12 @@ async function* streamUserTurn(
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
 		const toolDefs = await agentToolDefs(context, session.agentId);
-		const taskDefs = buildTaskToolDefs(context.services.stores.task, userId);
-		const sprintDefs = buildSprintToolDefs(
-			context.services.stores.sprint,
-			userId
-		);
-		const allDefs = [...remoteDefs, ...toolDefs, ...taskDefs, ...sprintDefs];
+		// Board tools are bound ONLY when the turn opts into the board surface, and
+		// only the non-destructive subset.
+		const boardDefs = input.surfaces?.includes("board")
+			? boardModelDefs(context, userId)
+			: [];
+		const allDefs = [...remoteDefs, ...toolDefs, ...boardDefs];
 		yield* context.services.runtime.runTurn({
 			sessionId: input.sessionId,
 			text: input.text,
