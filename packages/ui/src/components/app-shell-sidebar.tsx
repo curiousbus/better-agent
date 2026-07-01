@@ -43,6 +43,9 @@ export interface AppShellSidebarProps {
 	groupLabel?: string;
 	highlightLayoutId: string;
 	sections: readonly NavSection[];
+	// "inset" (default) floats the main content with a margin; "sidebar" is flush
+	// (edge-to-edge main content, no margin).
+	variant?: "inset" | "sidebar";
 }
 
 function NavItemLink({
@@ -162,13 +165,14 @@ export function AppShellSidebar({
 	groupLabel,
 	highlightLayoutId,
 	sections,
+	variant = "inset",
 }: AppShellSidebarProps) {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});
 
 	return (
-		<Sidebar collapsible="icon" variant="inset">
+		<Sidebar collapsible="icon" variant={variant}>
 			<SidebarHeader>
 				<SidebarBrand brand={brand} />
 			</SidebarHeader>

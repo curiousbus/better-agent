@@ -22,6 +22,7 @@ export function WebSidebar() {
 			footer={<UserMenu />}
 			highlightLayoutId="web-sidebar-active"
 			sections={SECTIONS}
+			variant="sidebar"
 		/>
 	);
 }
