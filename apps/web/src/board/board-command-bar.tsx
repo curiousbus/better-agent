@@ -176,7 +176,9 @@ function Drawer({
 	return (
 		<aside
 			className={cn(
-				"fixed top-0 right-0 z-50 flex h-full w-[26rem] max-w-[90vw] flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-out",
+				// Frosted-glass panel: translucent + blur so the board shows through
+				// behind it. No backdrop/mask.
+				"fixed top-0 right-0 z-50 flex h-full w-[26rem] max-w-[90vw] flex-col border-l bg-background/70 shadow-xl backdrop-blur-md transition-transform duration-300 ease-out",
 				open ? "translate-x-0" : "translate-x-full"
 			)}
 		>
@@ -213,18 +215,6 @@ export function BoardCommandBar(props: BoardCommandBarProps) {
 					<Sparkles />
 				</Button>
 			)}
-			{/* No dark mask — just frost/blur the board behind the drawer. */}
-			<button
-				aria-label="Close assistant"
-				className={cn(
-					"fixed inset-0 z-40 transition-opacity duration-300",
-					open
-						? "opacity-100 backdrop-blur-sm"
-						: "pointer-events-none opacity-0"
-				)}
-				onClick={close}
-				type="button"
-			/>
 			<Drawer chat={chat} onClose={close} open={open} />
 		</>
 	);
