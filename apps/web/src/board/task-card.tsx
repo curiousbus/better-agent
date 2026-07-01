@@ -109,14 +109,17 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 		transition,
 		isDragging,
 	} = useSortable({ id: task.id });
-	const style = { transform: CSS.Transform.toString(transform), transition };
+	// The active card stays put as a dim placeholder (the DragOverlay follows the
+	// cursor); only siblings translate to make room.
+	const style = {
+		transform: isDragging ? undefined : CSS.Transform.toString(transform),
+		transition,
+	};
 
 	return (
 		<Card
 			className={cn(
 				"flex cursor-grab flex-col gap-2 p-3",
-				// While dragging, the original leaves a dim placeholder; the moving
-				// card is rendered by the DragOverlay so it follows the cursor smoothly.
 				isDragging && "opacity-40"
 			)}
 			ref={setNodeRef}
@@ -131,10 +134,12 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 
 const noop = () => undefined;
 
-// Rendered inside <DragOverlay> — a lifted clone that follows the cursor.
+// Rendered inside <DragOverlay> — a lifted clone that follows the cursor. w-full
+// makes it match the source card's measured width (the overlay wrapper is sized
+// to the dragged node).
 export function TaskCardOverlay({ task }: { task: BoardTask }) {
 	return (
-		<Card className="flex rotate-2 cursor-grabbing flex-col gap-2 p-3 shadow-2xl">
+		<Card className="flex w-full cursor-grabbing flex-col gap-2 p-3 shadow-xl ring-2 ring-primary">
 			<CardBody onDelete={noop} onOpen={noop} task={task} />
 		</Card>
 	);

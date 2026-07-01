@@ -1,10 +1,10 @@
 import type { AgentClient } from "@curiousbus/agent-client";
-import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { loadSprintColumns, parseTask } from "./board-client";
 import { type BoardStatus, type BoardStore, nextPosition } from "./board-store";
-import { containerOf, resolveDrop } from "./drag-resolve";
+import { resolveDrop } from "./drag-resolve";
 
 interface HandlerCtx {
 	activeSprintId: string | null;
@@ -59,33 +59,6 @@ function applyCreate(
 	optimisticCreate(ctx, { status, sprintId: ctx.activeSprintId }, title);
 }
 
-function applyDragOver(event: DragOverEvent, ctx: HandlerCtx): void {
-	const { active, over } = event;
-	if (!over) {
-		return;
-	}
-	const { store, activeSprintId } = ctx;
-	const activeId = String(active.id);
-	const overId = String(over.id);
-	const snapshot = store.getSnapshot();
-	const activeTask = snapshot.find((t) => t.id === activeId);
-	if (!activeTask) {
-		return;
-	}
-	const target = resolveDrop(snapshot, activeId, overId, activeSprintId);
-	if (!target) {
-		return;
-	}
-	// Guard: only move when the container actually changes (avoid same-container thrash)
-	const currentContainer = containerOf(activeTask);
-	const targetContainer: string =
-		target.sprintId === null ? "backlog" : target.status;
-	if (currentContainer === targetContainer) {
-		return;
-	}
-	store.applyMove(activeId, target);
-}
-
 function applyDragEnd(event: DragEndEvent, ctx: HandlerCtx): void {
 	const { active, over } = event;
 	if (!over) {
@@ -93,9 +66,9 @@ function applyDragEnd(event: DragEndEvent, ctx: HandlerCtx): void {
 	}
 	const { store, agentClient, sessionId, activeSprintId } = ctx;
 	const activeId = String(active.id);
-	// onDragEnd is the source of truth for the final position: onDragOver only
-	// applies CROSS-container moves live, so a same-column reorder would otherwise
-	// persist the stale pre-drag position. Recompute from the drop target.
+	// The move happens only on drop (mutating the store mid-drag remounts the
+	// dragged node and makes dnd-kit end the drag early). Resolve the final
+	// target from where the pointer released.
 	const target = resolveDrop(
 		store.getSnapshot(),
 		activeId,
@@ -135,11 +108,6 @@ export function useBoardHandlers(
 		[store, agentClient, sessionId, activeSprintId]
 	);
 
-	const onDragOver = useCallback(
-		(event: DragOverEvent) => applyDragOver(event, ctx),
-		[ctx]
-	);
-
 	const onDragEnd = useCallback(
 		(event: DragEndEvent) => applyDragEnd(event, ctx),
 		[ctx]
@@ -170,5 +138,5 @@ export function useBoardHandlers(
 		[ctx]
 	);
 
-	return { onDragEnd, onDragOver, onCreate, onDelete, onCreateBacklog };
+	return { onDragEnd, onCreate, onDelete, onCreateBacklog };
 }

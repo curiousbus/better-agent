@@ -13,6 +13,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { BacklogPanel } from "./backlog-panel";
 import { loadBacklog, loadSprintColumns } from "./board-client";
@@ -183,7 +184,6 @@ interface DndShellProps {
 	children: React.ReactNode;
 	onDragCancel: () => void;
 	onDragEnd: Parameters<typeof DndContext>[0]["onDragEnd"];
-	onDragOver: Parameters<typeof DndContext>[0]["onDragOver"];
 	onDragStart: (event: DragStartEvent) => void;
 	overlay: React.ReactNode;
 	sensors: ReturnType<typeof useSensors>;
@@ -193,7 +193,6 @@ function DndShell({
 	children,
 	onDragCancel,
 	onDragEnd,
-	onDragOver,
 	onDragStart,
 	overlay,
 	sensors,
@@ -204,12 +203,16 @@ function DndShell({
 			measuring={MEASURING}
 			onDragCancel={onDragCancel}
 			onDragEnd={onDragEnd}
-			onDragOver={onDragOver}
 			onDragStart={onDragStart}
 			sensors={sensors}
 		>
 			<div className="flex h-full flex-col">{children}</div>
-			<DragOverlay>{overlay}</DragOverlay>
+			{/* Portal to <body> so the overlay's fixed positioning escapes the
+			    route-transition motion.div (a transform/filter ancestor breaks
+			    position:fixed and offsets the card from the cursor). */}
+			{typeof document === "undefined"
+				? null
+				: createPortal(<DragOverlay>{overlay}</DragOverlay>, document.body)}
 		</DndContext>
 	);
 }
@@ -238,8 +241,7 @@ export function TaskBoard(props: TaskBoardProps) {
 	const { activeSprintId, onOpenTask } = props;
 	const { snapshot, columnsLoaded, backlogLoaded, handlers } =
 		useBoardState(props);
-	const { onDragEnd, onDragOver, onCreate, onDelete, onCreateBacklog } =
-		handlers;
+	const { onDragEnd, onCreate, onDelete, onCreateBacklog } = handlers;
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: ACTIVATION_DISTANCE },
@@ -257,7 +259,7 @@ export function TaskBoard(props: TaskBoardProps) {
 			tasks={backlogTasks}
 		/>
 	);
-	const shellProps = { ...drag, onDragOver, sensors };
+	const shellProps = { ...drag, sensors };
 
 	if (!activeSprintId) {
 		return (
