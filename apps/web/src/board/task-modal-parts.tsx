@@ -54,11 +54,19 @@ async function applySprint(ctx: MoveCtx, value: string | null): Promise<void> {
 	}
 }
 
+const STATUS_LABELS = Object.fromEntries(
+	COLUMNS.map((c) => [c.status, c.label])
+);
+
 function StatusSelect({ ctx, status }: { ctx: MoveCtx; status: BoardStatus }) {
 	return (
 		<div className="flex flex-col gap-1.5">
 			<Label htmlFor="task-status">Status</Label>
-			<Select onValueChange={(v) => applyStatus(ctx, v)} value={status}>
+			<Select
+				items={STATUS_LABELS}
+				onValueChange={(v) => applyStatus(ctx, v)}
+				value={status}
+			>
 				<SelectTrigger className="w-full" id="task-status">
 					<SelectValue />
 				</SelectTrigger>
@@ -83,10 +91,18 @@ function SprintSelect({
 	sprintId: string | null;
 	sprints: BoardSprint[];
 }) {
+	const items = {
+		"": "Backlog",
+		...Object.fromEntries(sprints.map((s) => [s.id, s.name])),
+	};
 	return (
 		<div className="flex flex-col gap-1.5">
 			<Label htmlFor="task-sprint">Sprint</Label>
-			<Select onValueChange={(v) => applySprint(ctx, v)} value={sprintId ?? ""}>
+			<Select
+				items={items}
+				onValueChange={(v) => applySprint(ctx, v)}
+				value={sprintId ?? ""}
+			>
 				<SelectTrigger className="w-full" id="task-sprint">
 					<SelectValue />
 				</SelectTrigger>

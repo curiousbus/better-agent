@@ -8,12 +8,15 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import { userAgentClient } from "@/utils/chat-client";
 import { orpc } from "@/utils/orpc";
 import { BoardCommandBar } from "./board-command-bar";
 import { loadBoardSessionId, saveBoardSessionId } from "./board-session";
+import { createBoardStore } from "./board-store";
 import { SprintBar } from "./sprint-bar";
 import { TaskBoard } from "./task-board";
 import { TaskModal } from "./task-modal";
@@ -123,19 +126,29 @@ interface BoardContentProps {
 	setRefreshKey: Dispatch<SetStateAction<number>>;
 }
 
-function BoardContent({
-	agentClient,
-	openTaskId,
-	sessionId,
-	setOpenTaskId,
-	setRefreshKey,
-	refreshKey,
-}: BoardContentProps) {
+// One shared board store: the board renders from it AND the command bar reads
+// the current tasks from it to give the agent real board context.
+function useSharedBoardStore() {
+	const storeRef = useRef(createBoardStore());
+	const store = storeRef.current;
+	const tasks = useSyncExternalStore(
+		store.subscribe,
+		store.getSnapshot,
+		store.getSnapshot
+	);
+	return { store, tasks };
+}
+
+function BoardContent(props: BoardContentProps) {
+	const { agentClient, openTaskId, sessionId, setOpenTaskId, setRefreshKey } =
+		props;
 	const sprintHook = useSprints(agentClient, sessionId);
 	const { bump, onComplete, onCreate, onStart } = useSprintActions(
 		sprintHook,
 		setRefreshKey
 	);
+	const { store, tasks } = useSharedBoardStore();
+	const activeSprintId = sprintHook.active?.id ?? null;
 
 	return (
 		<>
@@ -148,19 +161,22 @@ function BoardContent({
 				sprints={sprintHook.sprints}
 			/>
 			<TaskBoard
-				activeSprintId={sprintHook.active?.id ?? null}
+				activeSprintId={activeSprintId}
 				agentClient={agentClient}
-				onOpenTask={(id) => setOpenTaskId(id)}
-				refreshKey={refreshKey}
+				onOpenTask={setOpenTaskId}
+				refreshKey={props.refreshKey}
 				sessionId={sessionId}
+				store={store}
 			/>
 			<BoardCommandBar
+				activeSprintName={sprintHook.active?.name ?? null}
 				agentClient={agentClient}
 				onDone={bump}
 				sessionId={sessionId}
+				tasks={tasks}
 			/>
 			<TaskModal
-				activeSprintId={sprintHook.active?.id ?? null}
+				activeSprintId={activeSprintId}
 				agentClient={agentClient}
 				onClose={() => setOpenTaskId(null)}
 				onSaved={() => setRefreshKey((k) => k + 1)}

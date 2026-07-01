@@ -1,15 +1,18 @@
 import type { AgentClient } from "@curiousbus/agent-client";
 import {
+	type CollisionDetection,
 	closestCorners,
 	DndContext,
 	type DragEndEvent,
 	DragOverlay,
 	type DragStartEvent,
+	MeasuringStrategy,
 	PointerSensor,
+	pointerWithin,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { BacklogPanel } from "./backlog-panel";
 import { loadBacklog, loadSprintColumns } from "./board-client";
@@ -18,7 +21,6 @@ import {
 	type BoardStore,
 	type BoardTask,
 	COLUMNS,
-	createBoardStore,
 	groupByColumn,
 } from "./board-store";
 import { TaskCardOverlay } from "./task-card";
@@ -26,6 +28,18 @@ import { TaskColumn } from "./task-column";
 import { useBoardHandlers } from "./use-board-handlers";
 
 const ACTIVATION_DISTANCE = 4;
+
+// Pointer-first collision keeps cross-column drag stable (pure closestCorners
+// oscillates near column boundaries); fall back to corners when the pointer is
+// outside every droppable.
+const boardCollision: CollisionDetection = (args) => {
+	const pointer = pointerWithin(args);
+	return pointer.length > 0 ? pointer : closestCorners(args);
+};
+
+const MEASURING = {
+	droppable: { strategy: MeasuringStrategy.Always },
+} as const;
 
 interface LoaderOpts {
 	activeSprintId: string | null;
@@ -108,7 +122,7 @@ function BoardColumns({
 	onOpenTask,
 }: BoardColumnsProps) {
 	return (
-		<div className="flex h-full min-w-0 flex-1 gap-4 overflow-x-auto p-4">
+		<div className="flex min-h-0 min-w-0 flex-1 gap-4 overflow-x-auto p-4">
 			{COLUMNS.map((column) => (
 				<TaskColumn
 					key={column.status}
@@ -131,12 +145,17 @@ interface TaskBoardProps {
 	onOpenTask: (id: string) => void;
 	refreshKey?: number;
 	sessionId: string;
+	store: BoardStore;
 }
 
 function useBoardState(props: TaskBoardProps) {
-	const { agentClient, sessionId, activeSprintId, refreshKey = 0 } = props;
-	const storeRef = useRef(createBoardStore());
-	const store = storeRef.current;
+	const {
+		agentClient,
+		sessionId,
+		activeSprintId,
+		refreshKey = 0,
+		store,
+	} = props;
 	const snapshot = useSyncExternalStore(
 		store.subscribe,
 		store.getSnapshot,
@@ -181,14 +200,15 @@ function DndShell({
 }: DndShellProps) {
 	return (
 		<DndContext
-			collisionDetection={closestCorners}
+			collisionDetection={boardCollision}
+			measuring={MEASURING}
 			onDragCancel={onDragCancel}
 			onDragEnd={onDragEnd}
 			onDragOver={onDragOver}
 			onDragStart={onDragStart}
 			sensors={sensors}
 		>
-			<div className="flex h-full">{children}</div>
+			<div className="flex h-full flex-col">{children}</div>
 			<DragOverlay>{overlay}</DragOverlay>
 		</DndContext>
 	);

@@ -1,44 +1,57 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Input } from "@better-agent/ui/components/input";
 import type { AgentClient } from "@curiousbus/agent-client";
-import { Loader2, SendHorizontal } from "lucide-react";
+import { Loader2, SendHorizontal, Sparkles, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 import { toast } from "sonner";
+import type { BoardTask } from "./board-store";
 
 interface BoardCommandBarProps {
+	activeSprintName: string | null;
 	agentClient: AgentClient;
 	onDone: () => void;
 	sessionId: string;
+	tasks: BoardTask[];
 }
 
-// Give the agent board awareness every turn: it has no idea it's driving a
-// Kanban board otherwise, and the user refers to tasks as "TASK-<n>" (the seq),
-// which the tools accept directly.
-const BOARD_PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown to the user as "TASK-<n>" where <n> is the task's seq number. Reference a task by seq directly — e.g. updateTask({ seq: 3, description: "…" }), moveTask({ seq: 3, status, position }), getTask({ seq: 3 }), deleteTask({ seq: 3 }). Statuses are todo | in_progress | done. Sprint tools: activeSprint, listSprints, createSprint, startSprint, completeSprint. NEVER ask the user what a TASK-<n> reference means — act on it. Carry out the request below, then stop.
+const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq. Reference a task by seq — e.g. updateTask({ seq: 3, description: "…" }), moveTask({ seq: 3, status, position }). Statuses: todo | in_progress | done. Sprint tools: activeSprint, listSprints, createSprint, startSprint, completeSprint. NEVER ask what a TASK-<n> means — the current board is given below. Do the request, then stop.`;
 
-Request: `;
+// Feed the already-rendered board state (the session's own data) as context so
+// the agent knows exactly what TASK-<n> is without re-fetching or guessing.
+function boardContext(tasks: BoardTask[], activeSprintName: string | null) {
+	const header = activeSprintName
+		? `Active sprint: "${activeSprintName}".`
+		: "No active sprint.";
+	if (tasks.length === 0) {
+		return `${header} The board has no tasks yet.`;
+	}
+	const lines = tasks
+		.map((t) => {
+			const where = t.sprintId === null ? "backlog" : t.status;
+			return `- TASK-${t.seq}: "${t.title}" [${where}]`;
+		})
+		.join("\n");
+	return `${header}\nCurrent tasks:\n${lines}`;
+}
 
-// One-way command input: the user tells the agent what to do; the agent runs
-// its task/sprint tools and the BOARD is the response (no chat transcript, no
-// generative-UI toggle). On completion we refresh the board.
 async function runCommand(
 	agentClient: AgentClient,
 	sessionId: string,
-	text: string
+	prompt: string
 ): Promise<void> {
-	for await (const event of agentClient.stream(BOARD_PREAMBLE + text, {
-		sessionId,
-	})) {
+	for await (const event of agentClient.stream(prompt, { sessionId })) {
 		if (event.type === "error") {
 			throw new Error(event.message);
 		}
 	}
 }
 
-export function BoardCommandBar({
+function CommandInput({
 	agentClient,
 	sessionId,
 	onDone,
+	tasks,
+	activeSprintName,
 }: BoardCommandBarProps) {
 	const [value, setValue] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -50,7 +63,8 @@ export function BoardCommandBar({
 		}
 		setBusy(true);
 		setValue("");
-		runCommand(agentClient, sessionId, text)
+		const prompt = `${PREAMBLE}\n\n${boardContext(tasks, activeSprintName)}\n\nRequest: ${text}`;
+		runCommand(agentClient, sessionId, prompt)
 			.then(onDone)
 			.catch(() => toast.error("The agent couldn't complete that."))
 			.finally(() => setBusy(false));
@@ -63,26 +77,43 @@ export function BoardCommandBar({
 	};
 
 	return (
-		<div className="fixed right-6 bottom-6 z-50 w-[26rem] max-w-[calc(100vw-3rem)]">
-			<div className="flex items-center gap-1 rounded-full border bg-background/95 p-1.5 pl-4 shadow-lg backdrop-blur">
-				<Input
-					className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-					disabled={busy}
-					onChange={(e) => setValue(e.target.value)}
-					onKeyDown={onKeyDown}
-					placeholder="Tell the agent what to do…"
-					value={value}
-				/>
-				<Button
-					aria-label="Send command"
-					className="rounded-full"
-					disabled={busy || value.trim() === ""}
-					onClick={submit}
-					size="icon"
-				>
-					{busy ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
-				</Button>
-			</div>
+		<div className="slide-in-from-right-2 flex w-[24rem] max-w-[calc(100vw-6rem)] animate-in items-center gap-1 rounded-full border bg-background/95 p-1.5 pl-4 shadow-lg backdrop-blur">
+			<Input
+				// biome-ignore lint/a11y/noAutofocus: intentional — the bar opens on user click
+				autoFocus
+				className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+				disabled={busy}
+				onChange={(e) => setValue(e.target.value)}
+				onKeyDown={onKeyDown}
+				placeholder="Tell the agent what to do…"
+				value={value}
+			/>
+			<Button
+				aria-label="Send command"
+				className="rounded-full"
+				disabled={busy || value.trim() === ""}
+				onClick={submit}
+				size="icon"
+			>
+				{busy ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
+			</Button>
+		</div>
+	);
+}
+
+export function BoardCommandBar(props: BoardCommandBarProps) {
+	const [open, setOpen] = useState(false);
+	return (
+		<div className="fixed right-6 bottom-6 z-50 flex items-center gap-2">
+			{open ? <CommandInput {...props} /> : null}
+			<Button
+				aria-label={open ? "Close command bar" : "Open command bar"}
+				className="size-12 shrink-0 rounded-full shadow-lg"
+				onClick={() => setOpen((v) => !v)}
+				size="icon"
+			>
+				{open ? <X /> : <Sparkles />}
+			</Button>
 		</div>
 	);
 }

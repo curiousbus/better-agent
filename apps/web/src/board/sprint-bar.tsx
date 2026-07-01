@@ -112,6 +112,7 @@ function NoSprintBar({ sprints, onCreate, onStart }: NoSprintBarProps) {
 	const future = sprints.filter(
 		(s) => s.status !== "active" && s.status !== "completed"
 	);
+	const items = Object.fromEntries(future.map((s) => [s.id, s.name]));
 
 	return (
 		<div className="flex items-center gap-3">
@@ -120,6 +121,7 @@ function NoSprintBar({ sprints, onCreate, onStart }: NoSprintBarProps) {
 			{future.length > 0 && (
 				<>
 					<Select
+						items={items}
 						onValueChange={(v) => setSelectedId(v ?? "")}
 						value={selectedId}
 					>
