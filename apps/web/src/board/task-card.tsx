@@ -119,7 +119,10 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 	return (
 		<Card
 			className={cn(
-				"flex cursor-grab flex-col gap-2 p-3",
+				// dnd-kit makes the card a focusable role=button; the default SQUARE
+				// focus outline shows as slivers at the rounded card's 4 corners, so
+				// drop it for a clean rounded ring instead.
+				"flex cursor-grab flex-col gap-2 p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring",
 				isDragging && "opacity-40"
 			)}
 			ref={setNodeRef}
