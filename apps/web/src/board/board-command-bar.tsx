@@ -164,9 +164,43 @@ function Composer({
 	);
 }
 
+function Drawer({
+	open,
+	onClose,
+	chat,
+}: {
+	chat: ReturnType<typeof useBoardChat>;
+	onClose: () => void;
+	open: boolean;
+}) {
+	return (
+		<aside
+			className={cn(
+				"fixed top-0 right-0 z-50 flex h-full w-[26rem] max-w-[90vw] flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-out",
+				open ? "translate-x-0" : "translate-x-full"
+			)}
+		>
+			<header className="flex items-center justify-between border-b p-3">
+				<span className="font-medium text-sm">Assistant</span>
+				<Button
+					aria-label="Close"
+					onClick={onClose}
+					size="icon"
+					variant="ghost"
+				>
+					<X />
+				</Button>
+			</header>
+			<MessageList busy={chat.busy} messages={chat.messages} />
+			<Composer busy={chat.busy} onSend={chat.send} />
+		</aside>
+	);
+}
+
 export function BoardCommandBar(props: BoardCommandBarProps) {
 	const [open, setOpen] = useState(false);
 	const chat = useBoardChat(props);
+	const close = () => setOpen(false);
 	return (
 		<>
 			{open ? null : (
@@ -179,38 +213,19 @@ export function BoardCommandBar(props: BoardCommandBarProps) {
 					<Sparkles />
 				</Button>
 			)}
-			{/* Translucent backdrop; fades with the drawer, click to close. */}
+			{/* No dark mask — just frost/blur the board behind the drawer. */}
 			<button
 				aria-label="Close assistant"
 				className={cn(
-					"fixed inset-0 z-40 bg-black/40 transition-opacity duration-300",
-					open ? "opacity-100" : "pointer-events-none opacity-0"
+					"fixed inset-0 z-40 transition-opacity duration-300",
+					open
+						? "opacity-100 backdrop-blur-sm"
+						: "pointer-events-none opacity-0"
 				)}
-				onClick={() => setOpen(false)}
+				onClick={close}
 				type="button"
 			/>
-			{/* Right drawer: slides in from the right, out to the right. Always
-			    mounted so the close animation runs and the chat log persists. */}
-			<aside
-				className={cn(
-					"fixed top-0 right-0 z-50 flex h-full w-[26rem] max-w-[90vw] flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-out",
-					open ? "translate-x-0" : "translate-x-full"
-				)}
-			>
-				<header className="flex items-center justify-between border-b p-3">
-					<span className="font-medium text-sm">Assistant</span>
-					<Button
-						aria-label="Close"
-						onClick={() => setOpen(false)}
-						size="icon"
-						variant="ghost"
-					>
-						<X />
-					</Button>
-				</header>
-				<MessageList busy={chat.busy} messages={chat.messages} />
-				<Composer busy={chat.busy} onSend={chat.send} />
-			</aside>
+			<Drawer chat={chat} onClose={close} open={open} />
 		</>
 	);
 }
