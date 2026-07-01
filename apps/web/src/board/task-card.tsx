@@ -119,10 +119,10 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 	return (
 		<Card
 			className={cn(
-				// dnd-kit makes the card a focusable role=button; the default SQUARE
-				// focus outline shows as slivers at the rounded card's 4 corners, so
-				// drop it for a clean rounded ring instead.
-				"flex cursor-grab flex-col gap-2 p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				// No border/ring/outline at rest — only the DragOverlay shows a ring
+				// while dragging. (Card base has ring-1 + dnd-kit adds a focusable
+				// role=button whose square outline showed as corner slivers.)
+				"flex cursor-grab flex-col gap-2 p-3 shadow-sm outline-none ring-0",
 				isDragging && "opacity-40"
 			)}
 			ref={setNodeRef}

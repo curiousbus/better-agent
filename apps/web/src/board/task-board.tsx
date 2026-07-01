@@ -1,3 +1,4 @@
+import { Input } from "@better-agent/ui/components/input";
 import type { AgentClient } from "@curiousbus/agent-client";
 import {
 	type CollisionDetection,
@@ -12,11 +13,11 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { SearchIcon } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { BacklogPanel } from "./backlog-panel";
-import { loadBacklog, loadSprintColumns } from "./board-client";
+import { loadSprintColumns } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
@@ -83,28 +84,34 @@ function useColumnLoader(opts: LoaderOpts): Set<BoardStatus> {
 	return loaded;
 }
 
-function useBacklogLoader(opts: LoaderOpts): boolean {
-	const { agentClient, sessionId, store, refreshKey } = opts;
-	const [loaded, setLoaded] = useState(false);
-	useEffect(() => {
-		let active = true;
-		setLoaded(false);
-		loadBacklog(agentClient, sessionId, (tasks) => {
-			if (!active) {
-				return;
-			}
-			store.setBacklog(tasks);
-			setLoaded(true);
-		}).catch(() => {
-			if (active) {
-				toast.error("Failed to load backlog. Please refresh.");
-			}
-		});
-		return () => {
-			active = false;
-		};
-	}, [agentClient, sessionId, store, refreshKey]);
-	return loaded;
+function matchesSearch(task: BoardTask, query: string): boolean {
+	if (query === "") {
+		return true;
+	}
+	const q = query.toLowerCase();
+	return task.title.toLowerCase().includes(q) || `task-${task.seq}`.includes(q);
+}
+
+function BoardToolbar({
+	search,
+	onSearch,
+}: {
+	onSearch: (v: string) => void;
+	search: string;
+}) {
+	return (
+		<div className="flex shrink-0 items-center gap-2 px-4 pt-3">
+			<div className="relative w-full max-w-xs">
+				<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+				<Input
+					className="pl-8"
+					onChange={(e) => onSearch(e.target.value)}
+					placeholder="Search tasks…"
+					value={search}
+				/>
+			</div>
+		</div>
+	);
 }
 
 interface BoardColumnsProps {
@@ -170,14 +177,13 @@ function useBoardState(props: TaskBoardProps) {
 		refreshKey,
 	};
 	const columnsLoaded = useColumnLoader(loaderOpts);
-	const backlogLoaded = useBacklogLoader(loaderOpts);
 	const handlers = useBoardHandlers(
 		store,
 		agentClient,
 		sessionId,
 		activeSprintId
 	);
-	return { snapshot, columnsLoaded, backlogLoaded, handlers };
+	return { snapshot, columnsLoaded, handlers };
 }
 
 interface DndShellProps {
@@ -239,25 +245,17 @@ function useDragOverlay(
 
 export function TaskBoard(props: TaskBoardProps) {
 	const { activeSprintId, onOpenTask } = props;
-	const { snapshot, columnsLoaded, backlogLoaded, handlers } =
-		useBoardState(props);
-	const { onDragEnd, onCreate, onDelete, onCreateBacklog } = handlers;
+	const { snapshot, columnsLoaded, handlers } = useBoardState(props);
+	const { onDragEnd, onCreate, onDelete } = handlers;
+	const [search, setSearch] = useState("");
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: ACTIVATION_DISTANCE },
 		})
 	);
 	const drag = useDragOverlay(snapshot, onDragEnd);
-	const sprintTasks = snapshot.filter((t) => t.sprintId !== null);
-	const backlogTasks = snapshot.filter((t) => t.sprintId === null);
-	const backlogPanel = (
-		<BacklogPanel
-			loaded={backlogLoaded}
-			onCreateBacklog={onCreateBacklog}
-			onDelete={onDelete}
-			onOpen={onOpenTask}
-			tasks={backlogTasks}
-		/>
+	const sprintTasks = snapshot.filter(
+		(t) => t.sprintId !== null && matchesSearch(t, search)
 	);
 	const shellProps = { ...drag, sensors };
 
@@ -269,13 +267,13 @@ export function TaskBoard(props: TaskBoardProps) {
 						Start a sprint to begin.
 					</p>
 				</div>
-				{backlogPanel}
 			</DndShell>
 		);
 	}
 
 	return (
 		<DndShell {...shellProps}>
+			<BoardToolbar onSearch={setSearch} search={search} />
 			<BoardColumns
 				loaded={columnsLoaded}
 				onCreate={onCreate}
@@ -283,7 +281,6 @@ export function TaskBoard(props: TaskBoardProps) {
 				onOpenTask={onOpenTask}
 				tasks={groupByColumn(sprintTasks)}
 			/>
-			{backlogPanel}
 		</DndShell>
 	);
 }

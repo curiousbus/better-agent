@@ -90,13 +90,13 @@ export function TaskColumn({
 	const [adding, setAdding] = useState(false);
 
 	return (
-		<div className="flex min-w-64 flex-1 flex-col gap-3 rounded-lg bg-muted/40 p-3">
+		<div className="flex min-h-0 min-w-64 flex-1 flex-col gap-3 rounded-lg bg-muted/40 p-3">
 			<div className="flex items-center justify-between">
 				<span className="font-medium text-sm">{label}</span>
 				<Badge variant="secondary">{tasks.length}</Badge>
 			</div>
 			<div
-				className="fade-in flex animate-in flex-col gap-2 overflow-y-auto"
+				className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
 				data-status={status}
 				ref={setNodeRef}
 			>
