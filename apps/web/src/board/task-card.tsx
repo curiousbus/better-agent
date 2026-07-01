@@ -91,11 +91,13 @@ function CardBody({ task, onOpen, onDelete }: TaskCardProps) {
 			</div>
 			<p className="line-clamp-2 font-medium text-sm">{task.title}</p>
 			{task.description ? (
-				<p className="line-clamp-2 text-muted-foreground text-xs">
+				<p className="line-clamp-1 text-muted-foreground text-xs">
 					{task.description}
 				</p>
 			) : null}
-			<TaskCardFooter createdAt={task.createdAt} initial={initial} />
+			<div className="mt-auto">
+				<TaskCardFooter createdAt={task.createdAt} initial={initial} />
+			</div>
 		</>
 	);
 }
@@ -122,7 +124,8 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 				// No border/ring/outline at rest — only the DragOverlay shows a ring
 				// while dragging. (Card base has ring-1 + dnd-kit adds a focusable
 				// role=button whose square outline showed as corner slivers.)
-				"flex shrink-0 cursor-grab flex-col gap-2 p-3 shadow-sm outline-none ring-0",
+				// Fixed height so the Nth card aligns across all three columns.
+				"flex h-32 shrink-0 cursor-grab flex-col gap-1.5 p-3 shadow-sm outline-none ring-0",
 				isDragging && "opacity-40"
 			)}
 			ref={setNodeRef}
@@ -142,7 +145,7 @@ const noop = () => undefined;
 // to the dragged node).
 export function TaskCardOverlay({ task }: { task: BoardTask }) {
 	return (
-		<Card className="flex w-full cursor-grabbing flex-col gap-2 p-3 shadow-xl ring-2 ring-primary">
+		<Card className="flex h-32 w-full cursor-grabbing flex-col gap-1.5 p-3 shadow-xl ring-2 ring-primary">
 			<CardBody onDelete={noop} onOpen={noop} task={task} />
 		</Card>
 	);

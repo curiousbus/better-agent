@@ -1,9 +1,9 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Input } from "@better-agent/ui/components/input";
+import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { Loader2, SendHorizontal, Sparkles, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
-import { toast } from "sonner";
 import type { BoardTask } from "./board-store";
 
 interface BoardCommandBarProps {
@@ -14,19 +14,18 @@ interface BoardCommandBarProps {
 	tasks: BoardTask[];
 }
 
+interface ChatMessage {
+	role: "agent" | "user";
+	text: string;
+}
+
 const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq (given in the board below — never ask what a TASK-<n> is).
 
 Rules:
-- Mark a task done / finished / complete → moveTask({ seq, status: "done" }). This is a STATUS change only: the task stays on the board in the Done column. "Done/complete/finish" NEVER means delete, and NEVER changes its sprint.
-- Move a task between columns → moveTask({ seq, status: "todo" | "in_progress" | "done" }).
-- Edit a task → updateTask({ seq, title?, description? }).
-- NEVER pass sprintId to moveTask unless the user explicitly says move it to the backlog (sprintId: null) or to another sprint.
-- deleteTask only when the user explicitly says delete/remove a task.
-- completeSprint only when the user explicitly says finish/close the whole sprint — never for one task.
-Do the request, then stop.`;
+- Mark a task done → moveTask({ seq, status: "done" }). Status change only: it stays on the board, is never deleted, and keeps its sprint.
+- Move a task → moveTask({ seq, status }). Edit → updateTask({ seq, title?, description? }).
+- deleteTask / completeSprint only when the user explicitly asks. Reply briefly with what you did.`;
 
-// Feed the already-rendered board state (the session's own data) as context so
-// the agent knows exactly what TASK-<n> is without re-fetching or guessing.
 function boardContext(tasks: BoardTask[], activeSprintName: string | null) {
 	const header = activeSprintName
 		? `Active sprint: "${activeSprintName}".`
@@ -35,71 +34,126 @@ function boardContext(tasks: BoardTask[], activeSprintName: string | null) {
 		return `${header} The board has no tasks yet.`;
 	}
 	const lines = tasks
-		.map((t) => {
-			const where = t.sprintId === null ? "backlog" : t.status;
-			return `- TASK-${t.seq}: "${t.title}" [${where}]`;
-		})
+		.map((t) => `- TASK-${t.seq}: "${t.title}" [${t.status}]`)
 		.join("\n");
 	return `${header}\nCurrent tasks:\n${lines}`;
 }
 
-async function runCommand(
+async function runTurn(
 	agentClient: AgentClient,
 	sessionId: string,
 	prompt: string
-): Promise<void> {
+): Promise<string> {
+	let reply = "";
 	for await (const event of agentClient.stream(prompt, { sessionId })) {
-		if (event.type === "error") {
+		if (event.type === "text-delta") {
+			reply += event.delta;
+		} else if (event.type === "error") {
 			throw new Error(event.message);
 		}
 	}
+	return reply.trim();
 }
 
-function CommandInput({
-	agentClient,
-	sessionId,
-	onDone,
-	tasks,
-	activeSprintName,
-}: BoardCommandBarProps) {
-	const [value, setValue] = useState("");
+function useBoardChat(props: BoardCommandBarProps) {
+	const { agentClient, sessionId, onDone, tasks, activeSprintName } = props;
+	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [busy, setBusy] = useState(false);
 
+	const send = (text: string) => {
+		setMessages((m) => [...m, { role: "user", text }]);
+		setBusy(true);
+		const prompt = `${PREAMBLE}\n\n${boardContext(tasks, activeSprintName)}\n\nRequest: ${text}`;
+		runTurn(agentClient, sessionId, prompt)
+			.then((reply) => {
+				setMessages((m) => [...m, { role: "agent", text: reply || "Done." }]);
+				onDone();
+			})
+			.catch(() =>
+				setMessages((m) => [
+					...m,
+					{ role: "agent", text: "Sorry, I couldn't do that." },
+				])
+			)
+			.finally(() => setBusy(false));
+	};
+
+	return { messages, busy, send };
+}
+
+function MessageList({
+	messages,
+	busy,
+}: {
+	busy: boolean;
+	messages: ChatMessage[];
+}) {
+	return (
+		<div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 text-sm">
+			{messages.length === 0 ? (
+				<p className="text-muted-foreground">
+					Tell the agent what to do — e.g. "move TASK-3 to done".
+				</p>
+			) : null}
+			{messages.map((m, i) => (
+				<div
+					className={m.role === "user" ? "text-right" : "text-left"}
+					// biome-ignore lint/suspicious/noArrayIndexKey: append-only chat log
+					key={i}
+				>
+					<span
+						className={cn(
+							"inline-block max-w-[85%] rounded-lg px-3 py-1.5 text-left",
+							m.role === "user"
+								? "bg-primary text-primary-foreground"
+								: "whitespace-pre-wrap bg-muted"
+						)}
+					>
+						{m.text}
+					</span>
+				</div>
+			))}
+			{busy ? (
+				<span className="flex items-center gap-2 text-muted-foreground">
+					<Loader2 className="size-4 animate-spin" /> Working…
+				</span>
+			) : null}
+		</div>
+	);
+}
+
+function Composer({
+	busy,
+	onSend,
+}: {
+	busy: boolean;
+	onSend: (v: string) => void;
+}) {
+	const [value, setValue] = useState("");
 	const submit = () => {
 		const text = value.trim();
 		if (text === "" || busy) {
 			return;
 		}
-		setBusy(true);
 		setValue("");
-		const prompt = `${PREAMBLE}\n\n${boardContext(tasks, activeSprintName)}\n\nRequest: ${text}`;
-		runCommand(agentClient, sessionId, prompt)
-			.then(onDone)
-			.catch(() => toast.error("The agent couldn't complete that."))
-			.finally(() => setBusy(false));
+		onSend(text);
 	};
-
 	const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
 		if (e.key === "Enter") {
 			submit();
 		}
 	};
-
 	return (
-		<div className="slide-in-from-right-2 flex w-[24rem] max-w-[calc(100vw-6rem)] animate-in items-center gap-1 rounded-full border bg-background/95 p-1.5 pl-4 shadow-lg backdrop-blur">
+		<div className="flex items-center gap-2 border-t p-3">
 			<Input
-				// biome-ignore lint/a11y/noAutofocus: intentional — the bar opens on user click
-				autoFocus
-				className="border-0 bg-transparent shadow-none focus-visible:ring-0"
 				disabled={busy}
 				onChange={(e) => setValue(e.target.value)}
 				onKeyDown={onKeyDown}
-				placeholder="Tell the agent what to do…"
+				placeholder="Tell the agent…"
 				value={value}
 			/>
 			<Button
-				aria-label="Send command"
-				className="rounded-full"
+				aria-label="Send"
 				disabled={busy || value.trim() === ""}
 				onClick={submit}
 				size="icon"
@@ -112,17 +166,51 @@ function CommandInput({
 
 export function BoardCommandBar(props: BoardCommandBarProps) {
 	const [open, setOpen] = useState(false);
+	const chat = useBoardChat(props);
 	return (
-		<div className="fixed right-6 bottom-6 z-50 flex items-center gap-2">
-			{open ? <CommandInput {...props} /> : null}
-			<Button
-				aria-label={open ? "Close command bar" : "Open command bar"}
-				className="size-12 shrink-0 rounded-full shadow-lg"
-				onClick={() => setOpen((v) => !v)}
-				size="icon"
+		<>
+			{open ? null : (
+				<Button
+					aria-label="Open assistant"
+					className="fixed right-6 bottom-6 z-40 size-12 rounded-full shadow-lg"
+					onClick={() => setOpen(true)}
+					size="icon"
+				>
+					<Sparkles />
+				</Button>
+			)}
+			{/* Translucent backdrop; fades with the drawer, click to close. */}
+			<button
+				aria-label="Close assistant"
+				className={cn(
+					"fixed inset-0 z-40 bg-black/40 transition-opacity duration-300",
+					open ? "opacity-100" : "pointer-events-none opacity-0"
+				)}
+				onClick={() => setOpen(false)}
+				type="button"
+			/>
+			{/* Right drawer: slides in from the right, out to the right. Always
+			    mounted so the close animation runs and the chat log persists. */}
+			<aside
+				className={cn(
+					"fixed top-0 right-0 z-50 flex h-full w-[26rem] max-w-[90vw] flex-col border-l bg-background shadow-xl transition-transform duration-300 ease-out",
+					open ? "translate-x-0" : "translate-x-full"
+				)}
 			>
-				{open ? <X /> : <Sparkles />}
-			</Button>
-		</div>
+				<header className="flex items-center justify-between border-b p-3">
+					<span className="font-medium text-sm">Assistant</span>
+					<Button
+						aria-label="Close"
+						onClick={() => setOpen(false)}
+						size="icon"
+						variant="ghost"
+					>
+						<X />
+					</Button>
+				</header>
+				<MessageList busy={chat.busy} messages={chat.messages} />
+				<Composer busy={chat.busy} onSend={chat.send} />
+			</aside>
+		</>
 	);
 }
