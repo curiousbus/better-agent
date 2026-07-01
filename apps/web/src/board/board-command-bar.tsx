@@ -14,7 +14,16 @@ interface BoardCommandBarProps {
 	tasks: BoardTask[];
 }
 
-const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq. Reference a task by seq — e.g. updateTask({ seq: 3, description: "…" }), moveTask({ seq: 3, status, position }). Statuses: todo | in_progress | done. Sprint tools: activeSprint, listSprints, createSprint, startSprint, completeSprint. NEVER ask what a TASK-<n> means — the current board is given below. Do the request, then stop.`;
+const PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown as "TASK-<n>" where <n> is the task's seq (given in the board below — never ask what a TASK-<n> is).
+
+Rules:
+- Mark a task done / finished / complete → moveTask({ seq, status: "done" }). This is a STATUS change only: the task stays on the board in the Done column. "Done/complete/finish" NEVER means delete, and NEVER changes its sprint.
+- Move a task between columns → moveTask({ seq, status: "todo" | "in_progress" | "done" }).
+- Edit a task → updateTask({ seq, title?, description? }).
+- NEVER pass sprintId to moveTask unless the user explicitly says move it to the backlog (sprintId: null) or to another sprint.
+- deleteTask only when the user explicitly says delete/remove a task.
+- completeSprint only when the user explicitly says finish/close the whole sprint — never for one task.
+Do the request, then stop.`;
 
 // Feed the already-rendered board state (the session's own data) as context so
 // the agent knows exactly what TASK-<n> is without re-fetching or guessing.

@@ -134,7 +134,7 @@ const moveTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 			position: { type: "number" },
 			sprintId: { type: ["string", "null"] },
 		},
-		["status", "position"]
+		["status"]
 	),
 	execute: async (args) => {
 		const id = await resolveTaskId(store, userId, args);
