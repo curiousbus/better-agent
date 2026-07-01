@@ -122,7 +122,7 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 				// No border/ring/outline at rest — only the DragOverlay shows a ring
 				// while dragging. (Card base has ring-1 + dnd-kit adds a focusable
 				// role=button whose square outline showed as corner slivers.)
-				"flex cursor-grab flex-col gap-2 p-3 shadow-sm outline-none ring-0",
+				"flex shrink-0 cursor-grab flex-col gap-2 p-3 shadow-sm outline-none ring-0",
 				isDragging && "opacity-40"
 			)}
 			ref={setNodeRef}

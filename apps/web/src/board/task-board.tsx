@@ -115,6 +115,7 @@ function BoardToolbar({
 }
 
 interface BoardColumnsProps {
+	dragging: boolean;
 	loaded: Set<BoardStatus>;
 	onCreate: (status: BoardStatus, title: string) => void;
 	onDelete: (id: string) => void;
@@ -123,6 +124,7 @@ interface BoardColumnsProps {
 }
 
 function BoardColumns({
+	dragging,
 	loaded,
 	tasks,
 	onCreate,
@@ -133,6 +135,7 @@ function BoardColumns({
 		<div className="flex min-h-0 min-w-0 flex-1 gap-4 overflow-x-auto p-4">
 			{COLUMNS.map((column) => (
 				<TaskColumn
+					dragging={dragging}
 					key={column.status}
 					label={column.label}
 					loaded={loaded.has(column.status)}
@@ -212,7 +215,7 @@ function DndShell({
 			onDragStart={onDragStart}
 			sensors={sensors}
 		>
-			<div className="flex h-full flex-col">{children}</div>
+			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
 			{/* Portal to <body> so the overlay's fixed positioning escapes the
 			    route-transition motion.div (a transform/filter ancestor breaks
 			    position:fixed and offsets the card from the cursor). */}
@@ -232,6 +235,7 @@ function useDragOverlay(
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const activeTask = snapshot.find((t) => t.id === activeId) ?? null;
 	return {
+		activeId,
 		overlay: activeTask ? <TaskCardOverlay task={activeTask} /> : null,
 		onDragStart: (event: DragStartEvent) =>
 			setActiveId(String(event.active.id)),
@@ -253,11 +257,12 @@ export function TaskBoard(props: TaskBoardProps) {
 			activationConstraint: { distance: ACTIVATION_DISTANCE },
 		})
 	);
-	const drag = useDragOverlay(snapshot, onDragEnd);
+	const { activeId, ...dragProps } = useDragOverlay(snapshot, onDragEnd);
+	const dragging = activeId !== null;
 	const sprintTasks = snapshot.filter(
 		(t) => t.sprintId !== null && matchesSearch(t, search)
 	);
-	const shellProps = { ...drag, sensors };
+	const shellProps = { ...dragProps, sensors };
 
 	if (!activeSprintId) {
 		return (
@@ -275,6 +280,7 @@ export function TaskBoard(props: TaskBoardProps) {
 		<DndShell {...shellProps}>
 			<BoardToolbar onSearch={setSearch} search={search} />
 			<BoardColumns
+				dragging={dragging}
 				loaded={columnsLoaded}
 				onCreate={onCreate}
 				onDelete={onDelete}
