@@ -11,6 +11,13 @@ interface BoardCommandBarProps {
 	sessionId: string;
 }
 
+// Give the agent board awareness every turn: it has no idea it's driving a
+// Kanban board otherwise, and the user refers to tasks as "TASK-<n>" (the seq),
+// which the tools accept directly.
+const BOARD_PREAMBLE = `You are operating the user's Kanban task board through your tools. Tasks are shown to the user as "TASK-<n>" where <n> is the task's seq number. Reference a task by seq directly — e.g. updateTask({ seq: 3, description: "…" }), moveTask({ seq: 3, status, position }), getTask({ seq: 3 }), deleteTask({ seq: 3 }). Statuses are todo | in_progress | done. Sprint tools: activeSprint, listSprints, createSprint, startSprint, completeSprint. NEVER ask the user what a TASK-<n> reference means — act on it. Carry out the request below, then stop.
+
+Request: `;
+
 // One-way command input: the user tells the agent what to do; the agent runs
 // its task/sprint tools and the BOARD is the response (no chat transcript, no
 // generative-UI toggle). On completion we refresh the board.
@@ -19,7 +26,9 @@ async function runCommand(
 	sessionId: string,
 	text: string
 ): Promise<void> {
-	for await (const event of agentClient.stream(text, { sessionId })) {
+	for await (const event of agentClient.stream(BOARD_PREAMBLE + text, {
+		sessionId,
+	})) {
 		if (event.type === "error") {
 			throw new Error(event.message);
 		}

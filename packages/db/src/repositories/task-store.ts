@@ -61,7 +61,7 @@ async function nextPosition(
 
 function makeTaskReaders(
 	db: Db
-): Pick<TaskStore, "listColumn" | "listBacklog" | "get"> {
+): Pick<TaskStore, "listColumn" | "listBacklog" | "get" | "getBySeq"> {
 	return {
 		async listColumn(userId, sprintId, status) {
 			const rows = await db
@@ -92,6 +92,14 @@ function makeTaskReaders(
 				.select()
 				.from(schema.tasks)
 				.where(owned(userId, id))
+				.limit(1);
+			return rows[0] ? toTask(rows[0]) : null;
+		},
+		async getBySeq(userId, seq) {
+			const rows = await db
+				.select()
+				.from(schema.tasks)
+				.where(and(eq(schema.tasks.userId, userId), eq(schema.tasks.seq, seq)))
 				.limit(1);
 			return rows[0] ? toTask(rows[0]) : null;
 		},

@@ -28,6 +28,10 @@ function memoryTaskStore(): TaskStore {
 			),
 		get: (u, id) =>
 			Promise.resolve(rows.find((r) => r.userId === u && r.id === id) ?? null),
+		getBySeq: (u, seq) =>
+			Promise.resolve(
+				rows.find((r) => r.userId === u && r.seq === seq) ?? null
+			),
 		create: (u, input) => {
 			seq += 1;
 			const task: Task = {

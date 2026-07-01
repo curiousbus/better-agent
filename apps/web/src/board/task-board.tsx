@@ -2,6 +2,9 @@ import type { AgentClient } from "@curiousbus/agent-client";
 import {
 	closestCorners,
 	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
 	PointerSensor,
 	useSensor,
 	useSensors,
@@ -13,10 +16,12 @@ import { loadBacklog, loadSprintColumns } from "./board-client";
 import {
 	type BoardStatus,
 	type BoardStore,
+	type BoardTask,
 	COLUMNS,
 	createBoardStore,
 	groupByColumn,
 } from "./board-store";
+import { TaskCardOverlay } from "./task-card";
 import { TaskColumn } from "./task-column";
 import { useBoardHandlers } from "./use-board-handlers";
 
@@ -157,22 +162,56 @@ function useBoardState(props: TaskBoardProps) {
 
 interface DndShellProps {
 	children: React.ReactNode;
+	onDragCancel: () => void;
 	onDragEnd: Parameters<typeof DndContext>[0]["onDragEnd"];
 	onDragOver: Parameters<typeof DndContext>[0]["onDragOver"];
+	onDragStart: (event: DragStartEvent) => void;
+	overlay: React.ReactNode;
 	sensors: ReturnType<typeof useSensors>;
 }
 
-function DndShell({ children, onDragEnd, onDragOver, sensors }: DndShellProps) {
+function DndShell({
+	children,
+	onDragCancel,
+	onDragEnd,
+	onDragOver,
+	onDragStart,
+	overlay,
+	sensors,
+}: DndShellProps) {
 	return (
 		<DndContext
 			collisionDetection={closestCorners}
+			onDragCancel={onDragCancel}
 			onDragEnd={onDragEnd}
 			onDragOver={onDragOver}
+			onDragStart={onDragStart}
 			sensors={sensors}
 		>
 			<div className="flex h-full">{children}</div>
+			<DragOverlay>{overlay}</DragOverlay>
 		</DndContext>
 	);
+}
+
+// Tracks the dragged card so a <DragOverlay> clone can follow the cursor
+// smoothly (cross-column moves otherwise snap because onDragOver mutates data).
+function useDragOverlay(
+	snapshot: BoardTask[],
+	onDragEnd: DndShellProps["onDragEnd"]
+) {
+	const [activeId, setActiveId] = useState<string | null>(null);
+	const activeTask = snapshot.find((t) => t.id === activeId) ?? null;
+	return {
+		overlay: activeTask ? <TaskCardOverlay task={activeTask} /> : null,
+		onDragStart: (event: DragStartEvent) =>
+			setActiveId(String(event.active.id)),
+		onDragCancel: () => setActiveId(null),
+		onDragEnd: (event: DragEndEvent) => {
+			setActiveId(null);
+			onDragEnd?.(event);
+		},
+	};
 }
 
 export function TaskBoard(props: TaskBoardProps) {
@@ -186,6 +225,7 @@ export function TaskBoard(props: TaskBoardProps) {
 			activationConstraint: { distance: ACTIVATION_DISTANCE },
 		})
 	);
+	const drag = useDragOverlay(snapshot, onDragEnd);
 	const sprintTasks = snapshot.filter((t) => t.sprintId !== null);
 	const backlogTasks = snapshot.filter((t) => t.sprintId === null);
 	const backlogPanel = (
@@ -197,10 +237,11 @@ export function TaskBoard(props: TaskBoardProps) {
 			tasks={backlogTasks}
 		/>
 	);
+	const shellProps = { ...drag, onDragOver, sensors };
 
 	if (!activeSprintId) {
 		return (
-			<DndShell onDragEnd={onDragEnd} onDragOver={onDragOver} sensors={sensors}>
+			<DndShell {...shellProps}>
 				<div className="flex flex-1 items-center justify-center">
 					<p className="text-muted-foreground text-sm">
 						Start a sprint to begin.
@@ -212,7 +253,7 @@ export function TaskBoard(props: TaskBoardProps) {
 	}
 
 	return (
-		<DndShell onDragEnd={onDragEnd} onDragOver={onDragOver} sensors={sensors}>
+		<DndShell {...shellProps}>
 			<BoardColumns
 				loaded={columnsLoaded}
 				onCreate={onCreate}

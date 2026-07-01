@@ -277,6 +277,7 @@ export interface TaskStore {
 		input: { sprintId?: string | null; status?: TaskStatus; title: string }
 	): Promise<Task>;
 	get(userId: string, id: string): Promise<Task | null>;
+	getBySeq(userId: string, seq: number): Promise<Task | null>;
 	listBacklog(userId: string): Promise<Task[]>;
 	listColumn(
 		userId: string,

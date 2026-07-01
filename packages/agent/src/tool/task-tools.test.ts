@@ -69,6 +69,10 @@ function fakeStore(): TaskStore {
 			),
 		get: (u, id) =>
 			Promise.resolve(rows.find((r) => r.userId === u && r.id === id) ?? null),
+		getBySeq: (u, seq) =>
+			Promise.resolve(
+				rows.find((r) => r.userId === u && r.seq === seq) ?? null
+			),
 		create: makeCreate(rows, counter),
 		update: (u, id, patch) => {
 			const task = rows.find((r) => r.userId === u && r.id === id);
@@ -126,6 +130,23 @@ it("listBacklog returns tasks not assigned to a sprint", async () => {
 	await byName(defs, "createTask").execute({ title: "backlog task" }, ctx());
 	const list = await byName(defs, "listBacklog").execute({}, ctx());
 	expect(JSON.parse(list.output)).toHaveLength(1);
+});
+
+it("updateTask/getTask resolve a task by seq (TASK-<seq>)", async () => {
+	const defs = buildTaskToolDefs(fakeStore(), USER);
+	const created = JSON.parse(
+		(await byName(defs, "createTask").execute({ title: "t1" }, ctx())).output
+	);
+	const res = await byName(defs, "updateTask").execute(
+		{ seq: created.seq, description: "done via seq" },
+		ctx()
+	);
+	expect(JSON.parse(res.output).description).toBe("done via seq");
+	const got = await byName(defs, "getTask").execute(
+		{ seq: created.seq },
+		ctx()
+	);
+	expect(JSON.parse(got.output).id).toBe(created.id);
 });
 
 it("listSprintColumn filters by sprintId and status", async () => {

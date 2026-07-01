@@ -48,6 +48,26 @@ export const objectSchema = (
 	additionalProperties: false,
 });
 
+// A task can be referenced by its UUID `id` OR by its `seq` (the TASK-<seq>
+// number the user sees). Resolve either to the concrete id.
+async function resolveTaskId(
+	store: TaskStore,
+	userId: string,
+	args: unknown
+): Promise<string | null> {
+	const record = args as Record<string, unknown>;
+	if (typeof record.id === "string") {
+		return record.id;
+	}
+	if (typeof record.seq === "number") {
+		const task = await store.getBySeq(userId, record.seq);
+		return task?.id ?? null;
+	}
+	return null;
+}
+
+const refSchema = { id: { type: "string" }, seq: { type: "number" } } as const;
+
 const listSprintColumnTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "listSprintColumn",
 	description:
@@ -105,17 +125,22 @@ const createTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 
 const moveTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "moveTask",
-	description: "Move a task to a column/sprint and position.",
+	description:
+		"Move a task (by id or seq) to a column/sprint and position. Pass status and position.",
 	parameters: objectSchema(
 		{
-			id: { type: "string" },
+			...refSchema,
 			status: statusSchema,
 			position: { type: "number" },
 			sprintId: { type: ["string", "null"] },
 		},
-		["id", "status", "position"]
+		["status", "position"]
 	),
 	execute: async (args) => {
+		const id = await resolveTaskId(store, userId, args);
+		if (!id) {
+			return notFound();
+		}
 		const record = args as Record<string, unknown>;
 		const patch: {
 			position: number;
@@ -129,24 +154,29 @@ const moveTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 			patch.sprintId =
 				typeof record.sprintId === "string" ? record.sprintId : null;
 		}
-		const moved = await store.move(userId, asString(args, "id"), patch);
+		const moved = await store.move(userId, id, patch);
 		return moved ? ok(moved) : notFound();
 	},
 });
 
 const updateTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "updateTask",
-	description: "Update a task's title and/or description.",
+	description:
+		"Update a task's title and/or description. Reference the task by id or seq (the TASK-<seq> number).",
 	parameters: objectSchema(
 		{
-			id: { type: "string" },
+			...refSchema,
 			title: { type: "string" },
 			description: { type: "string" },
 		},
-		["id"]
+		[]
 	),
 	execute: async (args) => {
-		const updated = await store.update(userId, asString(args, "id"), {
+		const id = await resolveTaskId(store, userId, args);
+		if (!id) {
+			return notFound();
+		}
+		const updated = await store.update(userId, id, {
 			title: optionalString(args, "title"),
 			description: optionalString(args, "description"),
 		});
@@ -156,20 +186,28 @@ const updateTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 
 const deleteTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "deleteTask",
-	description: "Delete a task.",
-	parameters: objectSchema({ id: { type: "string" } }, ["id"]),
+	description: "Delete a task by id or seq (the TASK-<seq> number).",
+	parameters: objectSchema({ ...refSchema }, []),
 	execute: async (args) => {
-		const removed = await store.remove(userId, asString(args, "id"));
+		const id = await resolveTaskId(store, userId, args);
+		if (!id) {
+			return notFound();
+		}
+		const removed = await store.remove(userId, id);
 		return removed ? ok({ ok: true }) : notFound();
 	},
 });
 
 const getTaskTool = (store: TaskStore, userId: string): ToolDef => ({
 	name: "getTask",
-	description: "Get one task by id.",
-	parameters: objectSchema({ id: { type: "string" } }, ["id"]),
+	description: "Get one task by id or seq (the TASK-<seq> number).",
+	parameters: objectSchema({ ...refSchema }, []),
 	execute: async (args) => {
-		const task = await store.get(userId, asString(args, "id"));
+		const id = await resolveTaskId(store, userId, args);
+		if (!id) {
+			return notFound();
+		}
+		const task = await store.get(userId, id);
 		return task ? ok(task) : notFound();
 	},
 });

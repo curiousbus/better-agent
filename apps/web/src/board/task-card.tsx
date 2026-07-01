@@ -54,12 +54,13 @@ function CardMenu({ onOpen, onDelete }: CardMenuProps) {
 	);
 }
 
-interface TaskCardFooterProps {
+function TaskCardFooter({
+	initial,
+	createdAt,
+}: {
 	createdAt: string | undefined;
 	initial: string;
-}
-
-function TaskCardFooter({ initial, createdAt }: TaskCardFooterProps) {
+}) {
 	return (
 		<div className="flex items-center justify-between pt-1">
 			<Avatar size="sm">
@@ -74,29 +75,11 @@ function TaskCardFooter({ initial, createdAt }: TaskCardFooterProps) {
 	);
 }
 
-export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
+// Presentational card content, shared by the sortable card and the drag overlay.
+function CardBody({ task, onOpen, onDelete }: TaskCardProps) {
 	const { initial } = useCurrentUser();
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({ id: task.id });
-	const style = { transform: CSS.Transform.toString(transform), transition };
-
 	return (
-		<Card
-			className={cn(
-				"fade-in flex animate-in flex-col gap-2 p-3 duration-150",
-				isDragging && "opacity-60 shadow-lg"
-			)}
-			ref={setNodeRef}
-			style={style}
-			{...attributes}
-			{...listeners}
-		>
+		<>
 			<div className="flex items-center justify-between">
 				<span className="font-mono text-muted-foreground text-xs">
 					TASK-{task.seq}
@@ -113,6 +96,46 @@ export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
 				</p>
 			) : null}
 			<TaskCardFooter createdAt={task.createdAt} initial={initial} />
+		</>
+	);
+}
+
+export function TaskCard({ task, onOpen, onDelete }: TaskCardProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: task.id });
+	const style = { transform: CSS.Transform.toString(transform), transition };
+
+	return (
+		<Card
+			className={cn(
+				"flex cursor-grab flex-col gap-2 p-3",
+				// While dragging, the original leaves a dim placeholder; the moving
+				// card is rendered by the DragOverlay so it follows the cursor smoothly.
+				isDragging && "opacity-40"
+			)}
+			ref={setNodeRef}
+			style={style}
+			{...attributes}
+			{...listeners}
+		>
+			<CardBody onDelete={onDelete} onOpen={onOpen} task={task} />
+		</Card>
+	);
+}
+
+const noop = () => undefined;
+
+// Rendered inside <DragOverlay> — a lifted clone that follows the cursor.
+export function TaskCardOverlay({ task }: { task: BoardTask }) {
+	return (
+		<Card className="flex rotate-2 cursor-grabbing flex-col gap-2 p-3 shadow-2xl">
+			<CardBody onDelete={noop} onOpen={noop} task={task} />
 		</Card>
 	);
 }
