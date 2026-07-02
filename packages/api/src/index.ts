@@ -17,19 +17,28 @@ export const agentProcedure = o.use(({ context, next }) => {
 	return next({ context: { authedAgent: agent } });
 });
 
-export const userProcedure = o.use(({ context, next }) => {
+// Context resolves the user from the DB on every request, so this rejects
+// blocked users immediately — access tokens die the moment an admin blocks.
+function requireActiveUser(context: Context) {
 	const user = context.authedUser;
 	if (!user) {
 		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
 	}
+	if (user.blocked) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Your account has been suspended",
+		});
+	}
+	return user;
+}
+
+export const userProcedure = o.use(({ context, next }) => {
+	const user = requireActiveUser(context);
 	return next({ context: { authedUser: user } });
 });
 
 export const adminProcedure = o.use(async ({ context, next }) => {
-	const user = context.authedUser;
-	if (!user) {
-		throw new ORPCError("UNAUTHORIZED", { message: "Sign in required" });
-	}
+	const user = requireActiveUser(context);
 	const allowed =
 		isAdminEmail(user.email, context.services.authConfig.adminEmails) ||
 		(await context.services.stores.user.isAdmin(user.id));

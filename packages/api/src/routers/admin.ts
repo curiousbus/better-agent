@@ -3,8 +3,11 @@ import { hashPassword } from "@better-agent/agent/crypto/password";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { adminProcedure } from "../index";
+import { adminCustomersRouter } from "./admin-customers";
 
 export const adminRouter = {
+	...adminCustomersRouter,
+
 	// Back-office (staff) users only. Customers live on the web plane.
 	listStaff: adminProcedure.handler(({ context }) =>
 		context.services.stores.user.listByKind("staff")
