@@ -1,19 +1,15 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import { Bot, Boxes, Plug, Settings2, Users } from "lucide-react";
+import { Bot, Settings2, Users } from "lucide-react";
 
 const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
+		item: { to: "/customers", label: "Customers", icon: Users },
+	},
+	{
+		kind: "item",
 		item: { to: "/providers", label: "Providers", icon: Settings2 },
-	},
-	{
-		kind: "item",
-		item: { to: "/agents", label: "Agents", icon: Boxes },
-	},
-	{
-		kind: "item",
-		item: { to: "/composio", label: "Composio", icon: Plug },
 	},
 	{
 		kind: "item",

@@ -13,11 +13,9 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ComposioIndexRouteImport } from './routes/composio.index'
-import { Route as AgentsIndexRouteImport } from './routes/agents.index'
-import { Route as ComposioAccountIdRouteImport } from './routes/composio.$accountId'
+import { Route as CustomersIndexRouteImport } from './routes/customers.index'
+import { Route as CustomersUserIdRouteImport } from './routes/customers.$userId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
-import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
@@ -39,29 +37,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ComposioIndexRoute = ComposioIndexRouteImport.update({
-  id: '/composio/',
-  path: '/composio/',
+const CustomersIndexRoute = CustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentsIndexRoute = AgentsIndexRouteImport.update({
-  id: '/agents/',
-  path: '/agents/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComposioAccountIdRoute = ComposioAccountIdRouteImport.update({
-  id: '/composio/$accountId',
-  path: '/composio/$accountId',
+const CustomersUserIdRoute = CustomersUserIdRouteImport.update({
+  id: '/customers/$userId',
+  path: '/customers/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthVerifyRoute = AuthVerifyRouteImport.update({
   id: '/auth/verify',
   path: '/auth/verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
-  id: '/agents/$agentId',
-  path: '/agents/$agentId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -70,22 +58,18 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/users': typeof UsersRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/composio/$accountId': typeof ComposioAccountIdRoute
-  '/agents/': typeof AgentsIndexRoute
-  '/composio/': typeof ComposioIndexRoute
+  '/customers/$userId': typeof CustomersUserIdRoute
+  '/customers/': typeof CustomersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/users': typeof UsersRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/composio/$accountId': typeof ComposioAccountIdRoute
-  '/agents': typeof AgentsIndexRoute
-  '/composio': typeof ComposioIndexRoute
+  '/customers/$userId': typeof CustomersUserIdRoute
+  '/customers': typeof CustomersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,11 +77,9 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/providers': typeof ProvidersRoute
   '/users': typeof UsersRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/composio/$accountId': typeof ComposioAccountIdRoute
-  '/agents/': typeof AgentsIndexRoute
-  '/composio/': typeof ComposioIndexRoute
+  '/customers/$userId': typeof CustomersUserIdRoute
+  '/customers/': typeof CustomersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,33 +88,27 @@ export interface FileRouteTypes {
     | '/login'
     | '/providers'
     | '/users'
-    | '/agents/$agentId'
     | '/auth/verify'
-    | '/composio/$accountId'
-    | '/agents/'
-    | '/composio/'
+    | '/customers/$userId'
+    | '/customers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/providers'
     | '/users'
-    | '/agents/$agentId'
     | '/auth/verify'
-    | '/composio/$accountId'
-    | '/agents'
-    | '/composio'
+    | '/customers/$userId'
+    | '/customers'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/providers'
     | '/users'
-    | '/agents/$agentId'
     | '/auth/verify'
-    | '/composio/$accountId'
-    | '/agents/'
-    | '/composio/'
+    | '/customers/$userId'
+    | '/customers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -140,11 +116,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProvidersRoute: typeof ProvidersRoute
   UsersRoute: typeof UsersRoute
-  AgentsAgentIdRoute: typeof AgentsAgentIdRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
-  ComposioAccountIdRoute: typeof ComposioAccountIdRoute
-  AgentsIndexRoute: typeof AgentsIndexRoute
-  ComposioIndexRoute: typeof ComposioIndexRoute
+  CustomersUserIdRoute: typeof CustomersUserIdRoute
+  CustomersIndexRoute: typeof CustomersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -177,25 +151,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/composio/': {
-      id: '/composio/'
-      path: '/composio'
-      fullPath: '/composio/'
-      preLoaderRoute: typeof ComposioIndexRouteImport
+    '/customers/': {
+      id: '/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof CustomersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agents/': {
-      id: '/agents/'
-      path: '/agents'
-      fullPath: '/agents/'
-      preLoaderRoute: typeof AgentsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/composio/$accountId': {
-      id: '/composio/$accountId'
-      path: '/composio/$accountId'
-      fullPath: '/composio/$accountId'
-      preLoaderRoute: typeof ComposioAccountIdRouteImport
+    '/customers/$userId': {
+      id: '/customers/$userId'
+      path: '/customers/$userId'
+      fullPath: '/customers/$userId'
+      preLoaderRoute: typeof CustomersUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/verify': {
@@ -203,13 +170,6 @@ declare module '@tanstack/react-router' {
       path: '/auth/verify'
       fullPath: '/auth/verify'
       preLoaderRoute: typeof AuthVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agents/$agentId': {
-      id: '/agents/$agentId'
-      path: '/agents/$agentId'
-      fullPath: '/agents/$agentId'
-      preLoaderRoute: typeof AgentsAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -220,11 +180,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProvidersRoute: ProvidersRoute,
   UsersRoute: UsersRoute,
-  AgentsAgentIdRoute: AgentsAgentIdRoute,
   AuthVerifyRoute: AuthVerifyRoute,
-  ComposioAccountIdRoute: ComposioAccountIdRoute,
-  AgentsIndexRoute: AgentsIndexRoute,
-  ComposioIndexRoute: ComposioIndexRoute,
+  CustomersUserIdRoute: CustomersUserIdRoute,
+  CustomersIndexRoute: CustomersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

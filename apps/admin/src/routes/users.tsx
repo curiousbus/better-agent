@@ -84,7 +84,7 @@ function UsersPage() {
 				/>
 				<AddStaffDialog />
 			</div>
-			<div className="rounded-lg border">
+			<div className="rounded-lg">
 				<UsersTable
 					handlers={{
 						meId: meQuery.data?.id,
