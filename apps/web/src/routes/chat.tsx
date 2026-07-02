@@ -5,8 +5,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
+import { clearLastChat, saveLastChat } from "@/components/chat/chat-session";
 import { ChatView } from "@/components/chat/chat-view";
-import { usePreselectAgent } from "@/components/chat/use-preselect-agent";
+import { useRestoreChat } from "@/components/chat/use-restore-chat";
 import { RocketLoader } from "@/components/rocket-loader";
 import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
@@ -73,65 +74,70 @@ function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
 	);
 }
 
-interface CreateSessionOpts {
-	agentId: string;
+interface HomeSetters {
 	invalidate: () => Promise<void>;
+	setSelectedAgent: (a: AgentRow | null) => void;
 	setSending: (v: boolean) => void;
 	setSessionId: (id: string) => void;
 }
 
-async function createSession({
-	agentId,
-	invalidate,
-	setSending,
-	setSessionId,
-}: CreateSessionOpts): Promise<void> {
-	setSending(true);
+async function createSession(
+	agent: AgentRow,
+	setters: HomeSetters
+): Promise<void> {
+	setters.setSending(true);
 	try {
-		const session = await client.userSessions.create({ agentId });
-		await invalidate();
-		setSessionId(session.id);
+		const session = await client.userSessions.create({ agentId: agent.id });
+		await setters.invalidate();
+		setters.setSessionId(session.id);
+		saveLastChat({ agentId: agent.id, sessionId: session.id });
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Failed to create session";
 		toast.error(message);
 	} finally {
-		setSending(false);
+		setters.setSending(false);
 	}
 }
 
 interface HomeActions {
 	closeChat: () => void;
-	newSession: () => void;
+	newSession: (agent: AgentRow) => void;
+	resumeSession: (agent: AgentRow, sessionId: string) => void;
 	selectAgent: (agent: AgentRow) => void;
-	selectSession: (id: string) => void;
+	selectSession: (agent: AgentRow | null, id: string) => void;
 }
 
-function useHomeActions(
-	invalidate: () => Promise<void>,
-	setSelectedAgent: (a: AgentRow | null) => void,
-	setSessionId: (id: string) => void,
-	setSending: (v: boolean) => void
-): HomeActions {
+function useHomeActions(setters: HomeSetters): HomeActions {
+	const { setSelectedAgent, setSessionId } = setters;
+	const startFresh = (agent: AgentRow) => {
+		setSelectedAgent(agent);
+		setSessionId("");
+		createSession(agent, setters).catch(() => undefined);
+	};
 	return {
 		closeChat: () => {
+			clearLastChat();
 			setSelectedAgent(null);
 			setSessionId("");
 		},
-		newSession: () => {
-			setSessionId("");
-		},
-		selectAgent: (agent: AgentRow) => {
+		// Eager flow: "New" must actually create the next session, or the page
+		// would wait forever on an empty sessionId.
+		newSession: startFresh,
+		selectAgent: startFresh,
+		// Re-attach to an existing session (picker / restored last chat) without
+		// creating anything — a still-streaming turn keeps flowing.
+		resumeSession: (agent, sessionId) => {
 			setSelectedAgent(agent);
-			setSessionId("");
-			createSession({
-				agentId: agent.id,
-				invalidate,
-				setSending,
-				setSessionId,
-			}).catch(() => undefined);
+			setSessionId(sessionId);
+			saveLastChat({ agentId: agent.id, sessionId });
 		},
-		selectSession: setSessionId,
+		selectSession: (agent, id) => {
+			setSessionId(id);
+			if (agent) {
+				saveLastChat({ agentId: agent.id, sessionId: id });
+			}
+		},
 	};
 }
 
@@ -150,19 +156,13 @@ function useHomeState() {
 			}),
 		[queryClient]
 	);
-	const actions = useHomeActions(
+	const actions = useHomeActions({
 		invalidate,
 		setSelectedAgent,
 		setSessionId,
-		setSending
-	);
-	// Must use the session-creating select action — state-only selection would
-	// leave sessionId empty and the page stuck on the loading grid.
-	usePreselectAgent(
-		Route.useSearch().agentId,
-		selectedAgent,
-		actions.selectAgent
-	);
+		setSending,
+	});
+	useRestoreChat(Route.useSearch().agentId, selectedAgent, actions);
 	return {
 		selectedAgent,
 		sessionId,
@@ -236,8 +236,8 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 			agentClient={home.agentClient}
 			initialGenui={home.genuiOn}
 			onClose={home.closeChat}
-			onNewSession={home.newSession}
-			onSessionChange={home.selectSession}
+			onNewSession={() => home.newSession(selectedAgent)}
+			onSessionChange={(id) => home.selectSession(selectedAgent, id)}
 			sessionId={sessionId}
 			sessions={home.sessions}
 		/>
