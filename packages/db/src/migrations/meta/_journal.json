@@ -176,6 +176,13 @@
       "when": 1782970526405,
       "tag": "0024_dear_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782972537896,
+      "tag": "0025_bumpy_argent",
+      "breakpoints": true
     }
   ]
 }

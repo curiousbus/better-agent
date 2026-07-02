@@ -133,15 +133,22 @@ export interface ComposioAccountRow {
 	createdAt: Date;
 	id: string;
 	name: string;
+	/** Owner; null for legacy admin-era accounts. */
+	userId: string | null;
 }
 
 export interface ComposioAccountStore {
-	create(input: { name: string; apiKey: string }): Promise<ComposioAccountRow>;
+	create(input: {
+		name: string;
+		apiKey: string;
+		userId?: string;
+	}): Promise<ComposioAccountRow>;
 	delete(id: string): Promise<void>;
 	/** Decrypted key — server-side only, for building a ComposioService. */
 	getApiKey(id: string): Promise<string | null>;
 	getById(id: string): Promise<ComposioAccountRow | null>;
 	list(): Promise<ComposioAccountRow[]>;
+	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
 
 export interface WebAuthzCacheRow {

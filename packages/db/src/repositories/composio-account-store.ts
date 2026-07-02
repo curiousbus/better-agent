@@ -20,14 +20,15 @@ function toRow(
 		id: row.id,
 		name: row.name,
 		apiKeyLast4: row.apiKeyLast4,
+		userId: row.userId ?? null,
 		createdAt: row.createdAt,
 	};
 }
 
-export function createComposioAccountStore(
+function makeAccountReads(
 	db: Db,
 	box: SecretBox
-): ComposioAccountStore {
+): Pick<ComposioAccountStore, "list" | "listByUser" | "getById" | "getApiKey"> {
 	const findRow = async (id: string) => {
 		const rows = await db
 			.select()
@@ -36,12 +37,19 @@ export function createComposioAccountStore(
 			.limit(1);
 		return rows[0] ?? null;
 	};
-
 	return {
 		async list() {
 			const rows = await db
 				.select()
 				.from(schema.composioAccounts)
+				.orderBy(desc(schema.composioAccounts.createdAt));
+			return rows.map(toRow);
+		},
+		async listByUser(userId) {
+			const rows = await db
+				.select()
+				.from(schema.composioAccounts)
+				.where(eq(schema.composioAccounts.userId, userId))
 				.orderBy(desc(schema.composioAccounts.createdAt));
 			return rows.map(toRow);
 		},
@@ -53,11 +61,21 @@ export function createComposioAccountStore(
 			const row = await findRow(id);
 			return row ? box.decrypt(row.apiKeyCipher) : null;
 		},
-		async create({ name, apiKey }) {
+	};
+}
+
+export function createComposioAccountStore(
+	db: Db,
+	box: SecretBox
+): ComposioAccountStore {
+	return {
+		...makeAccountReads(db, box),
+		async create({ name, apiKey, userId }) {
 			const inserted = await db
 				.insert(schema.composioAccounts)
 				.values({
 					name,
+					userId,
 					apiKeyCipher: box.encrypt(apiKey),
 					apiKeyLast4: apiKey.slice(-LAST4),
 				})
