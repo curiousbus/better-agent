@@ -165,6 +165,32 @@ export const composioRouter = {
 			);
 		}),
 
+	// Key-authenticated toolkits (API_KEY / BEARER_TOKEN, e.g. tavily) can't use
+	// the OAuth redirect flow — the user supplies the target service's key.
+	connectWithKey: authorizedUserProcedure
+		.input(
+			accountIdInput.extend({
+				toolkit: z.string().min(1),
+				scheme: z.enum(["API_KEY", "BEARER_TOKEN"]),
+				key: z.string().min(1),
+			})
+		)
+		.handler(async ({ input, context }) => {
+			const service = await requireOwnedService(
+				context,
+				context.authedUser.id,
+				input.accountId
+			);
+			return callComposio(() =>
+				service.connectWithKey({
+					userId: input.accountId,
+					toolkit: input.toolkit,
+					scheme: input.scheme,
+					key: input.key,
+				})
+			);
+		}),
+
 	disconnect: authorizedUserProcedure
 		.input(accountIdInput.extend({ connectionId: z.string().min(1) }))
 		.handler(async ({ input, context }) => {

@@ -26,6 +26,7 @@ function fakeService(over: Partial<ComposioService> = {}): ComposioService {
 			}),
 		connect: () => Promise.resolve({ redirectUrl: "" }),
 		listConnections: () => Promise.resolve([]),
+		connectWithKey: () => Promise.resolve({ status: "ACTIVE" }),
 		disconnect: () => Promise.resolve(),
 		...over,
 	};

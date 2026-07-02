@@ -5,7 +5,7 @@ import type {
 	ComposioToolMeta,
 } from "@better-agent/agent/tool/composio-tools";
 import type { ExecuteResult } from "@better-agent/agent/tool/types";
-import { Composio } from "@composio/core";
+import { AuthScheme, Composio } from "@composio/core";
 import { log } from "evlog";
 
 const MAX_CAUSE_DEPTH = 4;
@@ -120,6 +120,7 @@ export function mapToolkit(item: ToolKitItem): ComposioToolkitMeta {
 		name: item.name,
 		description: item.meta?.description ?? "",
 		needsAuth,
+		authSchemes: item.authSchemes ?? [],
 	};
 }
 
@@ -175,15 +176,53 @@ function buildToolMethods(
 	};
 }
 
+function keyConnectionData(scheme: string, key: string) {
+	return scheme === "BEARER_TOKEN"
+		? AuthScheme.BearerToken({ token: key })
+		: AuthScheme.APIKey({ api_key: key });
+}
+
+// Key-authenticated toolkits (tavily etc.) can't use the OAuth authorize flow —
+// they need an auth config + a connected account carrying the user's key.
+async function initiateKeyConnection(
+	composio: Composio,
+	input: { userId: string; toolkit: string; scheme: string; key: string }
+): Promise<{ status: string }> {
+	const configs = (await composio.authConfigs.list({
+		toolkit: input.toolkit,
+	})) as { items: Array<{ id: string }> };
+	const authConfigId =
+		configs.items[0]?.id ??
+		(
+			(await composio.authConfigs.create(input.toolkit, {
+				type: "use_composio_managed_auth",
+			})) as { id: string }
+		).id;
+	const res = (await composio.connectedAccounts.initiate(
+		input.userId,
+		authConfigId,
+		{ config: keyConnectionData(input.scheme, input.key) }
+	)) as { status: string };
+	return { status: res.status };
+}
+
 function buildConnectionMethods(
 	composio: Composio
-): Pick<ComposioService, "connect" | "listConnections" | "disconnect"> {
+): Pick<
+	ComposioService,
+	"connect" | "connectWithKey" | "listConnections" | "disconnect"
+> {
 	return {
 		connect(userId, toolkit) {
 			return withLog("connect", async () => {
 				const req = await composio.toolkits.authorize(userId, toolkit);
 				return { redirectUrl: req.redirectUrl ?? "" };
 			});
+		},
+		connectWithKey(input) {
+			return withLog("connectWithKey", () =>
+				initiateKeyConnection(composio, input)
+			);
 		},
 		listConnections(userId) {
 			return withLog("listConnections", async () => {

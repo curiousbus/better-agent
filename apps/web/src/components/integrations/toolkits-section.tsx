@@ -16,6 +16,11 @@ import { toast } from "sonner";
 import type { ComposioToolkitRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
+import {
+	ConnectKeyDialog,
+	type KeyConnectTarget,
+	keySchemeFor,
+} from "./connect-key-dialog";
 import { queryPlaceholder } from "./placeholder";
 
 const COLUMN_COUNT = 3;
@@ -44,7 +49,7 @@ function ToolkitRow({
 }: {
 	toolkit: ComposioToolkitRow;
 	isPending: boolean;
-	onConnect: (slug: string) => void;
+	onConnect: (toolkit: ComposioToolkitRow) => void;
 }) {
 	return (
 		<TableRow>
@@ -55,7 +60,7 @@ function ToolkitRow({
 			<TableCell className="text-right">
 				<Button
 					disabled={isPending}
-					onClick={() => onConnect(toolkit.slug)}
+					onClick={() => onConnect(toolkit)}
 					size="xs"
 					variant="outline"
 				>
@@ -77,7 +82,7 @@ function ToolkitsTable({
 	isLoading: boolean;
 	isPending: boolean;
 	placeholder: string;
-	onConnect: (slug: string) => void;
+	onConnect: (toolkit: ComposioToolkitRow) => void;
 }) {
 	return (
 		<div className="max-h-96 overflow-auto rounded-lg border">
@@ -115,8 +120,30 @@ function ToolkitsTable({
 	);
 }
 
+function ToolkitSearch({
+	search,
+	onSearch,
+}: {
+	search: string;
+	onSearch: (v: string) => void;
+}) {
+	return (
+		<div className="relative">
+			<SearchIcon className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
+			<Input
+				aria-label="Search toolkits"
+				className="pl-8"
+				onChange={(event) => onSearch(event.target.value)}
+				placeholder="Search toolkits"
+				value={search}
+			/>
+		</div>
+	);
+}
+
 export function ToolkitsSection({ accountId }: { accountId: string }) {
 	const [search, setSearch] = useState("");
+	const [keyTarget, setKeyTarget] = useState<KeyConnectTarget | null>(null);
 	const toolkits = useQuery(
 		orpc.composio.toolkits.queryOptions({ input: { accountId } })
 	);
@@ -134,27 +161,32 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 			: all;
 	}, [toolkits.data, search]);
 
-	const placeholder = queryPlaceholder(toolkits, "No toolkits found.");
+	// OAuth toolkits redirect; key-authenticated ones (tavily etc.) prompt for
+	// the service's key instead — authorize() would just error for those.
+	const handleConnect = (toolkit: ComposioToolkitRow) => {
+		const scheme = keySchemeFor(toolkit);
+		if (scheme) {
+			setKeyTarget({ toolkit, scheme });
+		} else {
+			connect.mutate({ accountId, toolkit: toolkit.slug });
+		}
+	};
 
 	return (
 		<div className="flex flex-col gap-2">
 			<h2 className="font-medium text-sm">Available toolkits</h2>
-			<div className="relative">
-				<SearchIcon className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					aria-label="Search toolkits"
-					className="pl-8"
-					onChange={(event) => setSearch(event.target.value)}
-					placeholder="Search toolkits"
-					value={search}
-				/>
-			</div>
+			<ToolkitSearch onSearch={setSearch} search={search} />
 			<ToolkitsTable
 				isLoading={toolkits.isLoading}
 				isPending={connect.isPending}
-				onConnect={(slug) => connect.mutate({ accountId, toolkit: slug })}
-				placeholder={placeholder}
+				onConnect={handleConnect}
+				placeholder={queryPlaceholder(toolkits, "No toolkits found.")}
 				rows={filtered}
+			/>
+			<ConnectKeyDialog
+				accountId={accountId}
+				onClose={() => setKeyTarget(null)}
+				target={keyTarget}
 			/>
 		</div>
 	);

@@ -7,6 +7,8 @@ export interface ComposioToolMeta {
 }
 
 export interface ComposioToolkitMeta {
+	/** e.g. ["OAUTH2"] or ["API_KEY"] — decides the connect flow (redirect vs key). */
+	authSchemes: string[];
 	description: string;
 	name: string;
 	needsAuth: boolean;
@@ -21,8 +23,15 @@ export interface ComposioConnectionMeta {
 }
 
 export interface ComposioService {
-	/** Initiate a connection for a user to a toolkit. Returns a redirect URL. */
+	/** Initiate an OAuth connection for a user to a toolkit. Returns a redirect URL. */
 	connect(userId: string, toolkit: string): Promise<{ redirectUrl: string }>;
+	/** Connect a key-authenticated toolkit (API_KEY / BEARER_TOKEN) with the user's key. */
+	connectWithKey(input: {
+		userId: string;
+		toolkit: string;
+		scheme: string;
+		key: string;
+	}): Promise<{ status: string }>;
 	/** Remove a connected account by its ID. */
 	disconnect(connectionId: string): Promise<void>;
 	/** Execute one composio tool server-side for this user. */
