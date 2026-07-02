@@ -22,14 +22,32 @@ function statusOf(error: unknown): number | undefined {
 	return e?.cause ? statusOf(e.cause) : undefined;
 }
 
+const MAX_DETAIL_DEPTH = 4;
+const MAX_DETAIL_LEN = 300;
+
+// The real reason, unwrapped from composio's cause chain — a timeout or API
+// error must not masquerade as "your key is wrong".
+function detailOf(error: unknown, depth = 0): string {
+	if (depth > MAX_DETAIL_DEPTH || !(error instanceof Error)) {
+		return "";
+	}
+	const rest = error.cause ? detailOf(error.cause, depth + 1) : "";
+	return rest ? `${error.message} — ${rest}` : error.message;
+}
+
 // Map a composio failure to a client-readable error. Use BAD_REQUEST (not
 // INTERNAL_SERVER_ERROR, whose message oRPC masks) so the owner sees the reason.
 function toComposioError(error: unknown): ORPCError<string, undefined> {
-	const message =
-		statusOf(error) === HTTP_UNAUTHORIZED
-			? "Composio rejected the API key — it's invalid or expired. Update the key on this account."
-			: "Composio request failed. Check the account's API key, then try again.";
-	return new ORPCError("BAD_REQUEST", { message });
+	if (statusOf(error) === HTTP_UNAUTHORIZED) {
+		return new ORPCError("BAD_REQUEST", {
+			message:
+				"Composio rejected the API key — it's invalid or expired. Update the key on this account.",
+		});
+	}
+	const detail = detailOf(error) || "unknown error";
+	return new ORPCError("BAD_REQUEST", {
+		message: `Composio request failed: ${detail.slice(0, MAX_DETAIL_LEN)}`,
+	});
 }
 
 async function callComposio<T>(fn: () => Promise<T>): Promise<T> {

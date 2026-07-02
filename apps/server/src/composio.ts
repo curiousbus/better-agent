@@ -33,12 +33,18 @@ function errorDetail(error: unknown, depth = 0): string {
 // can hang, which would keep client queries pending forever (a spinning UI). Cap
 // every call so it fails fast and the routers can degrade gracefully.
 const COMPOSIO_TIMEOUT_MS = 12_000;
+// tools.get returns FULL parameter schemas for every tool of every connected
+// toolkit — with a few toolkits connected it legitimately takes longer.
+const TOOLS_TIMEOUT_MS = 30_000;
 
-function withTimeout<T>(fn: () => Promise<T>): Promise<T> {
+function withTimeout<T>(
+	fn: () => Promise<T>,
+	timeoutMs = COMPOSIO_TIMEOUT_MS
+): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const timer = setTimeout(
-			() => reject(new Error(`timed out after ${COMPOSIO_TIMEOUT_MS}ms`)),
-			COMPOSIO_TIMEOUT_MS
+			() => reject(new Error(`timed out after ${timeoutMs}ms`)),
+			timeoutMs
 		);
 		fn().then(
 			(value) => {
@@ -55,9 +61,13 @@ function withTimeout<T>(fn: () => Promise<T>): Promise<T> {
 
 // Surface composio failures (the routers swallow them to keep the UI graceful),
 // so a misconfigured key / SDK error is diagnosable from the server logs.
-async function withLog<T>(op: string, fn: () => Promise<T>): Promise<T> {
+async function withLog<T>(
+	op: string,
+	fn: () => Promise<T>,
+	timeoutMs?: number
+): Promise<T> {
 	try {
-		return await withTimeout(fn);
+		return await withTimeout(fn, timeoutMs);
 	} catch (error) {
 		log.error("composio", `${op} failed: ${errorDetail(error)}`);
 		throw error;
@@ -150,10 +160,14 @@ function buildToolMethods(
 			if (toolkits.length === 0) {
 				return Promise.resolve([]);
 			}
-			return withLog("listTools", async () => {
-				const tools = await composio.tools.get(userId, { toolkits });
-				return (tools as OpenAiTool[]).map(mapOpenAiTool);
-			});
+			return withLog(
+				"listTools",
+				async () => {
+					const tools = await composio.tools.get(userId, { toolkits });
+					return (tools as OpenAiTool[]).map(mapOpenAiTool);
+				},
+				TOOLS_TIMEOUT_MS
+			);
 		},
 		execute({ userId, toolName, args }) {
 			return withLog("execute", async () => {
