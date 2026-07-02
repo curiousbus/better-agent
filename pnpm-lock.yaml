@@ -366,6 +366,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@better-agent/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@better-agent/api':
         specifier: workspace:*
         version: link:../../packages/api

@@ -13,6 +13,10 @@ const SECTIONS: readonly NavSection[] = [
 		kind: "item",
 		item: { to: "/board", label: "Board", icon: LayoutDashboard },
 	},
+	{
+		kind: "item",
+		item: { to: "/agents", label: "Agents", icon: Bot },
+	},
 ];
 
 export function WebSidebar() {

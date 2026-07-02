@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure } from "../index";
+import { adminProcedure, authorizedUserProcedure } from "../index";
 
 const upsertInput = z.object({
 	providerId: z.string().min(1),
@@ -36,6 +36,21 @@ export const providersRouter = {
 		}),
 
 	modelsList: adminProcedure
+		.input(z.object({ providerId: z.string().min(1) }))
+		.handler(({ input, context }) =>
+			context.services.stores.modelCache.listByProvider(input.providerId)
+		),
+
+	// Web-safe reads for agent creation: enabled provider ids (no secrets) and
+	// their models. Available to any authorized user (not just admins).
+	available: authorizedUserProcedure.handler(async ({ context }) => {
+		const creds = await context.services.stores.providerCredential.listMasked();
+		return creds
+			.filter((cred) => cred.enabled)
+			.map((cred) => ({ providerId: cred.providerId }));
+	}),
+
+	models: authorizedUserProcedure
 		.input(z.object({ providerId: z.string().min(1) }))
 		.handler(({ input, context }) =>
 			context.services.stores.modelCache.listByProvider(input.providerId)
