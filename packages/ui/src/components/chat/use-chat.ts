@@ -108,6 +108,16 @@ function userDraftBlocks(
 	return blocks;
 }
 
+// Freeze the visible history at its pre-send length: the server persists the
+// turn's rows immediately, and any refetch landing mid-turn (or the finalize
+// fetch) must not render them NEXT TO the draft (a duplicate flash).
+function captureHistoryBaseline(args: SendArgs) {
+	const cached = args.queryClient.getQueryData<unknown[]>(
+		messagesKey(args.sessionId)
+	);
+	args.store.setBaseHistoryCount(cached?.length ?? 0);
+}
+
 async function sendMessage(
 	text: string,
 	attachments: AttachmentRef[],
@@ -119,6 +129,7 @@ async function sendMessage(
 	const controller = new AbortController();
 	args.store.setController(controller);
 	args.store.setStreaming(true);
+	captureHistoryBaseline(args);
 	const user: ChatMessage = {
 		id: "draft-user",
 		role: "user",
@@ -191,7 +202,7 @@ export function useChat(
 	// The stream + draft live in a module-level per-session store, so navigating
 	// away does NOT abort the turn — remounting resubscribes to the live output.
 	const store = chatSession(sessionId);
-	const { draft, streaming } = useSyncExternalStore(
+	const { draft, streaming, baseHistoryCount } = useSyncExternalStore(
 		store.subscribe,
 		store.getSnapshot,
 		store.getSnapshot
@@ -210,10 +221,12 @@ export function useChat(
 	});
 	const observing = !streaming && isObserving(history.data, stallRef);
 
-	const messages: ChatMessage[] = [
-		...(history.data ?? []).map(toChatMessage),
-		...draft,
-	];
+	// While a draft is on screen it owns the current turn: history is capped at
+	// its pre-send length so the turn's persisted rows never double-render, and
+	// the draft -> history handoff is a seamless in-place swap.
+	const rows = history.data ?? [];
+	const visibleRows = draft.length > 0 ? rows.slice(0, baseHistoryCount) : rows;
+	const messages: ChatMessage[] = [...visibleRows.map(toChatMessage), ...draft];
 
 	const send = (text: string, attachments: AttachmentRef[] = []) =>
 		sendMessage(text, attachments, {

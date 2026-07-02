@@ -6,6 +6,7 @@
   "exports": {
     "./globals.css": "./src/styles/globals.css",
     "./lib/*": "./src/lib/*.ts",
+    "./components/chat/use-chat": "./src/components/chat/use-chat.ts",
     "./components/chat/*": "./src/components/chat/*.tsx",
     "./components/genui/*": "./src/components/genui/*.tsx",
     "./components/*": "./src/components/*.tsx",

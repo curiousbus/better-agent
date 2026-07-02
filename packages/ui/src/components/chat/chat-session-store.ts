@@ -1,6 +1,10 @@
 import type { ChatMessage } from "./chat-blocks";
 
 export interface ChatSessionState {
+	/** History rows visible when the send started — while a draft exists, the
+	 * merged view shows history only up to here, so the turn's freshly-persisted
+	 * rows never render alongside the draft (a one-frame duplicate flash). */
+	baseHistoryCount: number;
 	draft: ChatMessage[];
 	streaming: boolean;
 }
@@ -9,6 +13,7 @@ export interface ChatSessionStore {
 	/** Abort the in-flight stream (stop button / explicit cancel only). */
 	abort(): void;
 	getSnapshot(): ChatSessionState;
+	setBaseHistoryCount(count: number): void;
 	setController(controller: AbortController | null): void;
 	setDraft(draft: ChatMessage[]): void;
 	setStreaming(streaming: boolean): void;
@@ -16,7 +21,11 @@ export interface ChatSessionStore {
 }
 
 function createChatSessionStore(): ChatSessionStore {
-	let state: ChatSessionState = { draft: [], streaming: false };
+	let state: ChatSessionState = {
+		draft: [],
+		streaming: false,
+		baseHistoryCount: 0,
+	};
 	let controller: AbortController | null = null;
 	const listeners = new Set<() => void>();
 	const notify = () => {
@@ -36,6 +45,10 @@ function createChatSessionStore(): ChatSessionStore {
 		},
 		setStreaming(streaming) {
 			state = { ...state, streaming };
+			notify();
+		},
+		setBaseHistoryCount(count) {
+			state = { ...state, baseHistoryCount: count };
 			notify();
 		},
 		setController(next) {

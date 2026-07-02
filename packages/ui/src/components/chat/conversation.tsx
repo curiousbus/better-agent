@@ -67,12 +67,15 @@ function ChatScroller({
 						{messages.length === 0 ? (
 							<EmptyMessages />
 						) : (
-							messages.map((message) => (
-								// No scrollAnchor: anchoring a new turn to the top inserts a
-								// spacer below it and fights autoScroll — follow-bottom then
-								// scrolls into that BLANK spacer while text streams. Plain
-								// follow-bottom is the behavior users expect.
-								<MessageScrollerItem key={message.id}>
+							messages.map((message, index) => (
+								// POSITIONAL keys on purpose: chat is append-only, and at turn
+								// completion the draft rows are swapped for their persisted
+								// twins with NEW ids — id keys would unmount/remount every row
+								// (avatars flash, markdown re-parses, the list visibly blinks).
+								// Position keeps the swap an in-place update. No scrollAnchor:
+								// it inserts a spacer that fights follow-bottom autoScroll.
+								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list; stability across the draft->history id swap is the point
+								<MessageScrollerItem key={index}>
 									<ChatRow
 										agentClient={agentClient}
 										avatars={avatars}
