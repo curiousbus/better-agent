@@ -1,18 +1,14 @@
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
 
-const SLIDE = 40;
-
-const variants = {
-	enter: (dir: number) => ({ opacity: 0, x: dir * SLIDE, filter: "blur(4px)" }),
-	center: { opacity: 1, x: 0, filter: "blur(0px)" },
-	exit: (dir: number) => ({ opacity: 0, x: dir * -SLIDE, filter: "blur(4px)" }),
-};
+const SLIDE = 16;
+const ENTER_DURATION = 0.22;
 
 /**
- * Slides the keyed content in/out on change. `direction` 1 = forward (new from
- * the right), -1 = back (new from the left). The previous child fully exits
- * before the next enters (`mode="wait"`), so live children never overlap.
+ * Enter-only keyed transition: on key change the old content unmounts instantly
+ * and the new content slides/fades in. No exit phase on purpose — an exiting
+ * AnimatePresence clone renders LIVE children (an <Outlet/> already showing the
+ * NEW route), which double-flashes pages and remounts children mid-work.
  */
 export function PageTransition({
 	animationKey,
@@ -25,20 +21,15 @@ export function PageTransition({
 }) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<AnimatePresence custom={direction} initial={false} mode="wait">
-				<motion.div
-					animate="center"
-					className="flex min-h-0 flex-1 flex-col"
-					custom={direction}
-					exit="exit"
-					initial="enter"
-					key={animationKey}
-					transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-					variants={variants}
-				>
-					{children}
-				</motion.div>
-			</AnimatePresence>
+			<motion.div
+				animate={{ opacity: 1, x: 0 }}
+				className="flex min-h-0 flex-1 flex-col"
+				initial={{ opacity: 0, x: direction * SLIDE }}
+				key={animationKey}
+				transition={{ duration: ENTER_DURATION, ease: [0.22, 1, 0.36, 1] }}
+			>
+				{children}
+			</motion.div>
 		</div>
 	);
 }

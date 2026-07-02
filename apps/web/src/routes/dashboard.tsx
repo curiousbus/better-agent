@@ -17,6 +17,14 @@ export const Route = createFileRoute("/dashboard")({
 	component: DashboardPage,
 });
 
+function todayLabel(): string {
+	return new Date().toLocaleDateString("en-US", {
+		weekday: "long",
+		month: "long",
+		day: "numeric",
+	});
+}
+
 function DashboardHeader({
 	windowDays,
 	onWindowChange,
@@ -26,7 +34,10 @@ function DashboardHeader({
 }) {
 	return (
 		<div className="flex items-center justify-between">
-			<h1 className="font-semibold text-lg">Usage</h1>
+			<div className="flex flex-col">
+				<h1 className="font-semibold text-lg">Usage</h1>
+				<p className="text-muted-foreground text-sm">{todayLabel()}</p>
+			</div>
 			<WindowToggle onChange={onWindowChange} value={windowDays} />
 		</div>
 	);

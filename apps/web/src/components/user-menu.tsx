@@ -45,7 +45,7 @@ export function UserMenu() {
 					<AvatarImage alt={email} src={userAvatar(email)} />
 					<AvatarFallback>{initial}</AvatarFallback>
 				</Avatar>
-				<span className="truncate">{email}</span>
+				<span className="truncate text-muted-foreground text-xs">{email}</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="w-48" side="top">
 				<DropdownMenuItem onClick={() => navigate({ to: "/account" })}>

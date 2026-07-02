@@ -1,47 +1,31 @@
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@better-agent/ui/components/avatar";
+import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@better-agent/ui/components/card";
 import { Input } from "@better-agent/ui/components/input";
+import { Label } from "@better-agent/ui/components/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { clearTokens, loadRefreshToken } from "@/utils/auth";
-import { client, orpc } from "@/utils/orpc";
+import { relativeTime } from "@/board/relative-time";
+import { loadRefreshToken } from "@/utils/auth";
+import { userAvatar } from "@/utils/avatar";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/account")({ component: AccountPage });
-
-const SEC = 1000;
-const MINUTE = 60;
-const HOUR = 3600;
-const DAY = 86_400;
-const WEEK = 604_800;
-const MONTH = 2_592_000;
-const YEAR = 31_536_000;
-
-function relativeTime(date: Date): string {
-	const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-	const diffSec = Math.round((date.getTime() - Date.now()) / SEC);
-	const abs = Math.abs(diffSec);
-	if (abs < MINUTE) {
-		return rtf.format(diffSec, "second");
-	}
-	if (abs < HOUR) {
-		return rtf.format(Math.round(diffSec / MINUTE), "minute");
-	}
-	if (abs < DAY) {
-		return rtf.format(Math.round(diffSec / HOUR), "hour");
-	}
-	if (abs < WEEK) {
-		return rtf.format(Math.round(diffSec / DAY), "day");
-	}
-	if (abs < MONTH) {
-		return rtf.format(Math.round(diffSec / WEEK), "week");
-	}
-	if (abs < YEAR) {
-		return rtf.format(Math.round(diffSec / MONTH), "month");
-	}
-	return rtf.format(Math.round(diffSec / YEAR), "year");
-}
 
 interface Login {
 	createdAt: Date;
@@ -50,28 +34,132 @@ interface Login {
 	label: string;
 }
 
-interface SessionRowProps {
-	login: Login;
-	onRevoke: (id: string) => void;
+function ProfileCard({
+	email,
+	emailVerified,
+}: {
+	email: string;
+	emailVerified: boolean;
+}) {
+	const initial = email ? email[0].toUpperCase() : "?";
+	return (
+		<Card>
+			<CardContent className="flex items-center gap-4">
+				<Avatar size="lg">
+					<AvatarImage alt={email} src={userAvatar(email)} />
+					<AvatarFallback>{initial}</AvatarFallback>
+				</Avatar>
+				<div className="flex min-w-0 flex-col gap-1">
+					<span className="truncate font-medium text-sm">{email}</span>
+					<div>
+						<Badge variant={emailVerified ? "secondary" : "outline"}>
+							{emailVerified ? "Email verified" : "Email not verified"}
+						</Badge>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	);
 }
 
-function SessionRow({ login, onRevoke }: SessionRowProps) {
+function PasswordForm({
+	password,
+	setPassword,
+	pending,
+	onSubmit,
+}: {
+	password: string;
+	setPassword: (v: string) => void;
+	pending: boolean;
+	onSubmit: (event: React.FormEvent) => void;
+}) {
 	return (
-		<div
-			className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-accent"
-			key={login.id}
-		>
+		<form className="flex flex-col gap-3" onSubmit={onSubmit}>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="new-password">New password</Label>
+				<Input
+					autoComplete="new-password"
+					id="new-password"
+					minLength={8}
+					onChange={(e) => setPassword(e.target.value)}
+					placeholder="At least 8 characters"
+					required
+					type="password"
+					value={password}
+				/>
+			</div>
+			<div>
+				<Button disabled={pending} size="sm" type="submit">
+					{pending ? "Saving…" : "Save password"}
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+function PasswordCard({
+	hasPassword,
+	onSaved,
+}: {
+	hasPassword: boolean;
+	onSaved: () => void;
+}) {
+	const [password, setPassword] = useState("");
+	const setPasswordMutation = useMutation({
+		...orpc.account.setPassword.mutationOptions(),
+		onSuccess: () => {
+			toast.success(hasPassword ? "Password updated." : "Password set.");
+			setPassword("");
+			onSaved();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	const handleSubmit = (event: React.FormEvent) => {
+		event.preventDefault();
+		setPasswordMutation.mutate({ password });
+	};
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Security</CardTitle>
+				<CardDescription>
+					{hasPassword
+						? "Change the password you sign in with."
+						: "Set a password to sign in without a magic link."}
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<PasswordForm
+					onSubmit={handleSubmit}
+					password={password}
+					pending={setPasswordMutation.isPending}
+					setPassword={setPassword}
+				/>
+			</CardContent>
+		</Card>
+	);
+}
+
+function SessionRow({
+	login,
+	onRevoke,
+}: {
+	login: Login;
+	onRevoke: (id: string) => void;
+}) {
+	return (
+		<div className="flex items-center justify-between gap-3 py-2.5">
 			<div className="min-w-0">
 				<div className="truncate text-sm">
 					{login.label}
 					{login.current ? " · this device" : ""}
 				</div>
 				<div className="text-muted-foreground text-xs">
-					last active {relativeTime(new Date(login.createdAt))}
+					last active {relativeTime(new Date(login.createdAt).toISOString())}
 				</div>
 			</div>
 			{login.current ? (
-				<span className="text-muted-foreground text-xs">current</span>
+				<Badge variant="secondary">Current</Badge>
 			) : (
 				<Button onClick={() => onRevoke(login.id)} size="sm" variant="ghost">
 					Sign out
@@ -81,64 +169,41 @@ function SessionRow({ login, onRevoke }: SessionRowProps) {
 	);
 }
 
-interface PasswordSectionProps {
-	hasPassword: boolean;
-	onSaved: () => void;
-}
-
-function PasswordSection({ hasPassword, onSaved }: PasswordSectionProps) {
-	const [password, setPassword] = useState("");
-	const setPasswordMutation = useMutation({
-		...orpc.account.setPassword.mutationOptions(),
-		onSuccess: () => {
-			toast.success(hasPassword ? "Password updated." : "Password set.");
-			setPassword("");
-			onSaved();
-		},
-	});
-
-	const handleSubmit = (event: React.FormEvent) => {
-		event.preventDefault();
-		setPasswordMutation.mutate({ password });
-	};
-
+function SessionsCard({
+	logins,
+	onRevoke,
+	onRevokeOthers,
+}: {
+	logins: Login[];
+	onRevoke: (id: string) => void;
+	onRevokeOthers: () => void;
+}) {
+	const hasOthers = logins.some((login) => !login.current);
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="text-muted-foreground text-sm">
-				{hasPassword ? "Change password" : "Set a password"}
-			</div>
-			<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
-				<Input
-					aria-label="New password"
-					autoComplete="new-password"
-					minLength={8}
-					onChange={(e) => setPassword(e.target.value)}
-					placeholder="New password"
-					required
-					type="password"
-					value={password}
-				/>
-				{setPasswordMutation.error ? (
-					<p className="text-destructive text-sm">
-						{setPasswordMutation.error.message}
-					</p>
-				) : null}
-				<div>
-					<Button
-						disabled={setPasswordMutation.isPending}
-						size="sm"
-						type="submit"
-					>
-						Save
+		<Card>
+			<CardHeader>
+				<CardTitle>Active sessions</CardTitle>
+				<CardDescription>
+					Devices currently signed in to your account.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="divide-y">
+				{logins.map((login) => (
+					<SessionRow key={login.id} login={login} onRevoke={onRevoke} />
+				))}
+			</CardContent>
+			{hasOthers ? (
+				<CardFooter>
+					<Button onClick={onRevokeOthers} size="sm" variant="outline">
+						Sign out other devices
 					</Button>
-				</div>
-			</form>
-		</div>
+				</CardFooter>
+			) : null}
+		</Card>
 	);
 }
 
 function useAccountPage() {
-	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const currentRefreshToken = loadRefreshToken() ?? "";
 	const meQuery = useQuery(orpc.auth.me.queryOptions());
@@ -152,60 +217,43 @@ function useAccountPage() {
 	const revokeLogin = useMutation({
 		...orpc.account.revokeLogin.mutationOptions(),
 		onSuccess: invalidateLogins,
+		onError: (error) => toast.error(error.message),
 	});
 	const revokeOthers = useMutation({
 		...orpc.account.revokeOthers.mutationOptions(),
 		onSuccess: invalidateLogins,
+		onError: (error) => toast.error(error.message),
 	});
-	const signOut = async () => {
-		if (currentRefreshToken) {
-			await client.auth.logout({ refreshToken: currentRefreshToken });
-		}
-		clearTokens();
-		navigate({ to: "/login" });
-	};
 	return {
 		currentRefreshToken,
-		email: meQuery.data?.email,
+		email: meQuery.data?.email ?? "",
+		emailVerified: meQuery.data?.emailVerified ?? false,
 		hasPassword: meQuery.data?.hasPassword ?? false,
 		invalidateMe,
 		logins: loginsQuery.data ?? [],
 		revokeLogin,
 		revokeOthers,
-		signOut,
 	};
 }
 
 function AccountPage() {
-	const {
-		currentRefreshToken,
-		hasPassword,
-		invalidateMe,
-		logins,
-		revokeLogin,
-		revokeOthers,
-	} = useAccountPage();
+	const page = useAccountPage();
 	return (
-		<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">
-			<PasswordSection hasPassword={hasPassword} onSaved={invalidateMe} />
-			<div className="flex flex-col gap-2">
-				<div className="text-muted-foreground text-sm">Active sessions</div>
-				{logins.map((s) => (
-					<SessionRow
-						key={s.id}
-						login={s}
-						onRevoke={(id) => revokeLogin.mutate({ id })}
-					/>
-				))}
-			</div>
-			<div>
-				<Button
-					onClick={() => revokeOthers.mutate({ currentRefreshToken })}
-					variant="outline"
-				>
-					Sign out other devices
-				</Button>
-			</div>
+		<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
+			<ProfileCard email={page.email} emailVerified={page.emailVerified} />
+			<PasswordCard
+				hasPassword={page.hasPassword}
+				onSaved={page.invalidateMe}
+			/>
+			<SessionsCard
+				logins={page.logins}
+				onRevoke={(id) => page.revokeLogin.mutate({ id })}
+				onRevokeOthers={() =>
+					page.revokeOthers.mutate({
+						currentRefreshToken: page.currentRefreshToken,
+					})
+				}
+			/>
 		</div>
 	);
 }

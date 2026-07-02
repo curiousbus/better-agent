@@ -1,5 +1,9 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
-import { Avatar, AvatarFallback } from "@better-agent/ui/components/avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@better-agent/ui/components/avatar";
 import { Bubble, BubbleContent } from "@better-agent/ui/components/bubble";
 import {
 	Message,
@@ -98,7 +102,9 @@ function AssistantBody({
 	return (
 		<div className="flex flex-col gap-2">
 			{showThinking ? (
-				<div className="flex w-full justify-center">
+				// h-8 matches the size-8 avatar, so the shimmer sits vertically
+				// centered beside it instead of hugging the top of the row.
+				<div className="flex h-8 items-center">
 					<span className="shimmer font-medium text-sm">Thinking…</span>
 				</div>
 			) : null}
@@ -128,10 +134,24 @@ function AssistantBody({
 	);
 }
 
-function RoleAvatar({ from }: { from: "user" | "assistant" }) {
+/** Avatar image URLs for the two roles; falls back to role icons when absent. */
+export interface ChatAvatars {
+	assistant?: string;
+	user?: string;
+}
+
+function RoleAvatar({
+	from,
+	avatars,
+}: {
+	from: "user" | "assistant";
+	avatars?: ChatAvatars;
+}) {
+	const src = from === "user" ? avatars?.user : avatars?.assistant;
 	return (
 		<MessageAvatar>
 			<Avatar>
+				{src ? <AvatarImage alt={from} src={src} /> : null}
 				<AvatarFallback>
 					{from === "user" ? (
 						<UserIcon className="size-4" />
@@ -155,15 +175,17 @@ function fileBlocks(
 function UserRow({
 	message,
 	agentClient,
+	avatars,
 }: {
 	message: ChatMessage;
 	agentClient: AgentClient;
+	avatars?: ChatAvatars;
 }) {
 	const text = messageText(message);
 	const files = fileBlocks(message);
 	return (
 		<Message align="end">
-			<RoleAvatar from="user" />
+			<RoleAvatar avatars={avatars} from="user" />
 			<MessageContent>
 				{files.length > 0 ? (
 					<div className="flex flex-wrap justify-end gap-2">
@@ -192,17 +214,21 @@ export function ChatRow({
 	message,
 	agentClient,
 	renderTree,
+	avatars,
 }: {
 	message: ChatMessage;
 	agentClient: AgentClient;
 	renderTree?: (tree: unknown) => ReactNode;
+	avatars?: ChatAvatars;
 }) {
 	if (message.role === "user") {
-		return <UserRow agentClient={agentClient} message={message} />;
+		return (
+			<UserRow agentClient={agentClient} avatars={avatars} message={message} />
+		);
 	}
 	return (
 		<Message align="start">
-			<RoleAvatar from="assistant" />
+			<RoleAvatar avatars={avatars} from="assistant" />
 			<MessageContent>
 				<Bubble variant="ghost">
 					<BubbleContent className="text-sm">

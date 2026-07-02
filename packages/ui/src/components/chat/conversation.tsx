@@ -20,7 +20,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "./chat-blocks";
 import { ChatComposer } from "./chat-composer";
-import { ChatRow } from "./chat-row";
+import { type ChatAvatars, ChatRow } from "./chat-row";
 import { RevealText } from "./reveal-text";
 import { useChat } from "./use-chat";
 
@@ -52,10 +52,12 @@ function ChatScroller({
 	messages,
 	agentClient,
 	renderTree,
+	avatars,
 }: {
 	messages: ChatMessage[];
 	agentClient: AgentClient;
 	renderTree?: (tree: unknown) => ReactNode;
+	avatars?: ChatAvatars;
 }) {
 	return (
 		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
@@ -72,6 +74,7 @@ function ChatScroller({
 								>
 									<ChatRow
 										agentClient={agentClient}
+										avatars={avatars}
 										message={message}
 										renderTree={renderTree}
 									/>
@@ -143,12 +146,14 @@ export function Conversation({
 	initialText,
 	initialGenui,
 	generativeUI,
+	avatars,
 }: {
 	sessionId: string;
 	agentClient: AgentClient;
 	initialText?: string;
 	initialGenui?: boolean;
 	generativeUI?: GenerativeUIChatConfig;
+	avatars?: ChatAvatars;
 }) {
 	// Start in the genui mode chosen on the landing composer, so the FIRST message
 	// (sent via initialText before the in-chat toggle is reachable) honors it.
@@ -168,6 +173,7 @@ export function Conversation({
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatScroller
 				agentClient={agentClient}
+				avatars={avatars}
 				messages={messages}
 				renderTree={renderTree}
 			/>

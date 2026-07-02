@@ -91,7 +91,7 @@ function CardBody({ task, onOpen, onDelete }: TaskCardProps) {
 			</div>
 			<p className="line-clamp-2 font-medium text-sm">{task.title}</p>
 			{task.description ? (
-				<p className="line-clamp-1 text-muted-foreground text-xs">
+				<p className="line-clamp-1 text-foreground/70 text-sm">
 					{task.description}
 				</p>
 			) : null}

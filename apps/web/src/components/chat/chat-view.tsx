@@ -3,8 +3,10 @@ import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
+import { useCurrentUser } from "@/board/use-current-user";
 import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
+import { agentAvatar, userAvatar } from "@/utils/avatar";
 
 interface ChatViewProps {
 	agent: AgentRow;
@@ -73,6 +75,7 @@ export function ChatView({
 	onSessionChange,
 	onNewSession,
 }: ChatViewProps) {
+	const { email } = useCurrentUser();
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatViewHeader
@@ -85,6 +88,10 @@ export function ChatView({
 			/>
 			<Conversation
 				agentClient={agentClient}
+				avatars={{
+					user: email ? userAvatar(email) : undefined,
+					assistant: agentAvatar(agent.id),
+				}}
 				generativeUI={GENUI_CHAT_CONFIG}
 				initialGenui={initialGenui}
 				initialText={initialText}
