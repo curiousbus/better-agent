@@ -15,6 +15,10 @@ export const users = pgTable("users", {
 	isAdmin: boolean("is_admin").notNull().default(false),
 	// "customer" (web sign-up) or "staff" (admin/back-office). Staff are admins.
 	kind: text("kind").$type<UserKind>().notNull().default("customer"),
+	// Admin-suspended. Blocked users fail every authed request immediately (the
+	// per-request user lookup carries this flag) and cannot refresh or log in.
+	blocked: boolean("blocked").notNull().default(false),
+	blockedAt: timestamp("blocked_at", { withTimezone: true }),
 });
 
 export const magicLinks = pgTable("magic_links", {

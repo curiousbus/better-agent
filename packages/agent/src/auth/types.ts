@@ -3,12 +3,16 @@
 export type UserKind = "customer" | "staff";
 
 export interface User {
+	/** Admin-suspended: every authed request rejects while true. */
+	blocked: boolean;
 	createdAt: Date;
 	email: string;
 	id: string;
 }
 
 export interface AdminUserRow {
+	blocked: boolean;
+	blockedAt: Date | null;
 	createdAt: Date;
 	email: string;
 	emailVerified: boolean;

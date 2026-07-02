@@ -7,8 +7,18 @@ import * as schema from "../schema";
 
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-function toUserRow(row: { id: string; email: string; createdAt: Date }) {
-	return { id: row.id, email: row.email, createdAt: row.createdAt };
+function toUserRow(row: {
+	id: string;
+	email: string;
+	createdAt: Date;
+	blocked: boolean;
+}) {
+	return {
+		id: row.id,
+		email: row.email,
+		createdAt: row.createdAt,
+		blocked: row.blocked,
+	};
 }
 
 function toAdminUserRow(row: {
@@ -19,6 +29,8 @@ function toAdminUserRow(row: {
 	passwordHash: string | null;
 	isAdmin: boolean;
 	kind: UserKind;
+	blocked: boolean;
+	blockedAt: Date | null;
 }) {
 	return {
 		id: row.id,
@@ -28,6 +40,8 @@ function toAdminUserRow(row: {
 		hasPassword: row.passwordHash !== null,
 		isAdmin: row.isAdmin,
 		kind: row.kind,
+		blocked: row.blocked,
+		blockedAt: row.blockedAt,
 	};
 }
 
@@ -87,6 +101,7 @@ async function dbFindCredentialByEmail(db: Db, email: string) {
 			email: schema.users.email,
 			passwordHash: schema.users.passwordHash,
 			kind: schema.users.kind,
+			blocked: schema.users.blocked,
 		})
 		.from(schema.users)
 		.where(eq(schema.users.email, email))
@@ -98,6 +113,7 @@ async function dbFindCredentialByEmail(db: Db, email: string) {
 				email: row.email,
 				passwordHash: row.passwordHash,
 				kind: row.kind,
+				blocked: row.blocked,
 			}
 		: null;
 }
@@ -118,6 +134,17 @@ async function dbIsEmailVerified(db: Db, userId: string) {
 		.where(eq(schema.users.id, userId))
 		.limit(1);
 	return rows[0] ? rows[0].emailVerifiedAt !== null : false;
+}
+
+async function dbSetBlocked(db: Db, userId: string, blocked: boolean) {
+	await db
+		.update(schema.users)
+		.set({
+			blocked,
+			blockedAt: blocked ? new Date() : null,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.users.id, userId));
 }
 
 async function dbIsAdmin(db: Db, userId: string) {
@@ -173,6 +200,7 @@ export function createUserStore(db: Db): UserStore {
 				.where(eq(schema.users.id, userId));
 		},
 		isAdmin: (userId) => dbIsAdmin(db, userId),
+		setBlocked: (userId, blocked) => dbSetBlocked(db, userId, blocked),
 		async deleteById(userId) {
 			await db.delete(schema.users).where(eq(schema.users.id, userId));
 		},

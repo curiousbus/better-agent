@@ -169,6 +169,13 @@
       "when": 1782964887171,
       "tag": "0023_outgoing_mattie_franklin",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782970526405,
+      "tag": "0024_dear_bloodaxe",
+      "breakpoints": true
     }
   ]
 }

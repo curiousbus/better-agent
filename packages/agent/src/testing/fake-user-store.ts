@@ -2,6 +2,7 @@ import type { AdminUserRow, User, UserKind } from "../auth/types";
 import type { UserStore } from "../ports";
 
 interface FakeUserRecord extends User {
+	blockedAt: Date | null;
 	emailVerifiedAt: Date | null;
 	isAdmin: boolean;
 	kind: UserKind;
@@ -9,7 +10,12 @@ interface FakeUserRecord extends User {
 }
 
 function toUser(record: FakeUserRecord): User {
-	return { id: record.id, email: record.email, createdAt: record.createdAt };
+	return {
+		id: record.id,
+		email: record.email,
+		createdAt: record.createdAt,
+		blocked: record.blocked,
+	};
 }
 
 function makeUserRecord(
@@ -25,6 +31,8 @@ function makeUserRecord(
 		emailVerifiedAt: null,
 		isAdmin: kind === "staff",
 		kind,
+		blocked: false,
+		blockedAt: null,
 	};
 }
 
@@ -43,6 +51,7 @@ function toCredential(record: FakeUserRecord) {
 		email: record.email,
 		passwordHash: record.passwordHash,
 		kind: record.kind,
+		blocked: record.blocked,
 	};
 }
 
@@ -55,6 +64,8 @@ function toAdminUserRow(record: FakeUserRecord): AdminUserRow {
 		hasPassword: record.passwordHash !== null,
 		isAdmin: record.isAdmin,
 		kind: record.kind,
+		blocked: record.blocked,
+		blockedAt: record.blockedAt,
 	};
 }
 
@@ -148,6 +159,14 @@ export function createFakeUserStore(): UserStore {
 		setStaff: (userId) => Promise.resolve(fakeSetStaff(maps, userId)),
 		isAdmin: (userId) =>
 			Promise.resolve(maps.byId.get(userId)?.isAdmin ?? false),
+		setBlocked(userId, blocked) {
+			const record = maps.byId.get(userId);
+			if (record) {
+				record.blocked = blocked;
+				record.blockedAt = blocked ? new Date() : null;
+			}
+			return Promise.resolve();
+		},
 		deleteById: (userId) => Promise.resolve(fakeDeleteById(maps, userId)),
 	};
 }
