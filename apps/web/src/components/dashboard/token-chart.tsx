@@ -35,8 +35,41 @@ function formatDay(day: string): string {
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+const SKELETON_BARS = [
+	{ key: "b1", height: "40%" },
+	{ key: "b2", height: "65%" },
+	{ key: "b3", height: "35%" },
+	{ key: "b4", height: "80%" },
+	{ key: "b5", height: "55%" },
+	{ key: "b6", height: "70%" },
+	{ key: "b7", height: "45%" },
+] as const;
+
+// Mirrors the chart shape: legend dots, plot area with rising bars, x-axis line.
 function ChartSkeleton() {
-	return <Skeleton className="h-64 w-full" />;
+	return (
+		<div className="flex h-64 w-full flex-col gap-2">
+			<div className="flex items-center gap-4">
+				<Skeleton className="h-3 w-16" />
+				<Skeleton className="h-3 w-16" />
+			</div>
+			<div className="flex flex-1 items-end gap-3 px-2">
+				{SKELETON_BARS.map((bar) => (
+					<Skeleton
+						className="w-full rounded-t"
+						key={bar.key}
+						style={{ height: bar.height }}
+					/>
+				))}
+			</div>
+			<Skeleton className="h-px w-full" />
+			<div className="flex justify-between px-2">
+				<Skeleton className="h-3 w-10" />
+				<Skeleton className="h-3 w-10" />
+				<Skeleton className="h-3 w-10" />
+			</div>
+		</div>
+	);
 }
 
 function ChartBody({ data }: { data: ChartRow[] }) {

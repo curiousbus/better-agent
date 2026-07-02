@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { ChatView } from "@/components/chat/chat-view";
 import { usePreselectAgent } from "@/components/chat/use-preselect-agent";
+import { RocketLoader } from "@/components/rocket-loader";
 import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { userAgentClient } from "@/utils/chat-client";
@@ -34,12 +35,25 @@ function useUserSessions(agentId: string | null): UserSessionRow[] {
 
 const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
+// Mirrors an AgentCard: avatar circle beside a name line and a model line.
+function AgentCardSkeleton() {
+	return (
+		<div className="flex h-24 items-start gap-3 rounded-lg border border-transparent bg-muted/40 p-4">
+			<Skeleton className="size-9 shrink-0 rounded-full" />
+			<div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
+				<Skeleton className="h-4 w-2/5" />
+				<Skeleton className="h-3 w-3/5" />
+			</div>
+		</div>
+	);
+}
+
 function AgentGridSkeleton() {
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				{SKELETON_KEYS.map((key) => (
-					<Skeleton className="h-24" key={key} />
+					<AgentCardSkeleton key={key} />
 				))}
 			</div>
 		</div>
@@ -129,7 +143,6 @@ function useHomeState() {
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
-	usePreselectAgent(Route.useSearch().agentId, selectedAgent, setSelectedAgent);
 	const invalidate = useCallback(
 		() =>
 			queryClient.invalidateQueries({
@@ -142,6 +155,13 @@ function useHomeState() {
 		setSelectedAgent,
 		setSessionId,
 		setSending
+	);
+	// Must use the session-creating select action — state-only selection would
+	// leave sessionId empty and the page stuck on the loading grid.
+	usePreselectAgent(
+		Route.useSearch().agentId,
+		selectedAgent,
+		actions.selectAgent
 	);
 	return {
 		selectedAgent,
@@ -208,7 +228,7 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 		);
 	}
 	if (sending || sessionId === "") {
-		return <AgentGridSkeleton />;
+		return <RocketLoader label="Opening chat…" />;
 	}
 	return (
 		<ChatPanel

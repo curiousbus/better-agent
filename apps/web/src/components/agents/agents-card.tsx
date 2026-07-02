@@ -26,6 +26,7 @@ import { orpc } from "@/utils/orpc";
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentRowActions } from "./agent-row-actions";
 import { AgentWizard } from "./agent-wizard";
+import { AgentsSkeleton } from "./agents-skeleton";
 import { TokenRevealDialog } from "./token-reveal-dialog";
 
 const TOKEN_PREVIEW_LEN = 14;
@@ -202,20 +203,28 @@ function useAgentMutations(
 	return { create, update, remove, submit };
 }
 
-export function AgentsCard() {
+function useRevealToken() {
 	const queryClient = useQueryClient();
-	const agents = useQuery(orpc.agents.list.queryOptions());
-	const view = useListView(agents.data ?? [], { filter: matchAgent });
-	const { state, openAdd, openEdit, close } = useAgentWizard();
 	const [revealToken, setRevealToken] = useState<string | null>(null);
-	const { create, update, remove, submit } = useAgentMutations(
-		() => close(false),
-		setRevealToken
-	);
 	const handleTokenRotated = (token: string) => {
 		setRevealToken(token);
 		queryClient.invalidateQueries({ queryKey: orpc.agents.getToken.key() });
 	};
+	return { revealToken, setRevealToken, handleTokenRotated };
+}
+
+export function AgentsCard() {
+	const agents = useQuery(orpc.agents.list.queryOptions());
+	const view = useListView(agents.data ?? [], { filter: matchAgent });
+	const { state, openAdd, openEdit, close } = useAgentWizard();
+	const { revealToken, setRevealToken, handleTokenRotated } = useRevealToken();
+	const { create, update, remove, submit } = useAgentMutations(
+		() => close(false),
+		setRevealToken
+	);
+	if (agents.isPending) {
+		return <AgentsSkeleton />;
+	}
 	return (
 		<div className="flex flex-col gap-3">
 			<ListToolbar

@@ -3,11 +3,11 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
-import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { RocketLoader } from "@/components/rocket-loader";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
@@ -74,7 +74,7 @@ function AuthedShell() {
 function LoadingScreen() {
 	return (
 		<div className="flex h-svh items-center justify-center">
-			<Skeleton className="h-8 w-32" />
+			<RocketLoader />
 		</div>
 	);
 }
