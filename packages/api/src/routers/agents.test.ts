@@ -22,7 +22,8 @@ const AUTH_CONFIG = {
 
 function buildClient(
 	authedUser = ADMIN_USER,
-	agentStore = createFakeAgentStore()
+	agentStore = createFakeAgentStore(),
+	ownedComposioIds: string[] = []
 ) {
 	const tokenService = createTokenService();
 	const services = {
@@ -33,6 +34,10 @@ function buildClient(
 		stores: {
 			activity: { log: () => Promise.resolve() },
 			agent: agentStore,
+			composioAccount: {
+				listByUser: () =>
+					Promise.resolve(ownedComposioIds.map((id) => ({ id }))),
+			},
 		},
 	};
 	const client = createRouterClient(appRouter, {
@@ -68,22 +73,37 @@ it("create returns the agent plus a one-time ba_ token", async () => {
 	expect(found?.id).toBe(result.agent.id);
 });
 
+const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
+const ACCOUNT_B = "22222222-2222-4222-8222-222222222222";
+const ACCOUNT_C = "33333333-3333-4333-8333-333333333333";
+const OWN_ACCOUNTS_RE = /your own Composio accounts/;
+
 it("round-trips composioAccountIds on create and update", async () => {
-	const { client } = buildClient();
-	const accountA = "11111111-1111-4111-8111-111111111111";
-	const accountB = "22222222-2222-4222-8222-222222222222";
-	const accountC = "33333333-3333-4333-8333-333333333333";
+	const { client } = buildClient(ADMIN_USER, createFakeAgentStore(), [
+		ACCOUNT_A,
+		ACCOUNT_B,
+		ACCOUNT_C,
+	]);
 	const { agent } = await client.agents.create({
 		...INPUT,
-		composioAccountIds: [accountA],
+		composioAccountIds: [ACCOUNT_A],
 	});
-	expect(agent.composioAccountIds).toEqual([accountA]);
+	expect(agent.composioAccountIds).toEqual([ACCOUNT_A]);
 	const updated = await client.agents.update({
 		id: agent.id,
 		...INPUT,
-		composioAccountIds: [accountB, accountC],
+		composioAccountIds: [ACCOUNT_B, ACCOUNT_C],
 	});
-	expect(updated.composioAccountIds).toEqual([accountB, accountC]);
+	expect(updated.composioAccountIds).toEqual([ACCOUNT_B, ACCOUNT_C]);
+});
+
+it("rejects linking a composio account the caller does not own", async () => {
+	const { client } = buildClient(ADMIN_USER, createFakeAgentStore(), [
+		ACCOUNT_A,
+	]);
+	await expect(
+		client.agents.create({ ...INPUT, composioAccountIds: [ACCOUNT_B] })
+	).rejects.toThrow(OWN_ACCOUNTS_RE);
 });
 
 it("scopes agents to their owner (isolation)", async () => {

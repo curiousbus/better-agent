@@ -1,6 +1,9 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import type { AgentConfig } from "@better-agent/agent/agent/types";
-import type { AgentStore } from "@better-agent/agent/ports";
+import type {
+	AgentStore,
+	ComposioAccountStore,
+} from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { authorizedUserProcedure } from "../index";
@@ -31,6 +34,26 @@ async function assertValidAgent(
 	const error = await validator.validate(input);
 	if (error) {
 		throw new ORPCError("BAD_REQUEST", { message: error });
+	}
+}
+
+// A user may only wire THEIR OWN composio accounts into an agent — linking a
+// foreign account id would let them use someone else's key and connections.
+async function assertOwnedComposioAccounts(
+	store: ComposioAccountStore,
+	userId: string,
+	ids: string[]
+): Promise<void> {
+	if (ids.length === 0) {
+		return;
+	}
+	const owned = new Set(
+		(await store.listByUser(userId)).map((account) => account.id)
+	);
+	if (ids.some((id) => !owned.has(id))) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "You can only link your own Composio accounts",
+		});
 	}
 }
 
@@ -82,6 +105,11 @@ export const agentsRouter = {
 				providerId: input.providerId,
 				modelId: input.modelId,
 			});
+			await assertOwnedComposioAccounts(
+				context.services.stores.composioAccount,
+				context.authedUser.id,
+				input.composioAccountIds
+			);
 			const { token, hash } = context.services.tokenService.generate();
 			const agent = await context.services.stores.agent.create({
 				...input,
@@ -132,6 +160,11 @@ export const agentsRouter = {
 				providerId: rest.providerId,
 				modelId: rest.modelId,
 			});
+			await assertOwnedComposioAccounts(
+				context.services.stores.composioAccount,
+				context.authedUser.id,
+				rest.composioAccountIds
+			);
 			const updated = await context.services.stores.agent.update(id, rest);
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", { message: `Agent ${id} not found` });
