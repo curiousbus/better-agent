@@ -5,6 +5,7 @@ export interface AgentForm {
 	composioAccountIds: string[];
 	description: string;
 	maxOutputTokens: string;
+	mcpServerIds: string[];
 	modelId: string;
 	name: string;
 	providerId: string;
@@ -16,6 +17,7 @@ export interface AgentForm {
 export const EMPTY_AGENT_FORM: AgentForm = {
 	composioAccountIds: [],
 	builtinTools: [],
+	mcpServerIds: [],
 	name: "",
 	description: "",
 	systemPrompt: "",
@@ -73,6 +75,7 @@ export function toAgentInput(form: AgentForm) {
 	return {
 		composioAccountIds: form.composioAccountIds,
 		builtinTools: form.builtinTools,
+		mcpServerIds: form.mcpServerIds,
 		name: form.name,
 		description: form.description,
 		systemPrompt: form.systemPrompt,
@@ -90,6 +93,7 @@ export function agentRowToForm(row: AgentRow): AgentForm {
 	return {
 		composioAccountIds: row.composioAccountIds ?? [],
 		builtinTools: row.builtinTools ?? [],
+		mcpServerIds: row.mcpServerIds ?? [],
 		name: row.name,
 		description: row.description,
 		systemPrompt: row.systemPrompt,

@@ -18,6 +18,7 @@ import type { AgentForm } from "./agent-form";
 import { WIZARD_STEPS } from "./agent-form";
 import { BuiltinToolsField } from "./builtin-tools-field";
 import { ComposioAccountsField } from "./composio-accounts-field";
+import { McpServersField } from "./mcp-servers-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
@@ -247,6 +248,13 @@ export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 				<ComposioAccountsField
 					onChange={(ids) => set({ composioAccountIds: ids })}
 					selected={form.composioAccountIds}
+				/>
+			</div>
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-sm">MCP servers</p>
+				<McpServersField
+					onChange={(ids) => set({ mcpServerIds: ids })}
+					selected={form.mcpServerIds}
 				/>
 			</div>
 		</div>
