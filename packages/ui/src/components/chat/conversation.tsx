@@ -141,6 +141,15 @@ function buildRenderTree(
 		: undefined;
 }
 
+function genuiStreamConfig(
+	generativeUI: GenerativeUIChatConfig | undefined,
+	genuiOn: boolean
+) {
+	return generativeUI && genuiOn
+		? { outputSchema: generativeUI.outputSchema, tools: generativeUI.tools }
+		: undefined;
+}
+
 export function Conversation({
 	sessionId,
 	agentClient,
@@ -148,6 +157,7 @@ export function Conversation({
 	initialGenui,
 	generativeUI,
 	avatars,
+	composerTools,
 }: {
 	sessionId: string;
 	agentClient: AgentClient;
@@ -155,18 +165,15 @@ export function Conversation({
 	initialGenui?: boolean;
 	generativeUI?: GenerativeUIChatConfig;
 	avatars?: ChatAvatars;
+	composerTools?: ReactNode;
 }) {
 	// Start in the genui mode chosen on the landing composer, so the FIRST message
 	// (sent via initialText before the in-chat toggle is reachable) honors it.
 	const [genuiOn, setGenuiOn] = useState(initialGenui === true);
-	const genuiConfig =
-		generativeUI && genuiOn
-			? { outputSchema: generativeUI.outputSchema, tools: generativeUI.tools }
-			: undefined;
 	const { messages, streaming, send, stop } = useChat(
 		sessionId,
 		agentClient,
-		genuiConfig
+		genuiStreamConfig(generativeUI, genuiOn)
 	);
 	useInitialSend(initialText, send);
 	const renderTree = buildRenderTree(generativeUI, send);
@@ -187,6 +194,7 @@ export function Conversation({
 				onToggleGenui={() => setGenuiOn((v) => !v)}
 				sessionId={sessionId}
 				streaming={streaming}
+				toolsSlot={composerTools}
 			/>
 		</div>
 	);

@@ -4,6 +4,7 @@ import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useCurrentUser } from "@/board/use-current-user";
+import { AgentToolsPopover } from "@/components/chat/agent-tools-popover";
 import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
@@ -92,6 +93,7 @@ export function ChatView({
 					user: email ? userAvatar(email) : undefined,
 					assistant: agentAvatar(agent.id),
 				}}
+				composerTools={<AgentToolsPopover agentId={agent.id} />}
 				generativeUI={GENUI_CHAT_CONFIG}
 				initialGenui={initialGenui}
 				initialText={initialText}

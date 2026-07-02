@@ -4,9 +4,11 @@ import type {
 	AgentStore,
 	ComposioAccountStore,
 } from "@better-agent/agent/ports";
+import { buildBuiltinToolDefs } from "@better-agent/agent/tool/builtin-tools";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { authorizedUserProcedure } from "../index";
+import { safeComposioDefs } from "./user-sessions";
 
 const paramsInput = z.object({
 	temperature: z.number().min(0).max(2).nullable().default(null),
@@ -75,6 +77,33 @@ export const agentsRouter = {
 	list: authorizedUserProcedure.handler(({ context }) =>
 		context.services.stores.agent.listByUser(context.authedUser.id)
 	),
+
+	// The tools this agent carries RIGHT NOW — the same assembly a chat turn
+	// runs (composio via linked accounts + built-ins). Powers the composer's
+	// tools popover.
+	tools: authorizedUserProcedure
+		.input(idInput)
+		.handler(async ({ input, context }) => {
+			const agent = await requireOwnedAgent(
+				context.services.stores.agent,
+				context.authedUser.id,
+				input.id
+			);
+			const perAccount = await Promise.all(
+				(agent.composioAccountIds ?? []).map(async (accountId) => {
+					const service = await context.services.composio(accountId);
+					return safeComposioDefs(service, accountId);
+				})
+			);
+			const defs = [
+				...perAccount.flat(),
+				...buildBuiltinToolDefs(agent.builtinTools ?? []),
+			];
+			return defs.map((def) => ({
+				name: def.name,
+				description: def.description,
+			}));
+		}),
 
 	get: authorizedUserProcedure
 		.input(idInput)

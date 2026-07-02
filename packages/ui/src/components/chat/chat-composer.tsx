@@ -9,7 +9,7 @@ import {
 import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { ImagePlusIcon, SparklesIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
 	ChipRow,
 	readyAttachments,
@@ -82,6 +82,7 @@ function ComposerToolbar({
 	onToggleGenui,
 	onStop,
 	streaming,
+	toolsSlot,
 }: {
 	genuiActive?: boolean;
 	genuiAvailable?: boolean;
@@ -89,6 +90,7 @@ function ComposerToolbar({
 	onStop: () => void;
 	onToggleGenui?: () => void;
 	streaming: boolean;
+	toolsSlot?: ReactNode;
 }) {
 	return (
 		<PromptInputToolbar>
@@ -97,6 +99,7 @@ function ComposerToolbar({
 				{genuiAvailable && onToggleGenui ? (
 					<GenuiToggle active={genuiActive === true} onToggle={onToggleGenui} />
 				) : null}
+				{toolsSlot}
 			</PromptInputTools>
 			<PromptInputSubmit
 				onStop={onStop}
@@ -115,6 +118,8 @@ interface ChatComposerProps {
 	onToggleGenui?: () => void;
 	sessionId: string;
 	streaming: boolean;
+	/** App-provided extra control(s) in the composer toolbar (e.g. a tools popover). */
+	toolsSlot?: ReactNode;
 }
 
 function useComposerState({
@@ -156,6 +161,7 @@ export function ChatComposer({
 	genuiActive,
 	genuiAvailable,
 	onToggleGenui,
+	toolsSlot,
 }: ChatComposerProps) {
 	const { text, setText, items, addFiles, remove, submit } = useComposerState({
 		agentClient,
@@ -186,6 +192,7 @@ export function ChatComposer({
 						onStop={onStop}
 						onToggleGenui={onToggleGenui}
 						streaming={streaming}
+						toolsSlot={toolsSlot}
 					/>
 				</PromptInput>
 			</div>

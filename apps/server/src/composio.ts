@@ -36,6 +36,9 @@ const COMPOSIO_TIMEOUT_MS = 12_000;
 // tools.get returns FULL parameter schemas for every tool of every connected
 // toolkit — with a few toolkits connected it legitimately takes longer.
 const TOOLS_TIMEOUT_MS = 30_000;
+// Per-toolkit tool cap: enough to cover a toolkit's useful surface without
+// flooding the model's context with hundreds of tool schemas.
+const TOOLS_PER_TOOLKIT = 30;
 
 function withTimeout<T>(
 	fn: () => Promise<T>,
@@ -160,11 +163,22 @@ function buildToolMethods(
 			if (toolkits.length === 0) {
 				return Promise.resolve([]);
 			}
+			// Fetch PER toolkit with an explicit limit: a single combined call uses
+			// the API's small default limit, so one large toolkit (gmail) starves the
+			// rest (twitter got zero tools). Per-toolkit calls also run in parallel.
 			return withLog(
 				"listTools",
 				async () => {
-					const tools = await composio.tools.get(userId, { toolkits });
-					return (tools as OpenAiTool[]).map(mapOpenAiTool);
+					const perToolkit = await Promise.all(
+						toolkits.map(async (slug) => {
+							const tools = await composio.tools.get(userId, {
+								toolkits: [slug],
+								limit: TOOLS_PER_TOOLKIT,
+							});
+							return (tools as OpenAiTool[]).map(mapOpenAiTool);
+						})
+					);
+					return perToolkit.flat();
 				},
 				TOOLS_TIMEOUT_MS
 			);
