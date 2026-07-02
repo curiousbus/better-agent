@@ -78,10 +78,20 @@ interface SendArgs {
 async function finalizeSend(args: SendArgs) {
 	args.store.setStreaming(false);
 	args.store.setController(null);
-	await args.queryClient.invalidateQueries({
-		queryKey: messagesKey(args.sessionId),
-	});
-	args.store.setDraft([]);
+	// The history observer is still DISABLED in this tick (it re-enables when the
+	// streaming flag lands on the next render), so invalidateQueries would no-op
+	// and resolve immediately — clearing the draft against an empty cache blanks
+	// a fresh session. Fetch imperatively instead: the cache holds the completed
+	// turn BEFORE the draft goes away.
+	try {
+		await args.queryClient.fetchQuery({
+			queryKey: messagesKey(args.sessionId),
+			queryFn: () => args.agentClient.listMessages(args.sessionId),
+		});
+		args.store.setDraft([]);
+	} catch {
+		// Fetch failed — keep the draft visible; a later refetch reconciles.
+	}
 }
 
 function userDraftBlocks(

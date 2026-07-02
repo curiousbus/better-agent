@@ -1,10 +1,12 @@
 import { TopProgress } from "@better-agent/ui/components/top-progress";
-import { useIsFetching } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 
-/** Drives the shared TopProgress bar from route + query state. */
+/**
+ * Drives the shared TopProgress bar from ROUTE state only. Deliberately not
+ * wired to react-query's global fetching count — background refetches (chat
+ * history, observing-mode polling) would flash the bar constantly mid-chat.
+ */
 export function RouteProgress({ active = false }: { active?: boolean }) {
 	const navigating = useRouterState({ select: (state) => state.isLoading });
-	const fetching = useIsFetching();
-	return <TopProgress active={active || navigating || fetching > 0} />;
+	return <TopProgress active={active || navigating} />;
 }
