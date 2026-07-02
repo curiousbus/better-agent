@@ -1,0 +1,129 @@
+import { ORPCError } from "@orpc/server";
+import { z } from "zod";
+import type { Context } from "../context";
+import { authorizedUserProcedure } from "../index";
+
+const serverIdInput = z.object({ serverId: z.uuid() });
+const MAX_DETAIL_LEN = 300;
+const MAX_DETAIL_DEPTH = 4;
+
+function detailOf(error: unknown, depth = 0): string {
+	if (depth > MAX_DETAIL_DEPTH || !(error instanceof Error)) {
+		return "";
+	}
+	const rest = error.cause ? detailOf(error.cause, depth + 1) : "";
+	return rest ? `${error.message} — ${rest}` : error.message;
+}
+
+function toMcpError(error: unknown): ORPCError<string, undefined> {
+	const detail = detailOf(error) || "unknown error";
+	return new ORPCError("BAD_REQUEST", {
+		message: `MCP request failed: ${detail.slice(0, MAX_DETAIL_LEN)}`,
+	});
+}
+
+async function callMcp<T>(fn: () => Promise<T>): Promise<T> {
+	try {
+		return await fn();
+	} catch (error) {
+		throw toMcpError(error);
+	}
+}
+
+// Asserts the server exists AND belongs to the caller. NOT_FOUND for both
+// missing and other-owner servers, so ownership never leaks.
+async function requireOwnedMcpServer(
+	context: Context,
+	userId: string,
+	serverId: string
+) {
+	const server = await context.services.stores.mcpServer.getById(serverId);
+	if (!server || server.userId !== userId) {
+		throw new ORPCError("NOT_FOUND", { message: "MCP server not found" });
+	}
+	return server;
+}
+
+async function createOwnedServer(
+	context: Context,
+	userId: string,
+	input: { name: string; url: string; bearerToken?: string }
+) {
+	const server = await context.services.stores.mcpServer.create({
+		name: input.name,
+		url: input.url,
+		authHeader: input.bearerToken ? `Bearer ${input.bearerToken}` : undefined,
+		userId,
+	});
+	// Validate by connecting + listing tools; roll back a bad config so the
+	// owner gets immediate feedback instead of a silently broken server.
+	try {
+		const service = await context.services.mcp(server.id);
+		await service?.listTools();
+	} catch (error) {
+		await context.services.stores.mcpServer.delete(server.id);
+		throw toMcpError(error);
+	}
+	await context.services.stores.activity.log({
+		userId,
+		type: "mcp_server_added",
+		summary: `Added MCP server “${server.name}”`,
+	});
+	return server;
+}
+
+// Per-user remote MCP servers (e.g. X's hosted MCP): each user registers their
+// own URL + credentials; only their agents can link them.
+export const mcpRouter = {
+	listServers: authorizedUserProcedure.handler(({ context }) =>
+		context.services.stores.mcpServer.listByUser(context.authedUser.id)
+	),
+
+	createServer: authorizedUserProcedure
+		.input(
+			z.object({
+				name: z.string().min(1),
+				url: z.url(),
+				bearerToken: z.string().min(1).optional(),
+			})
+		)
+		.handler(({ input, context }) =>
+			createOwnedServer(context, context.authedUser.id, input)
+		),
+
+	deleteServer: authorizedUserProcedure
+		.input(serverIdInput)
+		.handler(async ({ input, context }) => {
+			const server = await requireOwnedMcpServer(
+				context,
+				context.authedUser.id,
+				input.serverId
+			);
+			await context.services.stores.mcpServer.delete(input.serverId);
+			await context.services.stores.activity.log({
+				userId: context.authedUser.id,
+				type: "mcp_server_removed",
+				summary: `Removed MCP server “${server.name}”`,
+			});
+			return { ok: true };
+		}),
+
+	// Diagnostic: the live tool list this server yields (errors SURFACED).
+	tools: authorizedUserProcedure
+		.input(serverIdInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedMcpServer(
+				context,
+				context.authedUser.id,
+				input.serverId
+			);
+			return callMcp(async () => {
+				const service = await context.services.mcp(input.serverId);
+				const tools = (await service?.listTools()) ?? [];
+				return tools.map((tool) => ({
+					name: tool.name,
+					description: tool.description,
+				}));
+			});
+		}),
+};

@@ -63,6 +63,7 @@ async function drainTurn(
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "hash-retry",
 	});

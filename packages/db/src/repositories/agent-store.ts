@@ -20,6 +20,7 @@ function toAgentConfig(row: AgentRow) {
 		modelId: row.modelId,
 		params: row.params ?? null,
 		composioAccountIds: row.composioAccountIds ?? [],
+		mcpServerIds: row.mcpServerIds ?? [],
 		builtinTools: row.builtinTools ?? [],
 		userId: row.userId ?? null,
 		createdAt: row.createdAt,

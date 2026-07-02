@@ -183,6 +183,13 @@
       "when": 1782972537896,
       "tag": "0025_bumpy_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1782984160560,
+      "tag": "0026_loose_shape",
+      "breakpoints": true
     }
   ]
 }

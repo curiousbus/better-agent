@@ -10,6 +10,7 @@ import type {
 	EmailSender,
 	GoogleOAuth,
 	MagicLinkStore,
+	McpServerStore,
 	MessageStore,
 	ModelCacheStore,
 	PasswordResetStore,
@@ -28,6 +29,7 @@ import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
+import type { McpService } from "@better-agent/agent/tool/mcp-tools";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
@@ -49,6 +51,7 @@ export interface AgentServices {
 	emailSender: EmailSender;
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
+	mcp: (serverId: string) => Promise<McpService | null>;
 	modelFactory: ModelFactory;
 	pendingToolCallStore: PendingToolCallStore;
 	rateLimiter: RateLimiter;
@@ -67,6 +70,7 @@ export interface AgentServices {
 		refreshToken: RefreshTokenStore;
 		settings: SettingsStore;
 		composioAccount: ComposioAccountStore;
+		mcpServer: McpServerStore;
 		sprint: SprintStore;
 		task: TaskStore;
 		usage: UsageStore;

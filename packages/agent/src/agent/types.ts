@@ -10,6 +10,7 @@ export interface AgentConfig {
 	createdAt: Date;
 	description: string;
 	id: string;
+	mcpServerIds: string[];
 	modelId: string;
 	name: string;
 	params: AgentParams | null;
@@ -25,6 +26,7 @@ export interface AgentInput {
 	builtinTools: string[];
 	composioAccountIds: string[];
 	description: string;
+	mcpServerIds: string[];
 	modelId: string;
 	name: string;
 	params: AgentParams | null;

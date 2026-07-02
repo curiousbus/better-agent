@@ -67,6 +67,7 @@ async function setup(model: LanguageModelV3) {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "hash-doom",
 	});

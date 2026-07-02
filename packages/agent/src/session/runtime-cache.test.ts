@@ -60,6 +60,7 @@ it("passes promptCacheKey from cache policy to the model via providerOptions", a
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "hash-cache-test",
 	});

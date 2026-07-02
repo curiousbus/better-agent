@@ -128,6 +128,29 @@ export interface SettingsStore {
 }
 
 /** A composio account as exposed to clients: never includes the key cipher. */
+export interface McpServerRow {
+	authLast4: string | null;
+	createdAt: Date;
+	id: string;
+	name: string;
+	url: string;
+	userId: string;
+}
+
+export interface McpServerStore {
+	create(input: {
+		name: string;
+		url: string;
+		authHeader?: string;
+		userId: string;
+	}): Promise<McpServerRow>;
+	delete(id: string): Promise<void>;
+	/** Decrypted Authorization header value — server-side only. */
+	getAuthHeader(id: string): Promise<string | null>;
+	getById(id: string): Promise<McpServerRow | null>;
+	listByUser(userId: string): Promise<McpServerRow[]>;
+}
+
 export interface ComposioAccountRow {
 	apiKeyLast4: string;
 	createdAt: Date;

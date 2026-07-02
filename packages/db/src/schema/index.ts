@@ -4,6 +4,7 @@ export * from "./agents";
 export * from "./attachments";
 export * from "./auth";
 export * from "./composio";
+export * from "./mcp";
 export * from "./providers";
 export * from "./sessions";
 export * from "./settings";

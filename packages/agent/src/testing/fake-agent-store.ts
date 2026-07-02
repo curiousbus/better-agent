@@ -13,6 +13,7 @@ function makeAgentTokenOps(
 				id: crypto.randomUUID(),
 				...rest,
 				composioAccountIds: rest.composioAccountIds ?? [],
+				mcpServerIds: rest.mcpServerIds ?? [],
 				builtinTools: rest.builtinTools ?? [],
 				userId: rest.userId ?? null,
 				createdAt: now,

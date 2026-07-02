@@ -1,7 +1,6 @@
 import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
-import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
@@ -18,13 +17,8 @@ import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pen
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
-import {
-	createMagicLinkStore,
-	createPasswordResetStore,
-	createRefreshTokenStore,
-	createUserStore,
-} from "@better-agent/db/repositories/auth-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
+import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import {
 	createModelCacheStore,
@@ -41,8 +35,9 @@ import { env } from "@better-agent/env/server";
 import { Redis as UpstashRedis } from "@upstash/redis";
 import Redis from "ioredis";
 import { createAttachmentStore, type R2Bucket } from "./attachment-store";
+import { buildAuthServices } from "./auth-services";
 import { buildAuthzClient, type ServiceBinding } from "./authz-client";
-import { createEmailSender } from "./email-sender";
+import { buildMcpResolver } from "./mcp";
 import {
 	buildComposioAccountResolver,
 	buildGoogleOAuth,
@@ -55,39 +50,12 @@ import { createUpstashCancellationRegistry } from "./upstash-cancellation";
 import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
 
 type Db = Parameters<typeof createAgentStore>[0];
-const ACCESS_TTL = 900;
-const REFRESH_TTL = 2_592_000;
-const MAGIC_LINK_TTL = 900;
 
 // scrypt key derivation is slow — memoize the secret box per isolate.
 let cachedSecretBox: ReturnType<typeof createSecretBox> | null = null;
 function getSecretBox() {
 	cachedSecretBox ??= createSecretBox(env.CREDENTIALS_SECRET);
 	return cachedSecretBox;
-}
-
-function buildAuthServices(db: Db) {
-	return {
-		jwtService: createJwtService(env.AUTH_JWT_SECRET),
-		emailSender: createEmailSender({
-			apiKey: env.RESEND_API_KEY,
-			from: env.AUTH_EMAIL_FROM,
-		}),
-		authConfig: {
-			webUrl: env.WEB_URL,
-			adminUrl: env.ADMIN_URL,
-			accessTtl: ACCESS_TTL,
-			refreshTtl: REFRESH_TTL,
-			magicLinkTtl: MAGIC_LINK_TTL,
-			adminEmails: env.ADMIN_EMAILS,
-		},
-		authStores: {
-			user: createUserStore(db),
-			magicLink: createMagicLinkStore(db),
-			passwordReset: createPasswordResetStore(db),
-			refreshToken: createRefreshTokenStore(db),
-		},
-	};
 }
 
 function buildProviderDeps(
@@ -183,6 +151,7 @@ function buildStores(parts: {
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	authStores: ReturnType<typeof buildAuthServices>["authStores"];
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
+	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	deps: ReturnType<typeof buildProviderDeps>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
@@ -204,6 +173,7 @@ function buildStores(parts: {
 		attachment: parts.attachmentStore,
 		settings: parts.settings,
 		composioAccount: parts.composioAccount,
+		mcpServer: parts.mcpServerStore,
 		sprint: parts.sprintStore,
 		task: parts.taskStore,
 		usage: parts.usageStore,
@@ -219,6 +189,7 @@ function assembleServices(parts: {
 	authzBinding?: ServiceBinding;
 	cancellation: CancellationRegistry;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
+	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	deps: ReturnType<typeof buildProviderDeps>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	runtime: ReturnType<typeof buildRuntime>;
@@ -249,6 +220,7 @@ function assembleServices(parts: {
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioAccountResolver(parts.composioAccount),
+		mcp: buildMcpResolver(parts.mcpServerStore),
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
@@ -290,6 +262,7 @@ export function buildServices(
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
+		mcpServerStore: createMcpServerStore(db, secretBox),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		authzBinding,
 	});

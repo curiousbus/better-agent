@@ -28,6 +28,11 @@ export const agents = pgTable(
 			.$type<string[]>()
 			.notNull()
 			.default([]),
+		// Linked MCP server ids (owner's mcp_servers rows); tools bind per turn.
+		mcpServerIds: jsonb("mcp_server_ids")
+			.$type<string[]>()
+			.notNull()
+			.default([]),
 		// Enabled built-in tool ids (see packages/agent/src/tool/builtin-tools.ts).
 		builtinTools: jsonb("builtin_tools")
 			.$type<string[]>()

@@ -1,14 +1,11 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import type { AgentConfig } from "@better-agent/agent/agent/types";
-import type {
-	AgentStore,
-	ComposioAccountStore,
-} from "@better-agent/agent/ports";
-import { buildBuiltinToolDefs } from "@better-agent/agent/tool/builtin-tools";
+import type { AgentStore } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
-import { safeComposioDefs } from "./user-sessions";
+import { assembleAgentToolDefs } from "./agent-tool-defs";
 
 const paramsInput = z.object({
 	temperature: z.number().min(0).max(2).nullable().default(null),
@@ -24,6 +21,7 @@ const agentInput = z.object({
 	modelId: z.string().min(1),
 	params: paramsInput.nullable().default(null),
 	composioAccountIds: z.array(z.uuid()).default([]),
+	mcpServerIds: z.array(z.uuid()).default([]),
 	builtinTools: z.array(z.string()).default([]),
 });
 
@@ -39,24 +37,43 @@ async function assertValidAgent(
 	}
 }
 
-// A user may only wire THEIR OWN composio accounts into an agent — linking a
-// foreign account id would let them use someone else's key and connections.
-async function assertOwnedComposioAccounts(
-	store: ComposioAccountStore,
+// A user may only wire THEIR OWN composio accounts / MCP servers into an agent
+// — a foreign id would let them use someone else's credentials.
+async function assertOwnedIds(
+	listByUser: (userId: string) => Promise<Array<{ id: string }>>,
 	userId: string,
-	ids: string[]
+	ids: string[],
+	label: string
 ): Promise<void> {
 	if (ids.length === 0) {
 		return;
 	}
-	const owned = new Set(
-		(await store.listByUser(userId)).map((account) => account.id)
-	);
+	const owned = new Set((await listByUser(userId)).map((row) => row.id));
 	if (ids.some((id) => !owned.has(id))) {
 		throw new ORPCError("BAD_REQUEST", {
-			message: "You can only link your own Composio accounts",
+			message: `You can only link your own ${label}`,
 		});
 	}
+}
+
+async function assertOwnedLinks(
+	context: Context,
+	userId: string,
+	input: { composioAccountIds: string[]; mcpServerIds: string[] }
+): Promise<void> {
+	const { composioAccount, mcpServer } = context.services.stores;
+	await assertOwnedIds(
+		(id) => composioAccount.listByUser(id),
+		userId,
+		input.composioAccountIds,
+		"Composio accounts"
+	);
+	await assertOwnedIds(
+		(id) => mcpServer.listByUser(id),
+		userId,
+		input.mcpServerIds,
+		"MCP servers"
+	);
 }
 
 // Loads an agent and asserts the caller owns it. NOT_FOUND for both missing and
@@ -79,7 +96,7 @@ export const agentsRouter = {
 	),
 
 	// The tools this agent carries RIGHT NOW — the same assembly a chat turn
-	// runs (composio via linked accounts + built-ins). Powers the composer's
+	// runs (composio accounts + MCP servers + built-ins). Powers the composer's
 	// tools popover.
 	tools: authorizedUserProcedure
 		.input(idInput)
@@ -89,16 +106,7 @@ export const agentsRouter = {
 				context.authedUser.id,
 				input.id
 			);
-			const perAccount = await Promise.all(
-				(agent.composioAccountIds ?? []).map(async (accountId) => {
-					const service = await context.services.composio(accountId);
-					return safeComposioDefs(service, accountId);
-				})
-			);
-			const defs = [
-				...perAccount.flat(),
-				...buildBuiltinToolDefs(agent.builtinTools ?? []),
-			];
+			const defs = await assembleAgentToolDefs(context, agent);
 			return defs.map((def) => ({
 				name: def.name,
 				description: def.description,
@@ -134,11 +142,7 @@ export const agentsRouter = {
 				providerId: input.providerId,
 				modelId: input.modelId,
 			});
-			await assertOwnedComposioAccounts(
-				context.services.stores.composioAccount,
-				context.authedUser.id,
-				input.composioAccountIds
-			);
+			await assertOwnedLinks(context, context.authedUser.id, input);
 			const { token, hash } = context.services.tokenService.generate();
 			const agent = await context.services.stores.agent.create({
 				...input,
@@ -189,11 +193,7 @@ export const agentsRouter = {
 				providerId: rest.providerId,
 				modelId: rest.modelId,
 			});
-			await assertOwnedComposioAccounts(
-				context.services.stores.composioAccount,
-				context.authedUser.id,
-				rest.composioAccountIds
-			);
+			await assertOwnedLinks(context, context.authedUser.id, rest);
 			const updated = await context.services.stores.agent.update(id, rest);
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", { message: `Agent ${id} not found` });

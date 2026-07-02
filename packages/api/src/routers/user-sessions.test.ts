@@ -17,8 +17,8 @@ import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pen
 import { createRouterClient } from "@orpc/server";
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
+import { safeComposioDefs } from "./agent-tool-defs";
 import { appRouter } from "./index";
-import { safeComposioDefs } from "./user-sessions";
 
 const HAPPY: LanguageModelV3StreamPart[] = [
 	{ type: "text-start", id: "0" },

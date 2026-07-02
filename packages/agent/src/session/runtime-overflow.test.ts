@@ -100,6 +100,7 @@ async function overflowSetup() {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "hash-overflow",
 	});

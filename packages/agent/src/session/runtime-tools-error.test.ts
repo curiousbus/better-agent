@@ -49,6 +49,7 @@ async function setup(model: LanguageModelV3) {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "hash-tools-err",
 	});
@@ -109,7 +110,6 @@ async function assertToolErrorPersisted(
 	expect(assistantMsg?.message.status).toBe("complete");
 }
 
-// ── tool-error scenario ──────────────────────────────────────────────────────
 const FAIL_TOOL_NAME = "fail";
 const FAIL_STEP1: LanguageModelV3StreamPart[] = [
 	{
@@ -162,7 +162,6 @@ it("persists a tool-result with isError:true when tool execute throws", async ()
 	await assertToolErrorPersisted(messageStore, session.id, events);
 });
 
-// ── isError:true resolved (not thrown) scenario ──────────────────────────────
 const RESOLVE_ERR_TOOL_NAME = "resolve-err";
 
 const RESOLVE_ERR_STEP1: LanguageModelV3StreamPart[] = [

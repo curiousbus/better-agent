@@ -80,6 +80,7 @@ it("registers then unregisters the session around the turn", async () => {
 		modelId: "gpt-x",
 		params: null,
 		composioAccountIds: [],
+		mcpServerIds: [],
 		builtinTools: [],
 		tokenHash: "h-cancel",
 	});

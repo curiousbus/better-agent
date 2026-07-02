@@ -1,10 +1,5 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Session } from "@better-agent/agent/session/types";
-import { buildBuiltinToolDefs } from "@better-agent/agent/tool/builtin-tools";
-import {
-	buildComposioToolDefs,
-	type ComposioService,
-} from "@better-agent/agent/tool/composio-tools";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
@@ -17,6 +12,7 @@ import {
 } from "../attachments";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import { assembleAgentToolDefs } from "./agent-tool-defs";
 import { boardDirectDefs, boardModelDefs } from "./board-defs";
 import {
 	drainWithStructured,
@@ -34,31 +30,6 @@ import { createTurnChannel, pumpTurn } from "./turn-channel";
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
 
-// `scope` is the composio "user" scope — here a composio account id. Builds the
-// tool defs for every authenticated toolkit of that account.
-export async function safeComposioDefs(
-	service: ComposioService | null,
-	scope: string
-): Promise<ToolDef[]> {
-	if (!service) {
-		return [];
-	}
-	try {
-		const connections = await service.listConnections(scope);
-		const toolkits = [
-			...new Set(connections.filter((c) => c.active).map((c) => c.toolkitSlug)),
-		];
-		if (toolkits.length === 0) {
-			return [];
-		}
-		return await buildComposioToolDefs(service, scope, toolkits);
-	} catch {
-		return [];
-	}
-}
-
-// An agent's tools: every authenticated toolkit of each linked composio account,
-// plus its enabled built-in tools.
 async function agentToolDefs(
 	context: Context,
 	agentId: string
@@ -67,16 +38,7 @@ async function agentToolDefs(
 	if (!agent) {
 		return [];
 	}
-	const perAccount = await Promise.all(
-		(agent.composioAccountIds ?? []).map(async (accountId) => {
-			const service = await context.services.composio(accountId);
-			return safeComposioDefs(service, accountId);
-		})
-	);
-	return [
-		...perAccount.flat(),
-		...buildBuiltinToolDefs(agent.builtinTools ?? []),
-	];
+	return assembleAgentToolDefs(context, agent);
 }
 
 async function requireUserSession(
