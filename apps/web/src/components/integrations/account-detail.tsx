@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { orpc } from "@/utils/orpc";
+import { AgentToolsSection } from "./agent-tools-section";
 import { ConnectionsSection } from "./connections-section";
 import { AccountDetailSkeleton } from "./integrations-skeleton";
 import { ToolkitsSection } from "./toolkits-section";
@@ -25,6 +26,7 @@ export function AccountDetail({ accountId }: { accountId: string }) {
 	return (
 		<div className="flex flex-col gap-4">
 			<h1 className="font-semibold text-lg">{account.name}</h1>
+			<AgentToolsSection accountId={accountId} />
 			<ConnectionsSection accountId={accountId} />
 			<ToolkitsSection accountId={accountId} />
 		</div>

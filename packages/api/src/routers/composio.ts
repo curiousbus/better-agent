@@ -165,6 +165,38 @@ export const composioRouter = {
 			);
 		}),
 
+	// The exact tool-assembly pipeline a linked agent runs (active connections →
+	// toolkits → tools), but with errors SURFACED instead of swallowed — makes
+	// "why doesn't my agent have the tool" diagnosable from the account page.
+	tools: authorizedUserProcedure
+		.input(accountIdInput)
+		.handler(async ({ input, context }) => {
+			const service = await requireOwnedService(
+				context,
+				context.authedUser.id,
+				input.accountId
+			);
+			return callComposio(async () => {
+				const connections = await service.listConnections(input.accountId);
+				const toolkits = [
+					...new Set(
+						connections.filter((c) => c.active).map((c) => c.toolkitSlug)
+					),
+				];
+				if (toolkits.length === 0) {
+					return { toolkits, tools: [] };
+				}
+				const tools = await service.listTools(input.accountId, toolkits);
+				return {
+					toolkits,
+					tools: tools.map((tool) => ({
+						name: tool.name,
+						description: tool.description,
+					})),
+				};
+			});
+		}),
+
 	// Key-authenticated toolkits (API_KEY / BEARER_TOKEN, e.g. tavily) can't use
 	// the OAuth redirect flow — the user supplies the target service's key.
 	connectWithKey: authorizedUserProcedure
