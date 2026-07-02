@@ -1,7 +1,7 @@
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
+import { type MutableRefObject, useRef, useSyncExternalStore } from "react";
 
 import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
@@ -15,6 +15,57 @@ export { streamPrompt } from "./chat-stream";
 // (token-scoped) rather than the unauthenticated oRPC client.
 const messagesKey = (sessionId: string) =>
 	["agent", "messages", sessionId] as const;
+
+// ── observing mode ───────────────────────────────────────────────────────────
+// Turns run detached on the server (parts persist progressively). After a
+// reload there is no local stream, but the trailing assistant message is still
+// `streaming` — so we OBSERVE it: poll history until it completes. A turn whose
+// content stops changing for too long is treated as orphaned and left alone.
+const OBSERVE_POLL_MS = 1500;
+const STALL_MS = 120_000;
+
+type StallRef = MutableRefObject<{ fingerprint: string; since: number } | null>;
+
+function liveTrailingTurn(rows: MessageHistory | undefined) {
+	const last = rows?.at(-1);
+	return last &&
+		last.message.role === "assistant" &&
+		last.message.status === "streaming"
+		? last
+		: null;
+}
+
+function turnFingerprint(row: MessageHistory[number]): string {
+	return `${row.message.id}:${row.parts.length}:${JSON.stringify(row.parts).length}`;
+}
+
+function observePollInterval(
+	rows: MessageHistory | undefined,
+	stallRef: StallRef
+): number | false {
+	const live = liveTrailingTurn(rows);
+	if (!live) {
+		stallRef.current = null;
+		return false;
+	}
+	const fingerprint = turnFingerprint(live);
+	const now = Date.now();
+	if (stallRef.current?.fingerprint !== fingerprint) {
+		stallRef.current = { fingerprint, since: now };
+	}
+	return now - stallRef.current.since > STALL_MS ? false : OBSERVE_POLL_MS;
+}
+
+function isObserving(
+	rows: MessageHistory | undefined,
+	stallRef: StallRef
+): boolean {
+	if (!liveTrailingTurn(rows)) {
+		return false;
+	}
+	const stall = stallRef.current;
+	return !(stall && Date.now() - stall.since > STALL_MS);
+}
 
 interface SendArgs {
 	agentClient: AgentClient;
@@ -135,6 +186,7 @@ export function useChat(
 		store.getSnapshot,
 		store.getSnapshot
 	);
+	const stallRef: StallRef = useRef(null);
 	const history = useQuery({
 		queryKey: messagesKey(sessionId),
 		queryFn: () => agentClient.listMessages(sessionId),
@@ -142,7 +194,11 @@ export function useChat(
 		// START, so a mid-stream (re)mount refetch would duplicate the live draft.
 		// Cached history + draft is the correct view until finalize invalidates.
 		enabled: sessionId !== "" && !streaming,
+		// Re-attach after a reload: while the trailing assistant message is still
+		// streaming server-side, poll so the persisted parts keep flowing in.
+		refetchInterval: (query) => observePollInterval(query.state.data, stallRef),
 	});
+	const observing = !streaming && isObserving(history.data, stallRef);
 
 	const messages: ChatMessage[] = [
 		...(history.data ?? []).map(toChatMessage),
@@ -160,5 +216,7 @@ export function useChat(
 
 	const stop = () => stopSession(store, sessionId, agentClient);
 
-	return { messages, streaming, send, stop };
+	// `streaming` also covers observing a detached server-side turn, so the
+	// composer stays disabled and Stop stays available after a reload.
+	return { messages, streaming: streaming || observing, send, stop };
 }

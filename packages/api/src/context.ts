@@ -62,6 +62,24 @@ function userAgent(options: CreateContextOptions): string | null {
 	return options.context.req.header("user-agent") ?? null;
 }
 
+// Keeps a detached promise alive past the response (Workers executionCtx).
+// Falls back to fire-and-forget outside Workers (node dev / tests).
+function extractWaitUntil(
+	options: CreateContextOptions
+): (p: Promise<unknown>) => void {
+	try {
+		const ctx = options.context.executionCtx;
+		if (ctx && typeof ctx.waitUntil === "function") {
+			return (p) => ctx.waitUntil(p);
+		}
+	} catch {
+		// hono throws when no execution context exists (plain node) — fall through.
+	}
+	return (p) => {
+		p.catch(() => undefined);
+	};
+}
+
 export async function createContext(options: CreateContextOptions) {
 	const token = extractBearerToken(options);
 	let authedAgent: AgentConfig | null = null;
@@ -79,6 +97,7 @@ export async function createContext(options: CreateContextOptions) {
 		authedUser,
 		clientIp: clientIp(options),
 		userAgent: userAgent(options),
+		waitUntil: extractWaitUntil(options),
 	};
 }
 

@@ -6,8 +6,6 @@ import {
 	type ComposioService,
 } from "@better-agent/agent/tool/composio-tools";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
-import { buildSprintToolDefs } from "@better-agent/agent/tool/sprint-tools";
-import { buildTaskToolDefs } from "@better-agent/agent/tool/task-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -19,6 +17,7 @@ import {
 } from "../attachments";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import { boardDirectDefs, boardModelDefs } from "./board-defs";
 import {
 	drainWithStructured,
 	errorMessage,
@@ -30,6 +29,7 @@ import {
 	streamSettled,
 	type ToolCall,
 } from "./tool-calls-stream";
+import { createTurnChannel, pumpTurn } from "./turn-channel";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -93,22 +93,6 @@ async function requireUserSession(
 	return session;
 }
 
-// Destructive board tools are kept OUT of the natural-language model turn — a
-// vague command shouldn't be able to delete a task or end a sprint. They remain
-// available on the direct (button-driven) toolCalls path.
-const NL_UNSAFE_TOOLS = new Set([
-	"deleteTask",
-	"deleteSprint",
-	"completeSprint",
-]);
-
-function boardModelDefs(context: Context, userId: string): ToolDef[] {
-	return [
-		...buildTaskToolDefs(context.services.stores.task, userId),
-		...buildSprintToolDefs(context.services.stores.sprint, userId),
-	].filter((def) => !NL_UNSAFE_TOOLS.has(def.name));
-}
-
 async function* streamUserTurn(
 	context: Context,
 	userId: string,
@@ -123,8 +107,7 @@ async function* streamUserTurn(
 		outputSchema?: Record<string, unknown>;
 		attachmentIds?: string[];
 		surfaces?: string[];
-	},
-	signal: AbortSignal | undefined
+	}
 ): AsyncGenerator<RunEvent, void> {
 	try {
 		const session = await requireUserSession(context, userId, input.sessionId);
@@ -138,14 +121,24 @@ async function* streamUserTurn(
 			? boardModelDefs(context, userId)
 			: [];
 		const allDefs = [...remoteDefs, ...toolDefs, ...boardDefs];
-		yield* context.services.runtime.runTurn({
-			sessionId: input.sessionId,
-			text: input.text,
-			tools: allDefs.length > 0 ? allDefs : undefined,
-			outputSchema: input.outputSchema,
-			attachmentIds: input.attachmentIds,
-			abortSignal: signal,
-		});
+		// Detached execution: the pump (kept alive via waitUntil) drives the turn;
+		// this response only observes. NOTE the request abort signal is deliberately
+		// NOT passed to the runtime — a client disconnect must not kill the turn.
+		// Stop goes through the cancel endpoint (cancellation registry) instead.
+		const channel = createTurnChannel();
+		const pump = pumpTurn(
+			context.services.runtime.runTurn({
+				sessionId: input.sessionId,
+				text: input.text,
+				tools: allDefs.length > 0 ? allDefs : undefined,
+				outputSchema: input.outputSchema,
+				attachmentIds: input.attachmentIds,
+			}),
+			channel,
+			(error) => ({ type: "error", message: errorMessage(error) })
+		);
+		context.waitUntil?.(pump);
+		yield* channel.observe();
 	} catch (error) {
 		yield { type: "error", message: errorMessage(error) };
 	}
@@ -161,10 +154,7 @@ async function* streamToolCalls(
 ): AsyncGenerator<RunEvent, void> {
 	try {
 		await requireUserSession(context, userId, input.sessionId);
-		const defs = [
-			...buildTaskToolDefs(context.services.stores.task, userId),
-			...buildSprintToolDefs(context.services.stores.sprint, userId),
-		];
+		const defs = boardDirectDefs(context, userId);
 		const byName = new Map(defs.map((def) => [def.name, def] as const));
 		const work = input.toolCalls.map((call) =>
 			executeToolCall(byName.get(call.name), call, input.sessionId, signal)
@@ -264,7 +254,7 @@ export const userSessionsRouter = {
 			if ("toolCalls" in input) {
 				return streamToolCalls(context, context.authedUser.id, input, signal);
 			}
-			return streamUserTurn(context, context.authedUser.id, input, signal);
+			return streamUserTurn(context, context.authedUser.id, input);
 		}),
 
 	cancel: authorizedUserProcedure
