@@ -1,7 +1,12 @@
 import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type MutableRefObject, useRef, useSyncExternalStore } from "react";
+import {
+	type MutableRefObject,
+	useEffect,
+	useRef,
+	useSyncExternalStore,
+} from "react";
 
 import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
@@ -84,11 +89,18 @@ async function finalizeSend(args: SendArgs) {
 	// a fresh session. Fetch imperatively instead: the cache holds the completed
 	// turn BEFORE the draft goes away.
 	try {
-		await args.queryClient.fetchQuery({
+		const rows = await args.queryClient.fetchQuery<MessageHistory>({
 			queryKey: messagesKey(args.sessionId),
 			queryFn: () => args.agentClient.listMessages(args.sessionId),
 		});
-		args.store.setDraft([]);
+		// If the SSE died early, the DETACHED server turn may still be running —
+		// the fetched rows are incomplete (trailing assistant still `streaming`).
+		// Keep the draft: it holds the fullest content. The observing poll keeps
+		// refreshing history, and the reconcile effect in useChat clears the
+		// draft only once the turn is really complete.
+		if (!liveTrailingTurn(rows)) {
+			args.store.setDraft([]);
+		}
 	} catch {
 		// Fetch failed — keep the draft visible; a later refetch reconciles.
 	}
@@ -220,6 +232,22 @@ export function useChat(
 		refetchInterval: (query) => observePollInterval(query.state.data, stallRef),
 	});
 	const observing = !streaming && isObserving(history.data, stallRef);
+
+	// Reconcile a draft kept past finalize (stream died while the detached
+	// server turn kept running): once history's trailing message is complete,
+	// the persisted rows take over and the draft goes away.
+	const hasDraft = draft.length > 0;
+	useEffect(() => {
+		if (
+			!streaming &&
+			hasDraft &&
+			history.data &&
+			history.data.length > 0 &&
+			!liveTrailingTurn(history.data)
+		) {
+			store.setDraft([]);
+		}
+	}, [streaming, hasDraft, history.data, store]);
 
 	// While a draft is on screen it owns the current turn: history is capped at
 	// its pre-send length so the turn's persisted rows never double-render, and
