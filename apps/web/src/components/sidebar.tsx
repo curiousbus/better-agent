@@ -1,6 +1,6 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import { Bot, Gauge, LayoutDashboard } from "lucide-react";
+import { Bot, Gauge, LayoutDashboard, Plug } from "lucide-react";
 
 import { UserMenu } from "@/components/user-menu";
 
@@ -18,6 +18,10 @@ const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
 		item: { to: "/agents", label: "Agents", icon: Bot },
+	},
+	{
+		kind: "item",
+		item: { to: "/integrations", label: "Integrations", icon: Plug },
 	},
 ];
 

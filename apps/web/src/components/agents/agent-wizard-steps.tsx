@@ -17,6 +17,7 @@ import { orpc } from "@/utils/orpc";
 import type { AgentForm } from "./agent-form";
 import { WIZARD_STEPS } from "./agent-form";
 import { BuiltinToolsField } from "./builtin-tools-field";
+import { ComposioAccountsField } from "./composio-accounts-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
@@ -239,6 +240,13 @@ export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 				<BuiltinToolsField
 					onChange={(ids) => set({ builtinTools: ids })}
 					selected={form.builtinTools}
+				/>
+			</div>
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-sm">Composio integration</p>
+				<ComposioAccountsField
+					onChange={(ids) => set({ composioAccountIds: ids })}
+					selected={form.composioAccountIds}
 				/>
 			</div>
 		</div>

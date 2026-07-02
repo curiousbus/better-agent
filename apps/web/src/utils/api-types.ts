@@ -8,3 +8,15 @@ export type AgentRow = Awaited<ReturnType<Client["agents"]["list"]>>[number];
 export type UserSessionRow = Awaited<
 	ReturnType<Client["userSessions"]["list"]>
 >[number];
+
+export type ComposioAccountRow = Awaited<
+	ReturnType<Client["composio"]["listAccounts"]>
+>[number];
+
+export type ComposioToolkitRow = Awaited<
+	ReturnType<Client["composio"]["toolkits"]>
+>[number];
+
+export type ComposioConnectionRow = Awaited<
+	ReturnType<Client["composio"]["connections"]>
+>[number];

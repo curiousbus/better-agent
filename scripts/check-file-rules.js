@@ -83,7 +83,11 @@ function checkFileName(filePath) {
 	};
 }
 
-function checkFileLines(content) {
+function checkFileLines(filePath, content) {
+	// 生成文件（如 routeTree.gen.ts）随路由数量增长，不受行数上限约束
+	if (filePath.includes(".gen.")) {
+		return { valid: true };
+	}
 	const lines = content.split("\n").length;
 
 	if (lines > MAX_LINES) {
@@ -118,7 +122,7 @@ function main() {
 
 			// 检查文件行数
 			const content = readFileSync(file, "utf-8");
-			const linesCheck = checkFileLines(content);
+			const linesCheck = checkFileLines(file, content);
 			if (!linesCheck.valid) {
 				console.error(`\n❌ ${file}`);
 				console.error(`   ${linesCheck.error}`);
