@@ -67,11 +67,12 @@ function ChatScroller({
 						{messages.length === 0 ? (
 							<EmptyMessages />
 						) : (
-							messages.map((message, index) => (
-								<MessageScrollerItem
-									key={message.id}
-									scrollAnchor={index === messages.length - 1}
-								>
+							messages.map((message) => (
+								// No scrollAnchor: anchoring a new turn to the top inserts a
+								// spacer below it and fights autoScroll — follow-bottom then
+								// scrolls into that BLANK spacer while text streams. Plain
+								// follow-bottom is the behavior users expect.
+								<MessageScrollerItem key={message.id}>
 									<ChatRow
 										agentClient={agentClient}
 										avatars={avatars}
