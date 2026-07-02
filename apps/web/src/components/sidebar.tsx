@@ -9,7 +9,7 @@ import { UserMenu } from "@/components/user-menu";
 const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
-		item: { to: "/", label: "Dashboard", icon: Gauge },
+		item: { to: "/dashboard", label: "Dashboard", icon: Gauge },
 	},
 	{
 		kind: "item",

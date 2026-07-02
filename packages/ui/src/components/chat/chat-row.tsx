@@ -98,7 +98,9 @@ function AssistantBody({
 	return (
 		<div className="flex flex-col gap-2">
 			{showThinking ? (
-				<span className="shimmer font-medium text-sm">Thinking…</span>
+				<div className="flex w-full justify-center">
+					<span className="shimmer font-medium text-sm">Thinking…</span>
+				</div>
 			) : null}
 			<AssistantContent
 				hasTree={hasTree}
@@ -118,7 +120,9 @@ function AssistantBody({
 				</div>
 			) : null}
 			{message.status === "complete" && fullText !== "" ? (
-				<CopyAction text={fullText} />
+				<div className="flex items-center">
+					<CopyAction text={fullText} />
+				</div>
 			) : null}
 		</div>
 	);

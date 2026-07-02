@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InviteRouteImport } from './routes/invite'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as AccountRouteImport } from './routes/account'
@@ -33,6 +34,11 @@ const LoginRoute = LoginRouteImport.update({
 const InviteRoute = InviteRouteImport.update({
   id: '/invite',
   path: '/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoute = ChatRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
+  '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
+  '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
+  '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/board'
     | '/chat'
+    | '/dashboard'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/board'
     | '/chat'
+    | '/dashboard'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/board'
     | '/chat'
+    | '/dashboard'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   BoardRoute: typeof BoardRoute
   ChatRoute: typeof ChatRoute
+  DashboardRoute: typeof DashboardRoute
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/invite'
       fullPath: '/invite'
       preLoaderRoute: typeof InviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat': {
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   BoardRoute: BoardRoute,
   ChatRoute: ChatRoute,
+  DashboardRoute: DashboardRoute,
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,

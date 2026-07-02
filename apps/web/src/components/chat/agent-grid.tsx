@@ -1,4 +1,12 @@
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@better-agent/ui/components/avatar";
 import type { AgentRow } from "@/utils/api-types";
+import { agentAvatar } from "@/utils/avatar";
+
+const AVATAR_INITIALS_LENGTH = 2;
 
 function AgentCard({
 	agent,
@@ -9,14 +17,22 @@ function AgentCard({
 }) {
 	return (
 		<button
-			className="flex w-full flex-col gap-1 rounded-lg p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			onClick={() => onSelect(agent)}
 			type="button"
 		>
-			<span className="truncate font-medium text-sm">{agent.name}</span>
-			<span className="truncate font-mono text-muted-foreground text-xs">
-				{agent.providerId}/{agent.modelId}
-			</span>
+			<Avatar size="default">
+				<AvatarImage alt={agent.name} src={agentAvatar(agent.id)} />
+				<AvatarFallback>
+					{agent.name.slice(0, AVATAR_INITIALS_LENGTH).toUpperCase()}
+				</AvatarFallback>
+			</Avatar>
+			<div className="flex min-w-0 flex-col gap-1">
+				<span className="truncate font-medium text-sm">{agent.name}</span>
+				<span className="truncate font-mono text-muted-foreground text-xs">
+					{agent.providerId}/{agent.modelId}
+				</span>
+			</div>
 		</button>
 	);
 }

@@ -1,4 +1,9 @@
 import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@better-agent/ui/components/avatar";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -7,8 +12,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOutIcon, SettingsIcon } from "lucide-react";
-
 import { clearTokens, loadRefreshToken } from "@/utils/auth";
+import { userAvatar } from "@/utils/avatar";
 import { client, orpc } from "@/utils/orpc";
 
 export function UserMenu() {
@@ -36,9 +41,10 @@ export function UserMenu() {
 					/>
 				}
 			>
-				<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary font-medium text-sidebar-primary-foreground text-xs">
-					{initial}
-				</span>
+				<Avatar size="sm">
+					<AvatarImage alt={email} src={userAvatar(email)} />
+					<AvatarFallback>{initial}</AvatarFallback>
+				</Avatar>
 				<span className="truncate">{email}</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="w-48" side="top">

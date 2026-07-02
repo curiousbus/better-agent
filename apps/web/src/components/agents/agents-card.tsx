@@ -1,4 +1,9 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@better-agent/ui/components/avatar";
 import { Button } from "@better-agent/ui/components/button";
 import {
 	Table,
@@ -16,6 +21,7 @@ import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
+import { agentAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentRowActions } from "./agent-row-actions";
@@ -23,6 +29,7 @@ import { AgentWizard } from "./agent-wizard";
 import { TokenRevealDialog } from "./token-reveal-dialog";
 
 const TOKEN_PREVIEW_LEN = 14;
+const AVATAR_INITIALS_LENGTH = 2;
 
 function matchAgent(row: AgentRow, query: string): boolean {
 	return (
@@ -65,7 +72,17 @@ function AgentRows({
 		<TableBody>
 			{rows.map((row) => (
 				<TableRow key={row.id}>
-					<TableCell className="font-medium">{row.name}</TableCell>
+					<TableCell>
+						<div className="flex items-center gap-2">
+							<Avatar size="sm">
+								<AvatarImage alt={row.name} src={agentAvatar(row.id)} />
+								<AvatarFallback>
+									{row.name.slice(0, AVATAR_INITIALS_LENGTH).toUpperCase()}
+								</AvatarFallback>
+							</Avatar>
+							<span className="font-medium">{row.name}</span>
+						</div>
+					</TableCell>
 					<TableCell className="font-mono text-muted-foreground">
 						{row.providerId}/{row.modelId}
 					</TableCell>

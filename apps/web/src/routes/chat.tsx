@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { ChatView } from "@/components/chat/chat-view";
 import { usePreselectAgent } from "@/components/chat/use-preselect-agent";
-import { WebComposer } from "@/components/chat/web-composer";
 import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { userAgentClient } from "@/utils/chat-client";
@@ -60,31 +59,27 @@ function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
 	);
 }
 
-interface SendOpts {
+interface CreateSessionOpts {
 	agentId: string;
 	invalidate: () => Promise<void>;
-	setInitialText: (text: string) => void;
 	setSending: (v: boolean) => void;
 	setSessionId: (id: string) => void;
-	text: string;
 }
 
-async function sendFirstMessage({
+async function createSession({
 	agentId,
-	text,
+	invalidate,
 	setSending,
 	setSessionId,
-	setInitialText,
-	invalidate,
-}: SendOpts) {
+}: CreateSessionOpts): Promise<void> {
 	setSending(true);
 	try {
 		const session = await client.userSessions.create({ agentId });
 		await invalidate();
-		setInitialText(text);
 		setSessionId(session.id);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Failed to send";
+		const message =
+			error instanceof Error ? error.message : "Failed to create session";
 		toast.error(message);
 	} finally {
 		setSending(false);
@@ -92,62 +87,43 @@ async function sendFirstMessage({
 }
 
 interface HomeActions {
-	clearInitialText: () => void;
 	closeChat: () => void;
-	closeComposer: () => void;
 	newSession: () => void;
 	selectAgent: (agent: AgentRow) => void;
 	selectSession: (id: string) => void;
-	send: (text: string) => Promise<void>;
 }
 
 function useHomeActions(
-	selectedAgent: AgentRow | null,
 	invalidate: () => Promise<void>,
-	setInitialText: (t: string) => void,
 	setSelectedAgent: (a: AgentRow | null) => void,
 	setSessionId: (id: string) => void,
 	setSending: (v: boolean) => void
 ): HomeActions {
-	const send = useCallback(
-		(text: string) =>
-			sendFirstMessage({
-				agentId: selectedAgent?.id ?? "",
-				text,
-				setSending,
-				setSessionId,
-				setInitialText,
-				invalidate,
-			}),
-		[selectedAgent?.id, invalidate, setSending, setSessionId, setInitialText]
-	);
 	return {
-		clearInitialText: () => setInitialText(""),
 		closeChat: () => {
-			setInitialText("");
-			setSessionId("");
-		},
-		closeComposer: () => {
 			setSelectedAgent(null);
 			setSessionId("");
 		},
 		newSession: () => {
-			setInitialText("");
 			setSessionId("");
 		},
 		selectAgent: (agent: AgentRow) => {
 			setSelectedAgent(agent);
 			setSessionId("");
+			createSession({
+				agentId: agent.id,
+				invalidate,
+				setSending,
+				setSessionId,
+			}).catch(() => undefined);
 		},
 		selectSession: setSessionId,
-		send,
 	};
 }
 
 function useHomeState() {
 	const [selectedAgent, setSelectedAgent] = useState<AgentRow | null>(null);
 	const [sessionId, setSessionId] = useState("");
-	const [initialText, setInitialText] = useState("");
 	const [sending, setSending] = useState(false);
 	const [genuiOn, setGenuiOn] = useState(false);
 	const queryClient = useQueryClient();
@@ -162,9 +138,7 @@ function useHomeState() {
 		[queryClient]
 	);
 	const actions = useHomeActions(
-		selectedAgent,
 		invalidate,
-		setInitialText,
 		setSelectedAgent,
 		setSessionId,
 		setSending
@@ -172,7 +146,6 @@ function useHomeState() {
 	return {
 		selectedAgent,
 		sessionId,
-		initialText,
 		sending,
 		genuiOn,
 		toggleGenui: () => setGenuiOn((v) => !v),
@@ -186,8 +159,6 @@ interface ChatPanelProps {
 	agent: AgentRow;
 	agentClient: AgentClient | null;
 	initialGenui: boolean;
-	initialText: string;
-	onClearInitialText: () => void;
 	onClose: () => void;
 	onNewSession: () => void;
 	onSessionChange: (id: string) => void;
@@ -198,9 +169,7 @@ interface ChatPanelProps {
 function ChatPanel({
 	agent,
 	agentClient,
-	initialText,
 	initialGenui,
-	onClearInitialText,
 	onClose,
 	onNewSession,
 	onSessionChange,
@@ -210,20 +179,15 @@ function ChatPanel({
 	if (!agentClient) {
 		return null;
 	}
-	const handleSessionChange = (id: string) => {
-		onClearInitialText();
-		onSessionChange(id);
-	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatView
 				agent={agent}
 				agentClient={agentClient}
 				initialGenui={initialGenui}
-				initialText={initialText}
 				onClose={onClose}
 				onNewSession={onNewSession}
-				onSessionChange={handleSessionChange}
+				onSessionChange={onSessionChange}
 				sessionId={sessionId}
 				sessions={sessions}
 			/>
@@ -232,11 +196,10 @@ function ChatPanel({
 }
 
 const STEP_GRID = 0;
-const STEP_COMPOSER = 1;
-const STEP_CHAT = 2;
+const STEP_CHAT = 1;
 
 function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
-	const { selectedAgent, sessionId } = home;
+	const { selectedAgent, sessionId, sending } = home;
 	if (!selectedAgent) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
@@ -244,27 +207,14 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 			</div>
 		);
 	}
-	if (sessionId === "") {
-		return (
-			<WebComposer
-				agent={selectedAgent}
-				genuiActive={home.genuiOn}
-				onClose={home.closeComposer}
-				onSend={home.send}
-				onSessionSelect={home.selectSession}
-				onToggleGenui={home.toggleGenui}
-				sending={home.sending}
-				sessions={home.sessions}
-			/>
-		);
+	if (sending || sessionId === "") {
+		return <AgentGridSkeleton />;
 	}
 	return (
 		<ChatPanel
 			agent={selectedAgent}
 			agentClient={home.agentClient}
 			initialGenui={home.genuiOn}
-			initialText={home.initialText}
-			onClearInitialText={home.clearInitialText}
 			onClose={home.closeChat}
 			onNewSession={home.newSession}
 			onSessionChange={home.selectSession}
@@ -276,10 +226,8 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 
 function HomePage() {
 	const home = useHomeState();
-	let step = STEP_GRID;
-	if (home.selectedAgent) {
-		step = home.sessionId === "" ? STEP_COMPOSER : STEP_CHAT;
-	}
+	const step =
+		home.selectedAgent && home.sessionId !== "" ? STEP_CHAT : STEP_GRID;
 	return (
 		<StepTransition step={step}>
 			<HomeContent home={home} />
