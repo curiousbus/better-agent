@@ -34,6 +34,7 @@ import { createSessionStore } from "@better-agent/db/repositories/session-store"
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createSprintStore } from "@better-agent/db/repositories/sprint-store";
 import { createTaskStore } from "@better-agent/db/repositories/task-store";
+import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
 import { Redis as UpstashRedis } from "@upstash/redis";
@@ -187,6 +188,7 @@ function buildStores(parts: {
 	settings: ReturnType<typeof createSettingsStore>;
 	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
+	usageStore: ReturnType<typeof createUsageStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, authStores } = parts;
@@ -202,6 +204,7 @@ function buildStores(parts: {
 		composioAccount: parts.composioAccount,
 		sprint: parts.sprintStore,
 		task: parts.taskStore,
+		usage: parts.usageStore,
 		webAuthzCache: parts.webAuthzCache,
 		...authStores,
 	};
@@ -220,6 +223,7 @@ function assembleServices(parts: {
 	settings: ReturnType<typeof createSettingsStore>;
 	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
+	usageStore: ReturnType<typeof createUsageStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, auth } = parts;
@@ -243,18 +247,7 @@ function assembleServices(parts: {
 		composio: buildComposioAccountResolver(parts.composioAccount),
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
-		stores: buildStores({
-			deps,
-			sessionStore: parts.sessionStore,
-			messageStore: parts.messageStore,
-			attachmentStore: parts.attachmentStore,
-			settings: parts.settings,
-			composioAccount: parts.composioAccount,
-			sprintStore: parts.sprintStore,
-			taskStore: parts.taskStore,
-			webAuthzCache: parts.webAuthzCache,
-			authStores: auth.authStores,
-		}),
+		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
 
@@ -269,6 +262,7 @@ export function buildServices(
 	const messageStore = createMessageStore(db);
 	const sprintStore = createSprintStore(db);
 	const taskStore = createTaskStore(db);
+	const usageStore = createUsageStore(db);
 	const attachmentStore = createAttachmentStore(
 		createAttachmentMetaStore(db),
 		uploads
@@ -290,6 +284,7 @@ export function buildServices(
 		messageStore,
 		sprintStore,
 		taskStore,
+		usageStore,
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),

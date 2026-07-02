@@ -9,6 +9,7 @@ import { composioAdminRouter } from "./composio-admin";
 import { inviteRouter } from "./invite";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
+import { usageRouter } from "./usage";
 import { userSessionsRouter } from "./user-sessions";
 
 export const appRouter = {
@@ -21,6 +22,7 @@ export const appRouter = {
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,
+	usage: usageRouter,
 	userSessions: userSessionsRouter,
 };
 export type AppRouter = typeof appRouter;
