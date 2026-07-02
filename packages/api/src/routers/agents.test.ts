@@ -30,7 +30,10 @@ function buildClient(
 		tokenService,
 		authConfig: AUTH_CONFIG,
 		agentValidator: { validate: () => Promise.resolve(null) },
-		stores: { agent: agentStore },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			agent: agentStore,
+		},
 	};
 	const client = createRouterClient(appRouter, {
 		context: {

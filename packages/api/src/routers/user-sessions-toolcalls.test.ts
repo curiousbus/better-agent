@@ -76,6 +76,7 @@ async function setup() {
 	const services = {
 		authz: { enabled: false },
 		stores: {
+			activity: { log: () => Promise.resolve() },
 			session: sessionStore,
 			task: memoryTaskStore(),
 			sprint: memorySprintStore(),

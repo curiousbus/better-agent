@@ -29,6 +29,7 @@ import type { CancellationRegistry } from "@better-agent/agent/session/cancellat
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
+import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
 
 export interface AgentServices {
@@ -69,6 +70,7 @@ export interface AgentServices {
 		sprint: SprintStore;
 		task: TaskStore;
 		usage: UsageStore;
+		activity: ActivityStore;
 		webAuthzCache: WebAuthzCacheStore;
 	};
 	tokenService: TokenService;

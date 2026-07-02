@@ -30,7 +30,10 @@ async function setup() {
 	});
 	const services = {
 		tokenService,
-		stores: { agent: agentStore },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			agent: agentStore,
+		},
 	} as unknown as AgentServices;
 	return { services, token, agentId: created.id };
 }

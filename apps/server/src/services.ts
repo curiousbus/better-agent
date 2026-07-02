@@ -15,6 +15,7 @@ import { createModelTitler } from "@better-agent/agent/session/model-titler";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createInMemorySessionLock } from "@better-agent/agent/session/session-lock";
 import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pending-store";
+import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import {
@@ -189,6 +190,7 @@ function buildStores(parts: {
 	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
+	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, authStores } = parts;
@@ -205,6 +207,7 @@ function buildStores(parts: {
 		sprint: parts.sprintStore,
 		task: parts.taskStore,
 		usage: parts.usageStore,
+		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
 		...authStores,
 	};
@@ -224,6 +227,7 @@ function assembleServices(parts: {
 	sprintStore: ReturnType<typeof createSprintStore>;
 	taskStore: ReturnType<typeof createTaskStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
+	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
 }) {
 	const { deps, auth } = parts;
@@ -260,9 +264,6 @@ export function buildServices(
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
-	const sprintStore = createSprintStore(db);
-	const taskStore = createTaskStore(db);
-	const usageStore = createUsageStore(db);
 	const attachmentStore = createAttachmentStore(
 		createAttachmentMetaStore(db),
 		uploads
@@ -282,9 +283,10 @@ export function buildServices(
 		attachmentStore,
 		sessionStore,
 		messageStore,
-		sprintStore,
-		taskStore,
-		usageStore,
+		sprintStore: createSprintStore(db),
+		taskStore: createTaskStore(db),
+		usageStore: createUsageStore(db),
+		activityStore: createActivityStore(db),
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),

@@ -73,7 +73,12 @@ async function buildClient() {
 		// only the fields the sessions router touches are needed for these tests
 		runtime,
 		pendingToolCallStore,
-		stores: { agent: agentStore, session: sessionStore, message: messageStore },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			agent: agentStore,
+			session: sessionStore,
+			message: messageStore,
+		},
 	};
 	const client = createRouterClient(appRouter, {
 		context: {

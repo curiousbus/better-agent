@@ -15,7 +15,10 @@ function buildClient(
 ) {
 	const services = {
 		authz: { enabled: false },
-		stores: { usage: { dailySummary: () => Promise.resolve(daily) } },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			usage: { dailySummary: () => Promise.resolve(daily) },
+		},
 	};
 	return createRouterClient(appRouter, {
 		context: {

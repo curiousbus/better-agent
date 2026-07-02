@@ -25,7 +25,13 @@ function buildClient(email: string | null) {
 	const user = createFakeUserStore();
 	const services = {
 		authConfig: AUTH_CONFIG,
-		stores: { providerCatalog, modelCache, providerCredential, user },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			providerCatalog,
+			modelCache,
+			providerCredential,
+			user,
+		},
 	};
 	const authedUser = email
 		? { id: "uid-1", email, createdAt: new Date() }

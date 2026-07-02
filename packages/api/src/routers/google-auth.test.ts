@@ -39,6 +39,7 @@ function build(googleOAuth: GoogleOAuth | null = null) {
 			adminEmails: [] as string[],
 		},
 		stores: {
+			activity: { log: () => Promise.resolve() },
 			user: createFakeUserStore(),
 			magicLink: createFakeMagicLinkStore(),
 			refreshToken,

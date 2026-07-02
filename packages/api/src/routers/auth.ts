@@ -13,6 +13,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { publicProcedure, userProcedure } from "../index";
+import { issueTokens } from "./auth-tokens";
 import { googleAuthRouter } from "./google-auth";
 
 const MS = 1000;
@@ -53,25 +54,6 @@ async function enforcePasswordLimits(
 	const limiter = context.services.rateLimiter;
 	await enforce(limiter, `password:ip:${context.clientIp}`, LIMIT_PASSWORD_IP);
 	await enforce(limiter, `password:email:${email}`, LIMIT_PASSWORD_EMAIL);
-}
-
-export async function issueTokens(
-	context: Context,
-	user: { id: string; email: string }
-) {
-	const { authConfig, jwtService, stores } = context.services;
-	const accessToken = await jwtService.sign(
-		{ sub: user.id, email: user.email },
-		authConfig.accessTtl
-	);
-	const refreshToken = generateToken("rt_");
-	await stores.refreshToken.create({
-		userId: user.id,
-		tokenHash: hashToken(refreshToken),
-		expiresAt: new Date(Date.now() + authConfig.refreshTtl * MS),
-		userAgent: context.userAgent,
-	});
-	return { accessToken, refreshToken, user };
 }
 
 export const authRouter = {

@@ -30,7 +30,14 @@ function buildServices() {
 	const user = createFakeUserStore();
 	const refreshToken = createFakeRefreshTokenStore();
 	return {
-		services: { authConfig: AUTH_CONFIG, stores: { user, refreshToken } },
+		services: {
+			authConfig: AUTH_CONFIG,
+			stores: {
+				activity: { log: () => Promise.resolve() },
+				user,
+				refreshToken,
+			},
+		},
 		user,
 		refreshToken,
 	};

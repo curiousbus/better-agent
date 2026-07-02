@@ -65,7 +65,12 @@ function buildServices() {
 		authz: { enabled: false },
 		runtime,
 		pendingToolCallStore,
-		stores: { agent: agentStore, session: sessionStore, message: messageStore },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			agent: agentStore,
+			session: sessionStore,
+			message: messageStore,
+		},
 	};
 	return { agentStore, sessionStore, services };
 }

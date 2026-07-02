@@ -89,6 +89,11 @@ export const agentsRouter = {
 				token,
 				userId: context.authedUser.id,
 			});
+			await context.services.stores.activity.log({
+				userId: context.authedUser.id,
+				type: "agent_created",
+				summary: `Created agent “${agent.name}”`,
+			});
 			return { agent, token };
 		}),
 
@@ -137,12 +142,17 @@ export const agentsRouter = {
 	delete: authorizedUserProcedure
 		.input(idInput)
 		.handler(async ({ input, context }) => {
-			await requireOwnedAgent(
+			const agent = await requireOwnedAgent(
 				context.services.stores.agent,
 				context.authedUser.id,
 				input.id
 			);
 			await context.services.stores.agent.delete(input.id);
+			await context.services.stores.activity.log({
+				userId: context.authedUser.id,
+				type: "agent_deleted",
+				summary: `Deleted agent “${agent.name}”`,
+			});
 			return { ok: true };
 		}),
 };

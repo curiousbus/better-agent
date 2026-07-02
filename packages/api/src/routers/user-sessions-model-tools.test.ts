@@ -156,6 +156,7 @@ function buildModelToolServices(model: LanguageModelV3, taskStore: TaskStore) {
 		runtime,
 		pendingToolCallStore,
 		stores: {
+			activity: { log: () => Promise.resolve() },
 			agent: agentStore,
 			session: sessionStore,
 			message: messageStore,

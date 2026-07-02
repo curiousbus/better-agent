@@ -49,7 +49,12 @@ function buildClient() {
 			catalogStore: providerCatalog,
 			credentialStore: providerCredential,
 		}),
-		stores: { providerCatalog, modelCache, providerCredential },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			providerCatalog,
+			modelCache,
+			providerCredential,
+		},
 	};
 	return createRouterClient(appRouter, {
 		context: {

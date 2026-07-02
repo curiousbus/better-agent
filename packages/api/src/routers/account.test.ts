@@ -21,7 +21,11 @@ function build() {
 	const refreshToken = createFakeRefreshTokenStore();
 	const services = {
 		authz: { enabled: false },
-		stores: { user: userStore, refreshToken },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			user: userStore,
+			refreshToken,
+		},
 	};
 	const makeClient = (authedUserId: string | null) => {
 		const authedUser = authedUserId
@@ -162,7 +166,11 @@ function buildWithAuth() {
 			magicLinkTtl: 900,
 			adminEmails: [] as string[],
 		},
-		stores: { user: userStore, refreshToken },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			user: userStore,
+			refreshToken,
+		},
 	};
 	const makeAuthedClient = (userId: string, email: string) =>
 		createRouterClient(appRouter, {

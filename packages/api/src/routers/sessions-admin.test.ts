@@ -29,7 +29,12 @@ function buildAdminClientWithSessions(authedUser = SUPER_ADMIN_USER) {
 	const session = createFakeSessionStore();
 	const services = {
 		authConfig: AUTH_CONFIG,
-		stores: { user, refreshToken, session },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			user,
+			refreshToken,
+			session,
+		},
 	};
 	const client = createRouterClient(appRouter, {
 		context: {

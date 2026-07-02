@@ -1,7 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { publicProcedure } from "../index";
-import { enforce, issueTokens } from "./auth";
+import { enforce } from "./auth";
+import { issueTokens } from "./auth-tokens";
 
 const LIMIT_GOOGLE_IP = 30;
 
