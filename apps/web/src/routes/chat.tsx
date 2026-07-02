@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { ChatView } from "@/components/chat/chat-view";
+import { usePreselectAgent } from "@/components/chat/use-preselect-agent";
 import { WebComposer } from "@/components/chat/web-composer";
 import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
@@ -14,6 +15,9 @@ import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/chat")({
 	component: HomePage,
+	validateSearch: (search: Record<string, unknown>): { agentId?: string } => ({
+		agentId: typeof search.agentId === "string" ? search.agentId : undefined,
+	}),
 });
 
 function useUserAgentClient(agentId: string | null): AgentClient | null {
@@ -149,6 +153,7 @@ function useHomeState() {
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
+	usePreselectAgent(Route.useSearch().agentId, selectedAgent, setSelectedAgent);
 	const invalidate = useCallback(
 		() =>
 			queryClient.invalidateQueries({

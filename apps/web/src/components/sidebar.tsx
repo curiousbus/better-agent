@@ -1,17 +1,15 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import { Bot, Gauge, LayoutDashboard, MessageSquare } from "lucide-react";
+import { Bot, Gauge, LayoutDashboard } from "lucide-react";
 
 import { UserMenu } from "@/components/user-menu";
 
+// Chat is not a top-level nav item — you open a chat from an agent (its row's
+// chat action → /chat?agentId=…).
 const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
 		item: { to: "/", label: "Dashboard", icon: Gauge },
-	},
-	{
-		kind: "item",
-		item: { to: "/chat", label: "Chat", icon: MessageSquare },
 	},
 	{
 		kind: "item",

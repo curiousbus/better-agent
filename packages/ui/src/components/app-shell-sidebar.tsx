@@ -73,7 +73,10 @@ function NavItemLink({
 				tooltip={child.label}
 			>
 				<child.icon />
-				<span>{child.label}</span>
+				{/* Collapsed rail = icon only; label shows via the hover tooltip. */}
+				<span className="group-data-[collapsible=icon]:hidden">
+					{child.label}
+				</span>
 			</SidebarMenuButton>
 		</SidebarMenuItem>
 	);

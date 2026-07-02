@@ -12,14 +12,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
-import { RegenerateToken } from "./agent-token-controls";
+import { AgentRowActions } from "./agent-row-actions";
 import { AgentWizard } from "./agent-wizard";
 import { TokenRevealDialog } from "./token-reveal-dialog";
 
@@ -74,16 +73,12 @@ function AgentRows({
 						<TokenCell agentId={row.id} />
 					</TableCell>
 					<TableCell className="text-right">
-						<div className="flex justify-end gap-1">
-							<Button onClick={() => onEdit(row)} size="xs" variant="outline">
-								Edit
-							</Button>
-							<RegenerateToken agentId={row.id} onToken={onTokenRotated} />
-							<DeleteConfirm
-								label="Delete this agent?"
-								onConfirm={() => onDelete(row.id)}
-							/>
-						</div>
+						<AgentRowActions
+							onDelete={onDelete}
+							onEdit={onEdit}
+							onTokenRotated={onTokenRotated}
+							row={row}
+						/>
 					</TableCell>
 				</TableRow>
 			))}

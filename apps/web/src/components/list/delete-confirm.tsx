@@ -5,6 +5,7 @@ import {
 	PopoverTitle,
 	PopoverTrigger,
 } from "@better-agent/ui/components/popover";
+import { Trash2Icon } from "lucide-react";
 import { useState } from "react";
 
 export function DeleteConfirm({
@@ -17,8 +18,17 @@ export function DeleteConfirm({
 	const [open, setOpen] = useState(false);
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger render={<Button size="xs" variant="destructive" />}>
-				Delete
+			<PopoverTrigger
+				render={
+					<Button
+						aria-label="Delete"
+						size="icon-xs"
+						title="Delete"
+						variant="ghost"
+					/>
+				}
+			>
+				<Trash2Icon className="size-4" />
 			</PopoverTrigger>
 			<PopoverContent>
 				<PopoverTitle className="text-sm">{label}</PopoverTitle>
