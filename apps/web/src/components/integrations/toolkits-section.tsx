@@ -8,10 +8,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@better-agent/ui/components/table";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import type { ComposioToolkitRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
@@ -22,25 +21,9 @@ import {
 	keySchemeFor,
 } from "./connect-key-dialog";
 import { queryPlaceholder } from "./placeholder";
+import { useOauthPopup } from "./use-oauth-popup";
 
 const COLUMN_COUNT = 3;
-
-function useToolkitConnect() {
-	const queryClient = useQueryClient();
-	return useMutation(
-		orpc.composio.connect.mutationOptions({
-			onSuccess: (result) => {
-				if (result.redirectUrl) {
-					window.open(result.redirectUrl, "_blank", "noopener,noreferrer");
-				}
-				queryClient.invalidateQueries({
-					queryKey: orpc.composio.connections.key(),
-				});
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-}
 
 function ToolkitRow({
 	toolkit,
@@ -147,7 +130,7 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 	const toolkits = useQuery(
 		orpc.composio.toolkits.queryOptions({ input: { accountId } })
 	);
-	const connect = useToolkitConnect();
+	const oauth = useOauthPopup(accountId);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
@@ -161,14 +144,14 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 			: all;
 	}, [toolkits.data, search]);
 
-	// OAuth toolkits redirect; key-authenticated ones (tavily etc.) prompt for
-	// the service's key instead — authorize() would just error for those.
+	// OAuth toolkits authorize in a small centered popup; key-authenticated ones
+	// (tavily etc.) prompt for the service's key — authorize() would error there.
 	const handleConnect = (toolkit: ComposioToolkitRow) => {
 		const scheme = keySchemeFor(toolkit);
 		if (scheme) {
 			setKeyTarget({ toolkit, scheme });
 		} else {
-			connect.mutate({ accountId, toolkit: toolkit.slug });
+			oauth.start(toolkit.slug);
 		}
 	};
 
@@ -178,7 +161,7 @@ export function ToolkitsSection({ accountId }: { accountId: string }) {
 			<ToolkitSearch onSearch={setSearch} search={search} />
 			<ToolkitsTable
 				isLoading={toolkits.isLoading}
-				isPending={connect.isPending}
+				isPending={oauth.isPending}
 				onConnect={handleConnect}
 				placeholder={queryPlaceholder(toolkits, "No toolkits found.")}
 				rows={filtered}
