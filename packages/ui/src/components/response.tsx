@@ -18,6 +18,12 @@ export const Response = memo(function Response({
 }) {
 	return (
 		<Streamdown
+			// Our own typewriter (stream-reveal) already paces the text. Streamdown's
+			// built-in per-segment fadeIn is a SECOND animation layer: when the
+			// reveal flushes the tail at stream end, a markdown reflow remounts
+			// blocks and the whole reply fades back in from opacity 0 for seconds —
+			// the "reply vanishes then reappears" at completion.
+			animated={false}
 			caret="block"
 			className={cn(
 				"prose-sm max-w-none break-words text-sm leading-relaxed",
