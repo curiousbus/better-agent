@@ -52,13 +52,12 @@ function SectionSkeleton({ rowCount }: { rowCount: number }) {
 	);
 }
 
-// Mirrors the account detail view: connections section then the (longer)
-// toolkit catalog section, each shaped as a bordered row list.
+// Mirrors the account detail view: heading then the merged toolkit table,
+// shaped as a bordered row list.
 export function AccountDetailSkeleton() {
 	return (
 		<div className="flex flex-col gap-4">
 			<Skeleton className="h-5 w-40" />
-			<SectionSkeleton rowCount={2} />
 			<SectionSkeleton rowCount={5} />
 		</div>
 	);
