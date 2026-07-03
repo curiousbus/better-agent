@@ -11,6 +11,7 @@ import { Input } from "@better-agent/ui/components/input";
 import { Label } from "@better-agent/ui/components/label";
 import type { ComponentType } from "react";
 import { TodoList } from "./todo-list";
+import { TweetCardNode } from "./tweet-card-node";
 
 const str = (v: unknown, fallback = ""): string =>
 	typeof v === "string" ? v : fallback;
@@ -147,4 +148,5 @@ export const RENDERERS: Record<string, ComponentType<NodeProps>> = {
 	Button: ButtonNode,
 	Form: FormNode,
 	TextField,
+	TweetCard: TweetCardNode,
 };

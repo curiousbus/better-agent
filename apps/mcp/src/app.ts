@@ -3,10 +3,21 @@ import { handleMessage } from "./mcp-server";
 
 // Streamable HTTP endpoint in stateless JSON mode: every POST carries one
 // JSON-RPC message; responses come back as application/json (the spec allows
-// a plain JSON body instead of an SSE stream). No session state is kept.
+// a plain JSON body instead of an SSE stream). No session state is kept — the
+// user's X auth_token rides on each request as the bearer token.
 
 const ACCEPTED = 202;
 const BAD_REQUEST = 400;
+const PARSE_ERROR = -32_700;
+const BEARER_RE = /^Bearer\s+(.+)$/i;
+
+function bearerToken(header: string | undefined): string | null {
+	if (!header) {
+		return null;
+	}
+	const match = header.match(BEARER_RE);
+	return match ? (match[1]?.trim() ?? null) : null;
+}
 
 export function buildApp(): Hono {
 	const app = new Hono();
@@ -22,12 +33,13 @@ export function buildApp(): Hono {
 				{
 					jsonrpc: "2.0",
 					id: null,
-					error: { code: -32_700, message: "Parse error" },
+					error: { code: PARSE_ERROR, message: "Parse error" },
 				},
 				BAD_REQUEST
 			);
 		}
-		const response = handleMessage(message);
+		const authToken = bearerToken(c.req.header("authorization"));
+		const response = await handleMessage(message, { authToken });
 		if (response === null) {
 			return c.body(null, ACCEPTED);
 		}

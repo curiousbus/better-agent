@@ -1,0 +1,63 @@
+{
+  "data": {
+    "user": {
+      "result": {
+        "timeline_v2": {
+          "timeline": {
+            "instructions": [
+              {
+                "type": "TimelineAddEntries",
+                "entries": [
+                  {
+                    "entryId": "tweet-1700000000000000001",
+                    "sortIndex": "1700000000000000001",
+                    "content": {
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "itemType": "TimelineTweet",
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "1700000000000000001",
+                            "legacy": {
+                              "id_str": "1700000000000000001",
+                              "full_text": "hello",
+                              "created_at": "Wed Oct 10 20:19:24 +0000 2018"
+                            },
+                            "core": {
+                              "user_results": {
+                                "result": {
+                                  "rest_id": "42",
+                                  "legacy": {
+                                    "screen_name": "acct"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "entryId": "cursor-bottom",
+                    "sortIndex": "0",
+                    "content": {
+                      "entryType": "TimelineTimelineItem",
+                      "cursorType": "Bottom",
+                      "value": "CURSOR_2",
+                      "itemContent": {
+                        "cursorType": "Bottom",
+                        "value": "CURSOR_2"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -75,6 +75,25 @@ export const MANIFEST: ComponentDef[] = [
 			placeholder: z.string().optional(),
 		}),
 	},
+	{
+		type: "TweetCard",
+		description:
+			"A single tweet rendered as a card. When showing tweets from the X tools (x_search_tweets, x_user_tweets, x_search_users), render ONE TweetCard per tweet and fill its props from the tool result fields.",
+		props: props({
+			authorName: z.string(),
+			authorHandle: z.string(),
+			authorAvatarUrl: z.string().optional(),
+			verified: z.boolean().optional(),
+			text: z.string(),
+			postedAt: z.string().optional(),
+			url: z.string().optional(),
+			likeCount: z.number().optional(),
+			retweetCount: z.number().optional(),
+			replyCount: z.number().optional(),
+			viewCount: z.number().optional(),
+			mediaUrls: z.array(z.string()).optional(),
+		}),
+	},
 ];
 
 export const COMPONENT_TYPES: string[] = MANIFEST.map((d) => d.type);

@@ -9,7 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "twitter-openapi-typescript": "catalog:",
+    "twitter-openapi-typescript-generated": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20260625.1",
