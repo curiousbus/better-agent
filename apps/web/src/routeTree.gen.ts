@@ -14,7 +14,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
-import { Route as BoardRouteImport } from './routes/board'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
@@ -46,11 +45,6 @@ const DashboardRoute = DashboardRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BoardRoute = BoardRouteImport.update({
-  id: '/board',
-  path: '/board',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -92,7 +86,6 @@ const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
@@ -107,7 +100,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
@@ -123,7 +115,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/board': typeof BoardRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
   '/invite': typeof InviteRoute
@@ -140,7 +131,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
-    | '/board'
     | '/chat'
     | '/dashboard'
     | '/invite'
@@ -155,7 +145,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
-    | '/board'
     | '/chat'
     | '/dashboard'
     | '/invite'
@@ -170,7 +159,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
-    | '/board'
     | '/chat'
     | '/dashboard'
     | '/invite'
@@ -186,7 +174,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  BoardRoute: typeof BoardRoute
   ChatRoute: typeof ChatRoute
   DashboardRoute: typeof DashboardRoute
   InviteRoute: typeof InviteRoute
@@ -234,13 +221,6 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/board': {
-      id: '/board'
-      path: '/board'
-      fullPath: '/board'
-      preLoaderRoute: typeof BoardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -298,7 +278,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  BoardRoute: BoardRoute,
   ChatRoute: ChatRoute,
   DashboardRoute: DashboardRoute,
   InviteRoute: InviteRoute,

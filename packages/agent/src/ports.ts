@@ -16,7 +16,6 @@ import type {
 	SessionInput,
 	SessionStatus,
 } from "./session/types";
-import type { Sprint, SprintStatus, Task, TaskStatus } from "./task/types";
 
 export interface ProviderCatalogStore {
 	get(providerId: string): Promise<ProviderCatalogEntry | null>;
@@ -212,61 +211,4 @@ export interface GoogleOAuth {
 	authUrl(state: string): string;
 	/** Exchange the authorization code for the user's verified email. */
 	exchangeCode(code: string): Promise<GoogleProfile>;
-}
-
-export interface SprintStore {
-	active(userId: string): Promise<Sprint | null>;
-	create(
-		userId: string,
-		input: {
-			endDate?: string | null;
-			goal?: string;
-			name: string;
-			startDate?: string | null;
-		}
-	): Promise<Sprint>;
-	get(userId: string, id: string): Promise<Sprint | null>;
-	list(userId: string): Promise<Sprint[]>;
-	remove(userId: string, id: string): Promise<boolean>;
-	setStatus(
-		userId: string,
-		id: string,
-		status: SprintStatus
-	): Promise<Sprint | null>;
-	update(
-		userId: string,
-		id: string,
-		patch: {
-			endDate?: string | null;
-			goal?: string;
-			name?: string;
-			startDate?: string | null;
-		}
-	): Promise<Sprint | null>;
-}
-
-export interface TaskStore {
-	create(
-		userId: string,
-		input: { sprintId?: string | null; status?: TaskStatus; title: string }
-	): Promise<Task>;
-	get(userId: string, id: string): Promise<Task | null>;
-	getBySeq(userId: string, seq: number): Promise<Task | null>;
-	listBacklog(userId: string): Promise<Task[]>;
-	listColumn(
-		userId: string,
-		sprintId: string | null,
-		status: TaskStatus
-	): Promise<Task[]>;
-	move(
-		userId: string,
-		id: string,
-		patch: { position: number; sprintId?: string | null; status: TaskStatus }
-	): Promise<Task | null>;
-	remove(userId: string, id: string): Promise<boolean>;
-	update(
-		userId: string,
-		id: string,
-		patch: { description?: string; title?: string }
-	): Promise<Task | null>;
 }

@@ -27,8 +27,6 @@ import {
 } from "@better-agent/db/repositories/provider-stores";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
-import { createSprintStore } from "@better-agent/db/repositories/sprint-store";
-import { createTaskStore } from "@better-agent/db/repositories/task-store";
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
@@ -156,8 +154,6 @@ function buildStores(parts: {
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
-	sprintStore: ReturnType<typeof createSprintStore>;
-	taskStore: ReturnType<typeof createTaskStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
@@ -174,8 +170,6 @@ function buildStores(parts: {
 		settings: parts.settings,
 		composioAccount: parts.composioAccount,
 		mcpServer: parts.mcpServerStore,
-		sprint: parts.sprintStore,
-		task: parts.taskStore,
 		usage: parts.usageStore,
 		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
@@ -195,8 +189,6 @@ function assembleServices(parts: {
 	runtime: ReturnType<typeof buildRuntime>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
-	sprintStore: ReturnType<typeof createSprintStore>;
-	taskStore: ReturnType<typeof createTaskStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
@@ -255,8 +247,6 @@ export function buildServices(
 		attachmentStore,
 		sessionStore,
 		messageStore,
-		sprintStore: createSprintStore(db),
-		taskStore: createTaskStore(db),
 		usageStore: createUsageStore(db),
 		activityStore: createActivityStore(db),
 		auth: buildAuthServices(db),

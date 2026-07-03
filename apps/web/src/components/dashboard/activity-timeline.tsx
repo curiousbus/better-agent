@@ -3,8 +3,8 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { ActivityIcon, BotIcon, LogInIcon, Trash2Icon } from "lucide-react";
 import type { ReactNode } from "react";
-import { relativeTime } from "@/board/relative-time";
 import { orpc } from "@/utils/orpc";
+import { relativeTime } from "@/utils/relative-time";
 
 type ActivityType = "login" | "agent_created" | "agent_deleted";
 

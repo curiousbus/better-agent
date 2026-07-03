@@ -13,7 +13,6 @@ import type {
 	RunEvent,
 	RunOptions,
 	RunResult,
-	ToolCallResult,
 	UploadedAttachment,
 } from "./types";
 
@@ -40,20 +39,6 @@ function attachmentMethods(
 type Client = RouterClient<AppRouter>;
 
 // JSON-parses string results (raw on failure); passes non-strings through.
-function parseToolResult(raw: unknown): unknown {
-	if (typeof raw !== "string") {
-		return raw;
-	}
-	try {
-		return JSON.parse(raw);
-	} catch {
-		return raw;
-	}
-}
-
-function toErrorMessage(result: unknown): string {
-	return typeof result === "string" ? result : JSON.stringify(result);
-}
 
 type SubmitFn = (r: {
 	callId: string;
@@ -173,66 +158,9 @@ export function createAgentClientFrom(client: Client): AgentClient {
 		async cancel(sessionId) {
 			await client.sessions.cancel({ sessionId });
 		},
-
-		// Direct tool execution is a user-session capability (the agent-token chat
-		// plane has no `toolCalls` stream mode); reject clearly if misused here.
-		runTools() {
-			return Promise.reject(
-				new Error("runTools is only available on user sessions")
-			);
-		},
-		runTool() {
-			return Promise.reject(
-				new Error("runTool is only available on user sessions")
-			);
-		},
 	};
 
 	return agentClient;
-}
-
-async function userRunTools(
-	client: Client,
-	sessionId: string,
-	calls: Parameters<AgentClient["runTools"]>[1],
-	onResult: Parameters<AgentClient["runTools"]>[2]
-): Promise<void> {
-	const stream = await client.userSessions.prompt({
-		sessionId,
-		toolCalls: calls,
-	});
-	for await (const event of stream) {
-		if (event.type === "tool-result") {
-			onResult({
-				callId: event.callId,
-				name: event.name ?? "",
-				result: parseToolResult(event.result),
-				isError: event.isError,
-			});
-		} else if (event.type === "error") {
-			throw new Error(event.message);
-		}
-	}
-}
-
-async function userRunTool(
-	client: Client,
-	sessionId: string,
-	name: string,
-	args: Record<string, unknown>
-): Promise<unknown> {
-	const callId = crypto.randomUUID();
-	let captured: ToolCallResult | undefined;
-	await userRunTools(client, sessionId, [{ callId, name, args }], (result) => {
-		captured = result;
-	});
-	if (!captured) {
-		throw new Error(`No result for tool ${name}`);
-	}
-	if (captured.isError) {
-		throw new Error(toErrorMessage(captured.result));
-	}
-	return captured.result;
 }
 
 /** Build a user-plane SDK from an existing oRPC client (userSessions router, bound to an agentId). */
@@ -279,11 +207,6 @@ export function createUserSessionClientFrom(
 		async cancel(sessionId) {
 			await client.userSessions.cancel({ sessionId });
 		},
-
-		runTools: (sessionId, calls, onResult) =>
-			userRunTools(client, sessionId, calls, onResult),
-		runTool: (sessionId, name, args) =>
-			userRunTool(client, sessionId, name, args),
 	};
 }
 

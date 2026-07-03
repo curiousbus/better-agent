@@ -19,11 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-
-import { relativeTime } from "@/board/relative-time";
 import { loadRefreshToken } from "@/utils/auth";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
+import { relativeTime } from "@/utils/relative-time";
 
 export const Route = createFileRoute("/account")({ component: AccountPage });
 

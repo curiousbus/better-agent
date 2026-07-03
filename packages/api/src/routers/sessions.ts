@@ -21,21 +21,6 @@ const remoteToolSchema = z.object({
 });
 
 const MAX_ATTACHMENTS = 10;
-const MAX_TOOL_CALLS = 16;
-
-export const toolCallsInput = z.object({
-	sessionId: z.uuid(),
-	toolCalls: z
-		.array(
-			z.object({
-				callId: z.string().min(1),
-				name: z.string().min(1),
-				args: z.record(z.string(), z.unknown()),
-			})
-		)
-		.min(1)
-		.max(MAX_TOOL_CALLS),
-});
 
 export const promptInput = z
 	.object({
@@ -44,20 +29,12 @@ export const promptInput = z
 		tools: z.array(remoteToolSchema).optional(),
 		outputSchema: z.record(z.string(), z.unknown()).optional(),
 		attachmentIds: z.array(z.uuid()).max(MAX_ATTACHMENTS).optional(),
-		// Surfaces this turn opts into (e.g. ["board"]). Only then are that
-		// surface's server tools bound to the model turn — the general agent stays
-		// clean instead of carrying board tools in every conversation.
-		surfaces: z.array(z.string()).optional(),
 	})
 	.refine(
 		(value) =>
 			value.text.trim().length > 0 || (value.attachmentIds?.length ?? 0) > 0,
 		{ message: "Provide a message or at least one attachment" }
 	);
-
-// toolCallsInput FIRST: a toolCalls-only payload must not be tried against
-// promptInput (whose refine requires text or an attachment).
-export const promptOrToolCallsInput = z.union([toolCallsInput, promptInput]);
 
 // Loads the session and asserts it belongs to the authed agent. Returns
 // NOT_FOUND for both missing and other-agent sessions so existence never leaks.

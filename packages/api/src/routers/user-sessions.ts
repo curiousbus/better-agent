@@ -13,18 +13,7 @@ import {
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
 import { assembleAgentToolDefs } from "./agent-tool-defs";
-import { boardDirectDefs, boardModelDefs } from "./board-defs";
-import {
-	drainWithStructured,
-	errorMessage,
-	promptInput,
-	promptOrToolCallsInput,
-} from "./sessions";
-import {
-	executeToolCall,
-	streamSettled,
-	type ToolCall,
-} from "./tool-calls-stream";
+import { drainWithStructured, errorMessage, promptInput } from "./sessions";
 import { createTurnChannel, pumpTurn } from "./turn-channel";
 
 const idInput = z.object({ id: z.uuid() });
@@ -68,7 +57,6 @@ async function* streamUserTurn(
 		}>;
 		outputSchema?: Record<string, unknown>;
 		attachmentIds?: string[];
-		surfaces?: string[];
 	}
 ): AsyncGenerator<RunEvent, void> {
 	try {
@@ -77,12 +65,7 @@ async function* streamUserTurn(
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
 		const toolDefs = await agentToolDefs(context, session.agentId);
-		// Board tools are bound ONLY when the turn opts into the board surface, and
-		// only the non-destructive subset.
-		const boardDefs = input.surfaces?.includes("board")
-			? boardModelDefs(context, userId)
-			: [];
-		const allDefs = [...remoteDefs, ...toolDefs, ...boardDefs];
+		const allDefs = [...remoteDefs, ...toolDefs];
 		// Detached execution: the pump (kept alive via waitUntil) drives the turn;
 		// this response only observes. NOTE the request abort signal is deliberately
 		// NOT passed to the runtime — a client disconnect must not kill the turn.
@@ -101,28 +84,6 @@ async function* streamUserTurn(
 		);
 		context.waitUntil?.(pump);
 		yield* channel.observe();
-	} catch (error) {
-		yield { type: "error", message: errorMessage(error) };
-	}
-}
-
-// Direct tool execution over the SAME stream: run the named task tools
-// concurrently with no model, yielding each result the instant it resolves.
-async function* streamToolCalls(
-	context: Context,
-	userId: string,
-	input: { sessionId: string; toolCalls: ToolCall[] },
-	signal: AbortSignal | undefined
-): AsyncGenerator<RunEvent, void> {
-	try {
-		await requireUserSession(context, userId, input.sessionId);
-		const defs = boardDirectDefs(context, userId);
-		const byName = new Map(defs.map((def) => [def.name, def] as const));
-		const work = input.toolCalls.map((call) =>
-			executeToolCall(byName.get(call.name), call, input.sessionId, signal)
-		);
-		yield* streamSettled(work);
-		yield { type: "done", usage: null, finishReason: "stop" };
 	} catch (error) {
 		yield { type: "error", message: errorMessage(error) };
 	}
@@ -211,13 +172,10 @@ export const userSessionsRouter = {
 		}),
 
 	prompt: authorizedUserProcedure
-		.input(promptOrToolCallsInput)
-		.handler(({ input, context, signal }) => {
-			if ("toolCalls" in input) {
-				return streamToolCalls(context, context.authedUser.id, input, signal);
-			}
-			return streamUserTurn(context, context.authedUser.id, input);
-		}),
+		.input(promptInput)
+		.handler(({ input, context }) =>
+			streamUserTurn(context, context.authedUser.id, input)
+		),
 
 	cancel: authorizedUserProcedure
 		.input(sessionIdInput)

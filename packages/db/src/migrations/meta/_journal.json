@@ -197,6 +197,13 @@
       "when": 1783045780908,
       "tag": "0027_chilly_satana",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783063181911,
+      "tag": "0028_tough_stardust",
+      "breakpoints": true
     }
   ]
 }

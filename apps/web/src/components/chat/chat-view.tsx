@@ -3,11 +3,11 @@ import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useCurrentUser } from "@/board/use-current-user";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
 import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
+import { useCurrentUser } from "@/utils/use-current-user";
 
 interface ChatViewProps {
 	agent: AgentRow;
