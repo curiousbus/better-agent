@@ -3,7 +3,6 @@ import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@better-agent/ui/components/dropdown-menu";
@@ -128,7 +127,7 @@ function ToolsMenuContent({
 }) {
 	return (
 		<DropdownMenuContent align="start" className="w-72">
-			<DropdownMenuLabel>Agent tools</DropdownMenuLabel>
+			<div className="px-2 py-1.5 font-medium text-xs">Agent tools</div>
 			<DropdownMenuCheckboxItem
 				checked={state.useAll}
 				closeOnClick={false}
@@ -150,9 +149,9 @@ function ToolsMenuContent({
 						/>
 					))}
 			{errors.length > 0 ? (
-				<DropdownMenuLabel className="font-normal text-destructive text-xs">
+				<div className="px-2 py-1.5 text-destructive text-xs">
 					{errors.map((error) => error.message).join(" · ")}
-				</DropdownMenuLabel>
+				</div>
 			) : null}
 		</DropdownMenuContent>
 	);
@@ -167,17 +166,17 @@ function MenuHints({
 }) {
 	if (isPending) {
 		return (
-			<DropdownMenuLabel className="text-muted-foreground">
+			<div className="px-2 py-1.5 text-muted-foreground text-xs">
 				Loading tools…
-			</DropdownMenuLabel>
+			</div>
 		);
 	}
 	if (useAll) {
 		return (
-			<DropdownMenuLabel className="font-normal text-muted-foreground text-xs">
+			<div className="px-2 py-1.5 text-muted-foreground text-xs">
 				Every tool from the linked sources is offered. Uncheck to pick
 				individually.
-			</DropdownMenuLabel>
+			</div>
 		);
 	}
 	return null;
