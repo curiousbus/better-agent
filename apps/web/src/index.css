@@ -1,42 +1,70 @@
 @import "@better-agent/ui/globals.css";
 
-/* Global rocket loader: the rocket bobs while exhaust streaks fall away,
-   reading as a continuous ascent. */
-@keyframes rocket-float {
+/* Global rocket loader v2: the rocket cruises toward the UPPER-RIGHT while
+   space (stars, a meteor, a small planet) drifts past to the lower-left —
+   reading as continuous forward flight. */
+@keyframes rocket-fly {
 	0%,
 	100% {
-		transform: translateY(4px) rotate(-45deg);
+		transform: translate(-3px, 3px);
 	}
 	50% {
-		transform: translateY(-4px) rotate(-45deg);
+		transform: translate(3px, -3px);
 	}
 }
 
-@keyframes rocket-trail {
+/* Background bodies fly by along the travel axis (top-right -> bottom-left). */
+@keyframes space-drift {
 	0% {
-		transform: translateY(-6px) scaleY(0.6);
+		transform: translate(80px, -80px);
 		opacity: 0;
 	}
-	25% {
-		opacity: 1;
+	15% {
+		opacity: var(--drift-opacity, 0.7);
+	}
+	85% {
+		opacity: var(--drift-opacity, 0.7);
 	}
 	100% {
-		transform: translateY(26px) scaleY(1.1);
+		transform: translate(-100px, 100px);
 		opacity: 0;
 	}
 }
 
-.rocket-float {
-	animation: rocket-float 1.6s ease-in-out infinite;
+/* Exhaust dashes trail off behind the rocket (to the lower-left). */
+@keyframes exhaust {
+	0% {
+		transform: translate(0, 0) scale(1);
+		opacity: 0.9;
+	}
+	100% {
+		transform: translate(-26px, 26px) scale(0.6);
+		opacity: 0;
+	}
 }
 
-.rocket-trail {
-	animation: rocket-trail 0.9s linear infinite;
+.rocket-fly {
+	animation: rocket-fly 1.4s ease-in-out infinite;
+}
+
+.space-drift {
+	opacity: 0;
+	animation: space-drift var(--drift-duration, 2.4s) linear infinite;
+	animation-delay: var(--drift-delay, 0s);
+}
+
+.rocket-exhaust {
+	animation: exhaust 0.8s linear infinite;
+	animation-delay: var(--drift-delay, 0s);
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.rocket-float,
-	.rocket-trail {
+	.rocket-fly,
+	.space-drift,
+	.rocket-exhaust {
 		animation: none;
+	}
+	.space-drift {
+		opacity: var(--drift-opacity, 0.7);
 	}
 }

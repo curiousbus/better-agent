@@ -94,17 +94,28 @@ export function useToolToggles(
 
 // Cheap group labels: reuse the account/server list queries the Composio and
 // MCP fields above already populate, so this is a cache hit, not a new call.
+// Tool catalogs change rarely; cache them hard so reopening the menu is
+// instant (queries fire when the chat mounts, so the first open is warm too).
+const TOOLS_STALE_MS = 300_000;
+const TOOLS_GC_MS = 900_000;
+
 export function useToolSources(accountIds: string[], serverIds: string[]) {
 	const composioResults = useQueries({
-		queries: accountIds.map((accountId) =>
-			orpc.composio.tools.queryOptions({ input: { accountId } })
-		),
+		queries: accountIds.map((accountId) => ({
+			...orpc.composio.tools.queryOptions({ input: { accountId } }),
+			staleTime: TOOLS_STALE_MS,
+			gcTime: TOOLS_GC_MS,
+			retry: false,
+		})),
 	});
 	const mcpServers = useQuery(orpc.mcp.listServers.queryOptions());
 	const mcpResults = useQueries({
-		queries: serverIds.map((serverId) =>
-			orpc.mcp.tools.queryOptions({ input: { serverId } })
-		),
+		queries: serverIds.map((serverId) => ({
+			...orpc.mcp.tools.queryOptions({ input: { serverId } }),
+			staleTime: TOOLS_STALE_MS,
+			gcTime: TOOLS_GC_MS,
+			retry: false,
+		})),
 	});
 	const isPending =
 		composioResults.some((r) => r.isPending) ||
@@ -119,7 +130,7 @@ export function useToolSources(accountIds: string[], serverIds: string[]) {
 		return [
 			...buildComposioGroups(composioResults),
 			...buildMcpGroups(serverIds, mcpServers.data, mcpResults),
-		];
+		].filter((group) => group.tools.length > 0);
 	}, [isPending, composioResults, mcpResults, mcpServers.data, serverIds]);
 	return { groups, isPending, errors };
 }
