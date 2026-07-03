@@ -19,7 +19,6 @@ import { WIZARD_STEPS } from "./agent-form";
 import { BuiltinToolsField } from "./builtin-tools-field";
 import { ComposioAccountsField } from "./composio-accounts-field";
 import { McpServersField } from "./mcp-servers-field";
-import { ToolAllowlistField } from "./tool-allowlist-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
@@ -234,9 +233,9 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 	);
 }
 
+// Per-tool enable/disable moved to the chat composer's wrench menu — the
+// wizard only picks the SOURCES (accounts/servers/built-ins).
 export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
-	const hasSources =
-		form.composioAccountIds.length > 0 || form.mcpServerIds.length > 0;
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-2">
@@ -260,7 +259,6 @@ export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 					selected={form.mcpServerIds}
 				/>
 			</div>
-			{hasSources ? <ToolAllowlistField form={form} set={set} /> : null}
 		</div>
 	);
 }

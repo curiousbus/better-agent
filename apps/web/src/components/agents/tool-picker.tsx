@@ -43,7 +43,7 @@ function GroupBulkActions({
 // Level 2 of the cascade: the group's tools as checkbox rows. Submenu hover
 // uses base-ui's built-in safe-polygon intent (the "safe triangle"), so
 // diagonal cursor travel toward an open submenu never closes it.
-function GroupSubmenu({
+export function GroupSubmenu({
 	group,
 	selected,
 	onToggleTool,
