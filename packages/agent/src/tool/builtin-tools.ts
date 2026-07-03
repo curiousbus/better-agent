@@ -4,6 +4,8 @@ import type { ToolDef } from "./types";
 // in by id (AgentConfig.builtinTools).
 
 export interface BuiltinToolMeta {
+	/** Display group in pickers (e.g. "Utilities"). */
+	category: string;
 	description: string;
 	id: string;
 	label: string;
@@ -25,6 +27,7 @@ export const BUILTIN_TOOLS: BuiltinToolMeta[] = [
 	{
 		id: "get_current_time",
 		label: "Current time",
+		category: "Utilities",
 		description: "Returns the current UTC date and time.",
 	},
 ];
