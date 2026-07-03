@@ -10,6 +10,8 @@ export default [
 			"**/*.config.{js,ts}",
 			"**/routeTree.gen.ts",
 			"apps/authz/app/**",
+			// vendored shadcn primitives keep upstream shape (size/complexity)
+			"packages/ui/src/components/sidebar.tsx",
 		],
 	},
 	{

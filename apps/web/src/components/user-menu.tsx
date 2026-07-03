@@ -36,7 +36,7 @@ export function UserMenu() {
 			<DropdownMenuTrigger
 				render={
 					<button
-						className="flex w-full items-center gap-2 rounded-md p-1.5 text-left text-sidebar-foreground text-sm outline-none hover:bg-sidebar-accent"
+						className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-sidebar-foreground text-sm outline-none hover:bg-sidebar-accent"
 						type="button"
 					/>
 				}

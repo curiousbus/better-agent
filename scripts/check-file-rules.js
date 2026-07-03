@@ -83,9 +83,15 @@ function checkFileName(filePath) {
 	};
 }
 
+// vendored shadcn 原语保持上游结构，不受行数上限约束
+const LINE_LIMIT_EXEMPT = ["packages/ui/src/components/sidebar.tsx"];
+
 function checkFileLines(filePath, content) {
 	// 生成文件（如 routeTree.gen.ts）随路由数量增长，不受行数上限约束
 	if (filePath.includes(".gen.")) {
+		return { valid: true };
+	}
+	if (LINE_LIMIT_EXEMPT.some((path) => filePath.endsWith(path))) {
 		return { valid: true };
 	}
 	const lines = content.split("\n").length;

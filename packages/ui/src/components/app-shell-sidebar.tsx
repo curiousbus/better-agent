@@ -142,7 +142,11 @@ function SidebarNav({
 					{sections.map((section) =>
 						section.kind === "item" ? (
 							<NavItemLink
-								active={isActivePath(pathname, section.item.to)}
+								active={isActivePath(
+									pathname,
+									section.item.to,
+									section.item.match
+								)}
 								child={section.item}
 								key={section.item.to}
 								layoutId={highlightLayoutId}

@@ -29,6 +29,8 @@ export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 export interface NavChild {
 	icon: IconComponent;
 	label: string;
+	/** Extra pathname prefixes that should also count as "active" for this item. */
+	match?: readonly string[];
 	onHover?: () => void;
 	to: string;
 }
@@ -51,12 +53,14 @@ export interface BrandConfig {
 
 type NavGroup = Extract<NavSection, { kind: "group" }>;
 
-// Shared active-button styling: the highlight is a motion slider behind the
-// button. The active text uses the sidebar-accent foreground (not primary), so
-// it contrasts with the sidebar background itself — readable even if the slider
-// hasn't painted yet (otherwise the active item is white-on-white).
+// Shared active-button styling: a motion slider still animates in behind the
+// button (ActiveHighlight below) for a smooth transition between items, but
+// the active look itself (tinted background, primary text, left accent bar)
+// now comes straight from SidebarMenuButton's own data-active styles — this
+// class only needs to own the *inactive* hover treatment so it doesn't clobber
+// those data-active utilities.
 export const ACTIVE_BUTTON_CLASS =
-	"relative z-10 rounded-md text-sidebar-foreground not-data-active:hover:bg-sidebar-accent/60 not-data-active:hover:text-sidebar-foreground data-active:bg-transparent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-transparent data-active:hover:text-sidebar-accent-foreground";
+	"relative z-10 rounded-md text-sidebar-foreground not-data-active:hover:bg-sidebar-accent/60 not-data-active:hover:text-sidebar-foreground";
 
 const HIGHLIGHT_SPRING = {
 	type: "spring",
@@ -74,8 +78,15 @@ export function ActiveHighlight({ layoutId }: { layoutId: string }) {
 	);
 }
 
-export function isActivePath(pathname: string, to: string) {
-	return pathname.startsWith(to);
+export function isActivePath(
+	pathname: string,
+	to: string,
+	match?: readonly string[]
+): boolean {
+	if (pathname.startsWith(to)) {
+		return true;
+	}
+	return match?.some((prefix) => pathname.startsWith(prefix)) ?? false;
 }
 
 function PopoverNavLink({
@@ -114,7 +125,7 @@ function CollapsedNavGroup({
 }) {
 	const Icon = section.icon;
 	const groupActive = section.items.some((item) =>
-		isActivePath(pathname, item.to)
+		isActivePath(pathname, item.to, item.match)
 	);
 	return (
 		<SidebarMenuItem className="relative">
@@ -143,7 +154,7 @@ function CollapsedNavGroup({
 					</div>
 					{section.items.map((child) => (
 						<PopoverNavLink
-							active={isActivePath(pathname, child.to)}
+							active={isActivePath(pathname, child.to, child.match)}
 							child={child}
 							key={child.to}
 						/>
@@ -200,7 +211,7 @@ function ExpandedNavGroup({
 }) {
 	const Icon = section.icon;
 	const groupActive = section.items.some((item) =>
-		isActivePath(pathname, item.to)
+		isActivePath(pathname, item.to, item.match)
 	);
 	return (
 		<SidebarMenuItem>
@@ -223,7 +234,7 @@ function ExpandedNavGroup({
 					<SidebarMenuSub>
 						{section.items.map((child) => (
 							<SubNavLink
-								active={isActivePath(pathname, child.to)}
+								active={isActivePath(pathname, child.to, child.match)}
 								child={child}
 								key={child.to}
 								layoutId={layoutId}
@@ -247,7 +258,7 @@ export function CollapsibleNavItem({
 }) {
 	const { state, isMobile } = useSidebar();
 	const groupActive = section.items.some((item) =>
-		isActivePath(pathname, item.to)
+		isActivePath(pathname, item.to, item.match)
 	);
 	const [open, setOpen] = useState(() => pathname.startsWith(section.basePath));
 

@@ -20,6 +20,17 @@ export interface RouterAppContext {
 	queryClient: QueryClient;
 }
 
+// Runs before paint (inline, blocking) so the `dark` class lands before the
+// body renders — otherwise a stored dark preference flashes a light frame.
+const THEME_INIT_SCRIPT = `(function () {
+	try {
+		var stored = localStorage.getItem("theme");
+		var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+		var isDark = stored === "dark" || (stored !== "light" && prefersDark);
+		document.documentElement.classList.toggle("dark", isDark);
+	} catch (e) {}
+})();`;
+
 export const Route = createRootRouteWithContext<RouterAppContext>()({
 	server: {
 		middleware: [createMiddleware().server(evlogErrorHandler)],
@@ -32,6 +43,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{ title: "better-agent" },
 		],
 		links: [{ rel: "stylesheet", href: appCss }],
+		scripts: [{ children: THEME_INIT_SCRIPT }],
 	}),
 
 	component: RootDocument,

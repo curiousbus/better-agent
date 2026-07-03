@@ -64,7 +64,7 @@ export function RocketLoader({ label = "Loading" }: { label?: string }) {
 			className="flex h-full flex-1 items-center justify-center"
 			role="status"
 		>
-			<div className="relative size-44 overflow-hidden">
+			<div className="relative size-44 overflow-hidden rounded-3xl bg-muted/40">
 				{SPACE_BODIES.map((body) => {
 					const bodyClass = BODY_CLASS[body.kind];
 					const bodyOpacity = BODY_OPACITY[body.kind];
