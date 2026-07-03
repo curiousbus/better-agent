@@ -21,6 +21,10 @@ interface WorkerEnv {
 	// Hyperdrive binding (pools + accelerates Postgres). When present, the worker
 	// connects through it via node-postgres instead of the Neon serverless driver.
 	HYPERDRIVE?: { connectionString: string };
+	// Service binding to our own MCP worker. Same-account worker-to-worker
+	// public-URL fetch is blocked (CF 1042), so the MCP client routes through
+	// this binding when the target is our MCP worker.
+	MCP?: ServiceBinding;
 	// R2 bucket for chat attachments (images/files). Optional so the worker still
 	// boots without it; attachment uploads error clearly until it's bound.
 	UPLOADS?: R2Bucket;
@@ -40,7 +44,12 @@ export default {
 		const db = environment.HYPERDRIVE
 			? createNodeDb(environment.HYPERDRIVE.connectionString)
 			: createNeonDb(environment.DATABASE_URL);
-		const services = buildServices(db, environment.AUTHZ, environment.UPLOADS);
+		const services = buildServices(
+			db,
+			environment.AUTHZ,
+			environment.UPLOADS,
+			environment.MCP
+		);
 		return buildApp(services).fetch(request);
 	},
 };

@@ -181,6 +181,7 @@ function assembleServices(parts: {
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	auth: ReturnType<typeof buildAuthServices>;
 	authzBinding?: ServiceBinding;
+	mcpBinding?: ServiceBinding;
 	cancellation: CancellationRegistry;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
@@ -212,7 +213,7 @@ function assembleServices(parts: {
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioAccountResolver(parts.composioAccount),
-		mcp: buildMcpResolver(parts.mcpServerStore),
+		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
@@ -222,7 +223,8 @@ function assembleServices(parts: {
 export function buildServices(
 	db: Db,
 	authzBinding?: ServiceBinding,
-	uploads?: R2Bucket
+	uploads?: R2Bucket,
+	mcpBinding?: ServiceBinding
 ) {
 	const secretBox = getSecretBox();
 	const deps = buildProviderDeps(db, secretBox);
@@ -255,5 +257,6 @@ export function buildServices(
 		mcpServerStore: createMcpServerStore(db, secretBox),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		authzBinding,
+		mcpBinding,
 	});
 }
