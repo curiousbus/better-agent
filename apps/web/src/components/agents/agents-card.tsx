@@ -16,12 +16,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
+import { celebrateSuccess } from "@/utils/celebrate";
 import { orpc } from "@/utils/orpc";
 import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentRowActions } from "./agent-row-actions";
@@ -166,6 +166,7 @@ function useAgentMutations(
 	const create = useMutation(
 		orpc.agents.create.mutationOptions({
 			onSuccess: (result) => {
+				celebrateSuccess("Agent created");
 				onTokenMinted(result.token);
 				onSaved();
 				invalidate();
@@ -176,7 +177,7 @@ function useAgentMutations(
 	const update = useMutation(
 		orpc.agents.update.mutationOptions({
 			onSuccess: () => {
-				toast.success("Agent updated");
+				celebrateSuccess("Agent updated");
 				onSaved();
 				invalidate();
 			},

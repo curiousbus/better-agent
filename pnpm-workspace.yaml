@@ -25,6 +25,8 @@ catalog:
   "@types/react": ^19.2.15
   "@types/react-dom": ^19.2.3
   ioredis: ^5.11.1
+  canvas-confetti: 1.9.3
+  "@types/canvas-confetti": 1.9.0
   twitter-openapi-typescript: 0.0.55
   twitter-openapi-typescript-generated: 0.0.38
 minimumReleaseAgeExclude:

@@ -13,6 +13,7 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { celebrateSuccess } from "@/utils/celebrate";
 import { orpc } from "@/utils/orpc";
 
 function useCreateAccount(onDone: () => void) {
@@ -23,7 +24,7 @@ function useCreateAccount(onDone: () => void) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.composio.listAccounts.key(),
 				});
-				toast.success("Account added");
+				celebrateSuccess("Account added");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),

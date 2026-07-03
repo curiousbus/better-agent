@@ -98,6 +98,7 @@ describe("mapToolkit", () => {
 			name: "GitHub",
 			description: "d",
 			needsAuth: true,
+			authSchemes: ["OAUTH2"],
 		});
 	});
 
@@ -109,12 +110,19 @@ describe("mapToolkit", () => {
 			name: "HN",
 			description: "",
 			needsAuth: false,
+			authSchemes: [],
 		});
 	});
 
 	it("treats a NO_AUTH-only scheme as ready and defaults a missing meta", () => {
 		expect(
 			mapToolkit({ name: "X", slug: "x", authSchemes: ["NO_AUTH"] })
-		).toEqual({ slug: "x", name: "X", description: "", needsAuth: false });
+		).toEqual({
+			slug: "x",
+			name: "X",
+			description: "",
+			needsAuth: false,
+			authSchemes: ["NO_AUTH"],
+		});
 	});
 });

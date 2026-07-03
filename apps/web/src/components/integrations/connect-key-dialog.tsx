@@ -10,8 +10,8 @@ import { Label } from "@better-agent/ui/components/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-
 import type { ComposioToolkitRow } from "@/utils/api-types";
+import { celebrateSuccess } from "@/utils/celebrate";
 import { orpc } from "@/utils/orpc";
 
 export type KeyScheme = "API_KEY" | "BEARER_TOKEN";
@@ -45,7 +45,7 @@ function useConnectWithKey(onDone: () => void) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.composio.connections.key(),
 				});
-				toast.success("Connected");
+				celebrateSuccess("Connected");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),

@@ -13,6 +13,7 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { celebrateSuccess } from "@/utils/celebrate";
 import { orpc } from "@/utils/orpc";
 
 function useCreateServer(onDone: () => void) {
@@ -23,7 +24,7 @@ function useCreateServer(onDone: () => void) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.mcp.listServers.key(),
 				});
-				toast.success("MCP server added");
+				celebrateSuccess("MCP server added");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
