@@ -13,6 +13,7 @@ import type {
 import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
+import { buildDeferredBinding, shouldDefer } from "../tool/tool-search";
 import type { ToolDef } from "../tool/types";
 import type { CancellationRegistry } from "./cancellation";
 import type { Summarizer } from "./compaction";
@@ -83,6 +84,8 @@ type AiModel = Awaited<ReturnType<ModelFactory["create"]>>;
 
 interface AttemptArgs {
 	abortSignal?: AbortSignal;
+	/** Deferred-binding mode: the tool names the model may see this step. */
+	activeToolNames?: () => string[];
 	cacheToolDefs?: boolean;
 	ctx: DrainCtx;
 	guard?: DoomLoopGuard;
@@ -91,6 +94,19 @@ interface AttemptArgs {
 	params: AgentParams | null;
 	providerOptions: SharedV3ProviderOptions;
 	structuredOutput?: boolean;
+}
+
+// Deferred binding: inactive schemas aren't sent; search grows the set.
+function deferStepOptions(args: AttemptArgs) {
+	return args.activeToolNames
+		? { prepareStep: () => ({ activeTools: args.activeToolNames?.() }) }
+		: {};
+}
+
+function stopCondition(structuredOutput: boolean | undefined) {
+	return structuredOutput
+		? [stepCountIs(DEFAULT_MAX_STEPS), hasToolCall(STRUCTURED_OUTPUT_TOOL_NAME)]
+		: stepCountIs(DEFAULT_MAX_STEPS);
 }
 
 async function* runAttempt(
@@ -117,13 +133,9 @@ async function* runAttempt(
 			model,
 			messages,
 			providerOptions,
-			stopWhen: args.structuredOutput
-				? [
-						stepCountIs(DEFAULT_MAX_STEPS),
-						hasToolCall(STRUCTURED_OUTPUT_TOOL_NAME),
-					]
-				: stepCountIs(DEFAULT_MAX_STEPS),
+			stopWhen: stopCondition(args.structuredOutput),
 			tools,
+			...deferStepOptions(args),
 			...(args.structuredOutput ? { toolChoice: "required" as const } : {}),
 			experimental_repairToolCall: () => Promise.resolve(null),
 			abortSignal,
@@ -195,6 +207,27 @@ async function prepareMessages(
 	return applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 }
 
+// Assemble the turn's tool set. StructuredOutput is injected LAST so the model
+// can call remote tools first, then submit (it also becomes the Anthropic cache
+// breakpoint; its call replaying on a later non-structured turn is benign).
+// Past the defer threshold, bulky (defer-marked) schemas are withheld from the
+// model and reached through search_tools — token cost scales with tools USED,
+// not tools configured.
+function prepareToolBinding(
+	tools: ToolDef[] | undefined,
+	outputSchema?: Record<string, unknown>
+): { activeNames?: () => string[]; defs: ToolDef[] } {
+	const toolDefs = [...(tools ?? [])];
+	if (outputSchema) {
+		toolDefs.push(buildStructuredOutputToolDef(outputSchema));
+	}
+	if (!shouldDefer(toolDefs)) {
+		return { defs: toolDefs };
+	}
+	const binding = buildDeferredBinding(toolDefs);
+	return { defs: binding.defs, activeNames: binding.activeNames };
+}
+
 async function* executeTurn(
 	deps: SessionRuntimeDeps,
 	input: RunTurnInput
@@ -210,20 +243,12 @@ async function* executeTurn(
 	});
 	const titlePromise = maybeTitle(deps, session, agent, text);
 	const cached = await prepareMessages(deps, agent, session, sessionId);
-	const toolDefs = [...(tools ?? [])];
-	if (input.outputSchema) {
-		// Injected last so the model can call remote tools first, then submit.
-		// Known nuances (acceptable this iteration): it becomes the Anthropic
-		// cache breakpoint (last tool def), and on a later non-structured turn
-		// its persisted call replays in history with the tool absent from the
-		// active set — benign since its result is an empty no-op.
-		toolDefs.push(buildStructuredOutputToolDef(input.outputSchema));
-	}
+	const binding = prepareToolBinding(tools, input.outputSchema);
 	const { assistant, ctx } = await buildAssistantCtx(
 		deps.messageStore,
 		agent,
 		sessionId,
-		toolDefs
+		binding.defs
 	);
 	yield { type: "message-start", messageId: assistant.id };
 	const model = await deps.modelFactory.create(agent.providerId, agent.modelId);
@@ -238,6 +263,7 @@ async function* executeTurn(
 		cacheToolDefs: cached.cacheToolDefs,
 		guard,
 		structuredOutput: input.outputSchema != null,
+		activeToolNames: binding.activeNames,
 	});
 	const message = yield* finalizeAssistant(deps, {
 		agent,

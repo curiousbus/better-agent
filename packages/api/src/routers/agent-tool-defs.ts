@@ -48,6 +48,19 @@ export async function safeMcpDefs(
 	}
 }
 
+// Composio/MCP tools are bulky and numerous: mark them deferrable (hidden
+// behind search_tools past the runtime's threshold) and honor the agent's
+// optional tool allowlist.
+function shapeSourceDefs(
+	defs: ToolDef[],
+	allowlist: string[] | null
+): ToolDef[] {
+	const allowed = allowlist
+		? defs.filter((def) => allowlist.includes(def.name))
+		: defs;
+	return allowed.map((def) => ({ ...def, defer: true }));
+}
+
 // An agent's tools: every authenticated toolkit of each linked composio account,
 // each linked MCP server's tools, plus its enabled built-in tools.
 export async function assembleAgentToolDefs(
@@ -56,6 +69,7 @@ export async function assembleAgentToolDefs(
 		builtinTools: string[];
 		composioAccountIds: string[];
 		mcpServerIds: string[];
+		toolAllowlist?: string[] | null;
 	}
 ): Promise<ToolDef[]> {
 	const perAccount = await Promise.all(
@@ -69,9 +83,9 @@ export async function assembleAgentToolDefs(
 			safeMcpDefs(await context.services.mcp(serverId))
 		)
 	);
+	const allowlist = agent.toolAllowlist ?? null;
 	return [
-		...perAccount.flat(),
-		...perServer.flat(),
+		...shapeSourceDefs([...perAccount.flat(), ...perServer.flat()], allowlist),
 		...buildBuiltinToolDefs(agent.builtinTools ?? []),
 	];
 }

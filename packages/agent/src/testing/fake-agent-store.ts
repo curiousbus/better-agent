@@ -14,6 +14,7 @@ function makeAgentTokenOps(
 				...rest,
 				composioAccountIds: rest.composioAccountIds ?? [],
 				mcpServerIds: rest.mcpServerIds ?? [],
+				toolAllowlist: rest.toolAllowlist ?? null,
 				builtinTools: rest.builtinTools ?? [],
 				userId: rest.userId ?? null,
 				createdAt: now,

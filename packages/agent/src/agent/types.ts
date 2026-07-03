@@ -16,6 +16,8 @@ export interface AgentConfig {
 	params: AgentParams | null;
 	providerId: string;
 	systemPrompt: string;
+	/** Tool-name allowlist; null = all tools of the linked sources. */
+	toolAllowlist: string[] | null;
 	updatedAt: Date;
 	/** Owner (creator) id; null for legacy/global agents. */
 	userId: string | null;
@@ -32,4 +34,5 @@ export interface AgentInput {
 	params: AgentParams | null;
 	providerId: string;
 	systemPrompt: string;
+	toolAllowlist?: string[] | null;
 }

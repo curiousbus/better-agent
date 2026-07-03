@@ -33,6 +33,9 @@ export const agents = pgTable(
 			.$type<string[]>()
 			.notNull()
 			.default([]),
+		// Optional per-agent tool allowlist (names). Null = all tools of the
+		// linked sources.
+		toolAllowlist: jsonb("tool_allowlist").$type<string[]>(),
 		// Enabled built-in tool ids (see packages/agent/src/tool/builtin-tools.ts).
 		builtinTools: jsonb("builtin_tools")
 			.$type<string[]>()

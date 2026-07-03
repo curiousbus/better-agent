@@ -22,6 +22,7 @@ const agentInput = z.object({
 	params: paramsInput.nullable().default(null),
 	composioAccountIds: z.array(z.uuid()).default([]),
 	mcpServerIds: z.array(z.uuid()).default([]),
+	toolAllowlist: z.array(z.string()).nullable().default(null),
 	builtinTools: z.array(z.string()).default([]),
 });
 
