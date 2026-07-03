@@ -64,45 +64,79 @@ function firstSentence(text: string): string {
 	return head.length > MAX_SUMMARY ? `${head.slice(0, MAX_SUMMARY)}…` : head;
 }
 
+/** Accept the queries array (preferred) or a legacy single query string. */
+function extractQueries(args: unknown): string[] {
+	const shaped = args as { queries?: unknown; query?: unknown };
+	const raw = Array.isArray(shaped.queries)
+		? shaped.queries
+		: [shaped.query].filter((q) => q !== undefined);
+	const queries = raw.filter(
+		(q): q is string => typeof q === "string" && q.trim().length > 0
+	);
+	return [...new Set(queries.map((q) => q.trim()))];
+}
+
 function buildSearchTool(deferred: ToolDef[], active: Set<string>): ToolDef {
 	return {
 		name: SEARCH_TOOL_NAME,
 		description:
 			"Find additional tools. This agent has more tools than are currently " +
 			"visible — before saying a capability is missing, search for it here. " +
-			"Matching tools become available to call directly on your next step.",
+			"Batch EVERYTHING you need into ONE call via the queries array — " +
+			"never issue multiple search calls for the same goal. Matching tools " +
+			"become available to call directly on your next step.",
 		parameters: {
 			type: "object",
 			properties: {
-				query: {
-					type: "string",
+				queries: {
+					type: "array",
+					items: { type: "string" },
 					description:
-						"What you want to do, e.g. 'send an email' or 'search tweets'.",
+						"One entry per distinct need, e.g. ['send an email', " +
+						"'search tweets']. Do not repeat the same query.",
 				},
 			},
-			required: ["query"],
+			required: ["queries"],
 		},
-		execute: (args) => {
-			const query =
-				typeof (args as { query?: unknown }).query === "string"
-					? ((args as { query: string }).query ?? "")
-					: "";
-			const hits = rankTools(deferred, query).slice(0, SEARCH_TOP_K);
-			if (hits.length === 0) {
-				return Promise.resolve({
-					output: `No tools matched "${query}". Try different keywords.`,
-				});
-			}
-			for (const hit of hits) {
-				active.add(hit.name);
-			}
-			const lines = hits.map(
-				(hit) => `- ${hit.name}: ${firstSentence(hit.description)}`
-			);
-			return Promise.resolve({
-				output: `These tools are now available — call them directly:\n${lines.join("\n")}`,
-			});
-		},
+		execute: (args) => Promise.resolve(runSearch(args, deferred, active)),
+	};
+}
+
+function runSearch(
+	args: unknown,
+	deferred: ToolDef[],
+	active: Set<string>
+): { isError?: boolean; output: string } {
+	const queries = extractQueries(args);
+	if (queries.length === 0) {
+		return { output: "Provide at least one search query.", isError: true };
+	}
+	const hits = new Map<string, ToolDef>();
+	const misses: string[] = [];
+	for (const query of queries) {
+		const ranked = rankTools(deferred, query).slice(0, SEARCH_TOP_K);
+		if (ranked.length === 0) {
+			misses.push(query);
+		}
+		for (const hit of ranked) {
+			hits.set(hit.name, hit);
+			active.add(hit.name);
+		}
+	}
+	if (hits.size === 0) {
+		return {
+			output: `No tools matched ${queries.map((q) => `"${q}"`).join(", ")}. Try different keywords.`,
+		};
+	}
+	const lines = [...hits.values()].map(
+		(hit) => `- ${hit.name}: ${firstSentence(hit.description)}`
+	);
+	const missNote =
+		misses.length > 0
+			? `\nNo matches for: ${misses.map((q) => `"${q}"`).join(", ")}.`
+			: "";
+	return {
+		output: `These tools are now available — call them directly:\n${lines.join("\n")}${missNote}`,
 	};
 }
 

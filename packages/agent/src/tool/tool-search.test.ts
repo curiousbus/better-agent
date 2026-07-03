@@ -68,17 +68,43 @@ describe("buildDeferredBinding", () => {
 		]);
 
 		const search = binding.defs.find((d) => d.name === SEARCH_TOOL_NAME);
-		const result = await search?.execute({ query: "send an email" }, CTX);
+		const result = await search?.execute({ queries: ["send an email"] }, CTX);
 		expect(result?.output).toContain("GMAIL_SEND_EMAIL");
 		expect(binding.activeNames()).toContain("GMAIL_SEND_EMAIL");
 		// Unrelated tools stay hidden.
 		expect(binding.activeNames()).not.toContain("TWITTER_SEARCH");
 	});
 
+	it("merges multiple queries in one call, deduping repeats", async () => {
+		const defs = [
+			def("GMAIL_SEND_EMAIL", "Send an email via Gmail"),
+			def("TWITTER_SEARCH", "Search tweets"),
+		];
+		const binding = buildDeferredBinding(defs);
+		const search = binding.defs.find((d) => d.name === SEARCH_TOOL_NAME);
+		const result = await search?.execute(
+			{ queries: ["send email", "search tweets", "send email"] },
+			CTX
+		);
+		expect(result?.output).toContain("GMAIL_SEND_EMAIL");
+		expect(result?.output).toContain("TWITTER_SEARCH");
+		expect(binding.activeNames()).toContain("GMAIL_SEND_EMAIL");
+		expect(binding.activeNames()).toContain("TWITTER_SEARCH");
+	});
+
+	it("still accepts the legacy single-query shape", async () => {
+		const binding = buildDeferredBinding([
+			def("GMAIL_SEND_EMAIL", "Send an email"),
+		]);
+		const search = binding.defs.find((d) => d.name === SEARCH_TOOL_NAME);
+		const result = await search?.execute({ query: "send email" }, CTX);
+		expect(result?.output).toContain("GMAIL_SEND_EMAIL");
+	});
+
 	it("reports no matches without activating anything", async () => {
 		const binding = buildDeferredBinding([def("GMAIL_SEND_EMAIL", "email")]);
 		const search = binding.defs.find((d) => d.name === SEARCH_TOOL_NAME);
-		const result = await search?.execute({ query: "zzz qqq" }, CTX);
+		const result = await search?.execute({ queries: ["zzz qqq"] }, CTX);
 		expect(result?.output).toContain("No tools matched");
 		expect(binding.activeNames()).toEqual([SEARCH_TOOL_NAME]);
 	});

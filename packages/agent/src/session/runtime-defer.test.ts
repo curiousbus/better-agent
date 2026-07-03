@@ -70,7 +70,7 @@ const TEXT_STEP: LanguageModelV3StreamPart[] = [
 
 function scriptedModel(seenToolNames: string[][]) {
 	const steps = [
-		toolCallStep(SEARCH_TOOL_NAME, { query: "send email" }),
+		toolCallStep(SEARCH_TOOL_NAME, { queries: ["send email"] }),
 		toolCallStep("GMAIL_SEND_EMAIL", {}),
 		TEXT_STEP,
 	];
