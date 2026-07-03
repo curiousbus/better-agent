@@ -1,8 +1,10 @@
 @import "@better-agent/ui/globals.css";
 
-/* Global rocket loader v2: the rocket cruises toward the UPPER-RIGHT while
-   space (stars, a meteor, a small planet) drifts past to the lower-left —
-   reading as continuous forward flight. */
+/* Global rocket loader v3: the rocket cruises toward the UPPER-RIGHT through a
+   two-layer parallax field — a dim, slow FAR layer (distant stars/dust/
+   planets) behind it and a bright, fast NEAR layer (foreground stars,
+   meteors, planets) in front — reading as continuous forward flight with
+   depth. */
 @keyframes rocket-fly {
 	0%,
 	100% {
@@ -13,8 +15,28 @@
 	}
 }
 
-/* Background bodies fly by along the travel axis (top-right -> bottom-left). */
-@keyframes space-drift {
+/* FAR layer: distant bodies drift a SHORT distance (parallax: far = less
+   apparent motion). Duration is set per-body (slower). */
+@keyframes space-drift-far {
+	0% {
+		transform: translate(30px, -30px);
+		opacity: 0;
+	}
+	15% {
+		opacity: var(--drift-opacity, 0.3);
+	}
+	85% {
+		opacity: var(--drift-opacity, 0.3);
+	}
+	100% {
+		transform: translate(-35px, 35px);
+		opacity: 0;
+	}
+}
+
+/* NEAR layer: foreground bodies drift a LONG distance (parallax: near = more
+   apparent motion). Duration is set per-body (faster). */
+@keyframes space-drift-near {
 	0% {
 		transform: translate(80px, -80px);
 		opacity: 0;
@@ -47,9 +69,15 @@
 	animation: rocket-fly 1.4s ease-in-out infinite;
 }
 
-.space-drift {
+.space-drift-far {
 	opacity: 0;
-	animation: space-drift var(--drift-duration, 2.4s) linear infinite;
+	animation: space-drift-far var(--drift-duration, 6s) linear infinite;
+	animation-delay: var(--drift-delay, 0s);
+}
+
+.space-drift-near {
+	opacity: 0;
+	animation: space-drift-near var(--drift-duration, 2.4s) linear infinite;
 	animation-delay: var(--drift-delay, 0s);
 }
 
@@ -60,11 +88,13 @@
 
 @media (prefers-reduced-motion: reduce) {
 	.rocket-fly,
-	.space-drift,
+	.space-drift-far,
+	.space-drift-near,
 	.rocket-exhaust {
 		animation: none;
 	}
-	.space-drift {
+	.space-drift-far,
+	.space-drift-near {
 		opacity: var(--drift-opacity, 0.7);
 	}
 }

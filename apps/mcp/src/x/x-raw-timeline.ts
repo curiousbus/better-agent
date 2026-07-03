@@ -156,3 +156,40 @@ export function parseUserTweetsTimeline(json: unknown): RawTimelinePage {
 export function parseSearchTimeline(json: unknown): RawTimelinePage {
 	return walkInstructions(searchInstructionsFrom(json));
 }
+
+// User-list timelines (followers/following/retweeters) carry TimelineUser
+// items whose user object lives at itemContent.user_results.result.
+function userFromItemContent(itemContent: unknown): unknown {
+	const rec = asRecord(itemContent);
+	if (rec?.itemType !== "TimelineUser") {
+		return null;
+	}
+	const result = asRecord(asRecord(rec.user_results)?.result);
+	return result && result.__typename === "User" ? result : null;
+}
+
+function collectUsersFromInstruction(inst: AnyRecord, out: unknown[]): void {
+	if (inst.type !== "TimelineAddEntries") {
+		return;
+	}
+	for (const entry of asArray(inst.entries)) {
+		const content = asRecord(asRecord(entry)?.content);
+		if (content?.entryType === "TimelineTimelineItem") {
+			const user = userFromItemContent(content.itemContent);
+			if (user) {
+				out.push(user);
+			}
+		}
+	}
+}
+
+export function parseUserListTimeline(json: unknown): unknown[] {
+	const out: unknown[] = [];
+	for (const instruction of instructionsFrom(json)) {
+		const inst = asRecord(instruction);
+		if (inst) {
+			collectUsersFromInstruction(inst, out);
+		}
+	}
+	return out;
+}

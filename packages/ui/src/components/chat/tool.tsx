@@ -43,12 +43,15 @@ function StatusIcon({ status }: { status: ToolInvocation["status"] }) {
 }
 
 function ToolInvocationView({ tool }: { tool: ToolInvocation }) {
+	// Errored calls open by default so the failure reason is visible without a
+	// click, and the reason also shows as an inline banner on the trigger row.
 	return (
 		<Collapsible.Root
 			className={cn(
 				"rounded-md border bg-muted/40 p-2",
 				tool.isError && "border-destructive/40"
 			)}
+			defaultOpen={tool.isError}
 		>
 			<Collapsible.Trigger className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
 				<WrenchIcon className="size-3.5" />
@@ -56,6 +59,11 @@ function ToolInvocationView({ tool }: { tool: ToolInvocation }) {
 				<StatusIcon status={tool.status} />
 				<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
 			</Collapsible.Trigger>
+			{tool.isError ? (
+				<p className="mt-1.5 break-words text-destructive text-xs">
+					{formatValue(tool.result) || "Tool call failed."}
+				</p>
+			) : null}
 			<Collapsible.Panel className="mt-2 flex flex-col gap-2">
 				<ToolSection label="Arguments" value={formatValue(tool.args)} />
 				{tool.status === "running" ? null : (

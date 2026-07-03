@@ -1,6 +1,16 @@
+import { log } from "evlog";
 import { createXClient } from "./x/x-client";
 import { XAuthError, XRateLimitError } from "./x/x-errors";
-import { searchTweets, searchUsers, userTweets } from "./x/x-tools-impl";
+import {
+	searchTweets,
+	searchUsers,
+	tweetThread,
+	userLikes,
+	userMedia,
+	userReplies,
+	userTweets,
+} from "./x/x-tools-impl";
+import { followers, following } from "./x/x-user-list";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + a set of
 // X (Twitter) tools. Each request carries the user's X auth_token as the bearer
@@ -40,6 +50,19 @@ const HANDLE_PROP = {
 	description: "The user's @handle without the leading @.",
 };
 
+function handleTool(name: string, description: string) {
+	return {
+		name,
+		description,
+		inputSchema: {
+			type: "object",
+			properties: { screen_name: HANDLE_PROP, limit: LIMIT_PROP },
+			required: ["screen_name"],
+			additionalProperties: false,
+		},
+	};
+}
+
 const TOOLS = [
 	{
 		name: "x_search_users",
@@ -57,27 +80,57 @@ const TOOLS = [
 	{
 		name: "x_search_tweets",
 		description:
-			"Search recent X (Twitter) posts matching a query. Returns tweets with " +
-			"author, text, media, and like/retweet/reply/view counts.",
+			"Search X (Twitter) posts matching a query (also finds people by display " +
+			"name via their posts). Returns tweets with author, text, media, and " +
+			"engagement counts.",
 		inputSchema: {
 			type: "object",
 			properties: {
 				query: { type: "string", description: "The search query." },
+				product: {
+					type: "string",
+					enum: ["Latest", "Top"],
+					description:
+						"Latest (recent) or Top (most relevant). Default Latest.",
+				},
 				limit: LIMIT_PROP,
 			},
 			required: ["query"],
 			additionalProperties: false,
 		},
 	},
+	handleTool(
+		"x_user_tweets",
+		"Fetch a user's most recent tweets (originals + retweets), by @handle."
+	),
+	handleTool(
+		"x_user_replies",
+		"Fetch a user's recent tweets AND replies, by @handle."
+	),
+	handleTool(
+		"x_user_media",
+		"Fetch a user's recent media tweets (photos/videos), by @handle."
+	),
+	handleTool(
+		"x_user_likes",
+		"Fetch the tweets a user has recently liked, by @handle."
+	),
+	handleTool("x_followers", "List a user's followers (profiles), by @handle."),
+	handleTool(
+		"x_following",
+		"List the accounts a user follows (profiles), by @handle."
+	),
 	{
-		name: "x_user_tweets",
+		name: "x_tweet_thread",
 		description:
-			"Fetch the most recent tweets posted by a specific X (Twitter) user, " +
-			"given their @handle.",
+			"Fetch a specific tweet and its conversation thread by tweet id.",
 		inputSchema: {
 			type: "object",
-			properties: { screen_name: HANDLE_PROP, limit: LIMIT_PROP },
-			required: ["screen_name"],
+			properties: {
+				tweet_id: { type: "string", description: "The tweet's numeric id." },
+				limit: LIMIT_PROP,
+			},
+			required: ["tweet_id"],
 			additionalProperties: false,
 		},
 	},
@@ -95,12 +148,13 @@ function toolText(text: string, isError = false) {
 
 function friendlyError(err: unknown): string {
 	if (err instanceof XAuthError) {
-		return "Your X auth_token is invalid or expired. Update it in the MCP server settings.";
+		return `X auth failed: ${err.message}. Your auth_token is likely invalid or expired — update it in the MCP server settings.`;
 	}
 	if (err instanceof XRateLimitError) {
 		return "X is rate-limiting these requests. Try again in a little while.";
 	}
-	return err instanceof Error ? err.message : String(err);
+	const detail = err instanceof Error ? err.message : String(err);
+	return `X request failed: ${detail}`;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -112,6 +166,21 @@ function num(args: Record<string, unknown>, key: string): number | undefined {
 	const value = args[key];
 	return typeof value === "number" ? value : undefined;
 }
+
+type HandleTool = (
+	client: Awaited<ReturnType<typeof createXClient>>,
+	screenName: string,
+	limit?: number
+) => Promise<unknown>;
+
+const HANDLE_TOOLS: Record<string, HandleTool> = {
+	x_user_tweets: userTweets,
+	x_user_replies: userReplies,
+	x_user_media: userMedia,
+	x_user_likes: userLikes,
+	x_followers: followers,
+	x_following: following,
+};
 
 async function runTool(
 	name: string,
@@ -125,17 +194,34 @@ async function runTool(
 		);
 	}
 	if (name === "x_search_tweets") {
+		const product = str(args, "product") === "Top" ? "Top" : "Latest";
 		return toolText(
 			JSON.stringify(
-				await searchTweets(client, str(args, "query"), num(args, "limit"))
+				await searchTweets(
+					client,
+					str(args, "query"),
+					num(args, "limit"),
+					product
+				)
 			)
 		);
 	}
-	return toolText(
-		JSON.stringify(
-			await userTweets(client, str(args, "screen_name"), num(args, "limit"))
-		)
-	);
+	if (name === "x_tweet_thread") {
+		return toolText(
+			JSON.stringify(
+				await tweetThread(client, str(args, "tweet_id"), num(args, "limit"))
+			)
+		);
+	}
+	const handleTool = HANDLE_TOOLS[name];
+	if (handleTool) {
+		return toolText(
+			JSON.stringify(
+				await handleTool(client, str(args, "screen_name"), num(args, "limit"))
+			)
+		);
+	}
+	return toolText(`Unknown tool: ${name}`, true);
 }
 
 function toArgs(params: Record<string, unknown> | undefined) {
@@ -165,6 +251,12 @@ async function callTool(
 	try {
 		return ok(id, await runTool(name, toArgs(params), ctx.authToken));
 	} catch (err) {
+		// Log the full error (stack) to the Worker logs; return a readable
+		// message to the model/UI.
+		log.error(
+			"mcp",
+			`tool ${name} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`
+		);
 		return ok(id, toolText(friendlyError(err), true));
 	}
 }

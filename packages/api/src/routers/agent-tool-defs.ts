@@ -8,6 +8,7 @@ import {
 	type McpService,
 } from "@better-agent/agent/tool/mcp-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
+import { log } from "evlog";
 import type { Context } from "../context";
 
 // `scope` is the composio "user" scope — here a composio account id. Builds the
@@ -28,7 +29,11 @@ export async function safeComposioDefs(
 			return [];
 		}
 		return await buildComposioToolDefs(service, scope, toolkits);
-	} catch {
+	} catch (error) {
+		log.error(
+			"tools",
+			`composio defs failed (${scope}): ${error instanceof Error ? error.message : String(error)}`
+		);
 		return [];
 	}
 }
@@ -43,7 +48,11 @@ export async function safeMcpDefs(
 	}
 	try {
 		return await buildMcpToolDefs(service);
-	} catch {
+	} catch (error) {
+		log.error(
+			"tools",
+			`mcp defs failed: ${error instanceof Error ? error.message : String(error)}`
+		);
 		return [];
 	}
 }

@@ -2,14 +2,20 @@ import { getKwargs } from "twitter-openapi-typescript";
 import type { XClient } from "./x-client";
 import { XError, XNotFoundError } from "./x-errors";
 import { normalizeProfile, normalizeTweet } from "./x-normalize";
-import { parseSearchTimeline, parseUserTweetsTimeline } from "./x-raw-timeline";
+import {
+	parseSearchTimeline,
+	parseUserTweetsTimeline,
+	type RawTimelinePage,
+} from "./x-raw-timeline";
 import type { NormalizedProfile, NormalizedTweet } from "./x-types";
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 20;
-const PAGE_COUNT = 40;
+export const PAGE_COUNT = 40;
 
-function clampLimit(limit: number | undefined): number {
+type TweetApi = ReturnType<XClient["getTweetApi"]>;
+
+export function clampLimit(limit: number | undefined): number {
 	if (typeof limit !== "number" || !Number.isFinite(limit) || limit < 1) {
 		return DEFAULT_LIMIT;
 	}
@@ -22,7 +28,7 @@ function isErrorWithStatus(
 	return typeof err === "object" && err !== null && "response" in err;
 }
 
-function mapError(err: unknown, context: string): Error {
+export function mapError(err: unknown, context: string): Error {
 	if (err instanceof XError) {
 		return err;
 	}
@@ -30,6 +36,53 @@ function mapError(err: unknown, context: string): Error {
 		return new XNotFoundError(context);
 	}
 	return new XError(context, err);
+}
+
+const SNIPPET_LEN = 200;
+const WHITESPACE_RE = /\s+/g;
+
+// Read the raw X response as text first, then JSON.parse it. A non-JSON body
+// (an X block/challenge page, an empty body, or a compressed/SSE payload on
+// Workers) then surfaces as a readable error WITH a snippet of what X actually
+// returned — instead of an opaque "Unexpected non-whitespace character" parse
+// failure.
+export async function readJson(raw: {
+	json(): Promise<unknown>;
+	text?(): Promise<string>;
+}): Promise<unknown> {
+	if (typeof raw.text !== "function") {
+		return raw.json();
+	}
+	const body = await raw.text();
+	try {
+		return JSON.parse(body);
+	} catch {
+		const snippet = body
+			.slice(0, SNIPPET_LEN)
+			.replace(WHITESPACE_RE, " ")
+			.trim();
+		throw new XError(
+			`X returned a non-JSON response (${body.length} bytes): ${snippet || "<empty>"}`
+		);
+	}
+}
+
+function normalizeTweets(
+	rawTweets: unknown[],
+	limit: number
+): NormalizedTweet[] {
+	const out: NormalizedTweet[] = [];
+	for (const raw of rawTweets) {
+		if (out.length >= limit) {
+			break;
+		}
+		try {
+			out.push(normalizeTweet(raw));
+		} catch {
+			// Skip one malformed tweet rather than failing the whole page.
+		}
+	}
+	return out;
 }
 
 export async function searchUsers(
@@ -49,67 +102,134 @@ export async function searchUsers(
 	return normalizeProfile(user);
 }
 
-function normalizePage(rawTweets: unknown[], limit: number): NormalizedTweet[] {
-	const out: NormalizedTweet[] = [];
-	for (const raw of rawTweets) {
-		if (out.length >= limit) {
-			break;
-		}
-		try {
-			out.push(normalizeTweet(raw));
-		} catch {
-			// Skip a single malformed tweet rather than failing the whole page.
-		}
+// Runs a raw TweetApi timeline call and parses it into tweets. `run` returns the
+// raw JSON; `parse` extracts the raw tweet list.
+async function runTweetTimeline(
+	tweetApi: TweetApi,
+	flagKey: keyof TweetApi["flag"],
+	kwargs: Record<string, unknown>,
+	rawCall: (
+		api: TweetApi,
+		args: unknown,
+		overrides: unknown
+	) => Promise<{ raw: { json(): Promise<unknown>; text?(): Promise<string> } }>,
+	parse: (json: unknown) => RawTimelinePage,
+	context: string,
+	limit: number
+): Promise<NormalizedTweet[]> {
+	const flag = tweetApi.flag[flagKey];
+	if (!flag) {
+		throw new XError(`${String(flagKey)} flag missing from SDK`);
 	}
-	return out;
+	const args = getKwargs(flag, kwargs);
+	const resp = await rawCall(
+		tweetApi,
+		args,
+		tweetApi.initOverrides(flag)
+	).catch((err: unknown) => {
+		throw mapError(err, context);
+	});
+	return normalizeTweets(parse(await readJson(resp.raw)).rawTweets, limit);
 }
 
-export async function searchTweets(
+export function searchTweets(
 	client: XClient,
 	query: string,
-	limit?: number
+	limit?: number,
+	product: "Latest" | "Top" = "Latest"
 ): Promise<NormalizedTweet[]> {
-	const capped = clampLimit(limit);
-	const tweetApi = client.getTweetApi();
-	const flag = tweetApi.flag.SearchTimeline;
-	if (!flag) {
-		throw new XError("SearchTimeline flag missing from SDK");
-	}
-	const args = getKwargs(flag, {
-		rawQuery: query,
-		product: "Latest",
-		count: PAGE_COUNT,
-	});
-	const resp = await tweetApi.api
-		.getSearchTimelineRaw(args, tweetApi.initOverrides(flag))
-		.catch((err: unknown) => {
-			throw mapError(err, `searchTweets(${query})`);
-		});
-	const json: unknown = await resp.raw.json();
-	return normalizePage(parseSearchTimeline(json).rawTweets, capped);
+	return runTweetTimeline(
+		client.getTweetApi(),
+		"SearchTimeline",
+		{ rawQuery: query, product, count: PAGE_COUNT },
+		(api, args, overrides) =>
+			api.api.getSearchTimelineRaw(args as never, overrides as never),
+		parseSearchTimeline,
+		`searchTweets(${query})`,
+		clampLimit(limit)
+	);
 }
 
-export async function userTweets(
+async function userTimeline(
+	client: XClient,
+	screenName: string,
+	limit: number | undefined,
+	flagKey: "UserTweets" | "UserTweetsAndReplies" | "UserMedia" | "Likes",
+	rawCall: (
+		api: TweetApi,
+		args: unknown,
+		overrides: unknown
+	) => Promise<{ raw: { json(): Promise<unknown>; text?(): Promise<string> } }>
+): Promise<NormalizedTweet[]> {
+	const profile = await searchUsers(client, screenName);
+	return runTweetTimeline(
+		client.getTweetApi(),
+		flagKey,
+		{ userId: profile.twitterUserId, count: PAGE_COUNT },
+		rawCall,
+		parseUserTweetsTimeline,
+		`${flagKey}(${screenName})`,
+		clampLimit(limit)
+	);
+}
+
+export function userTweets(
 	client: XClient,
 	screenName: string,
 	limit?: number
 ): Promise<NormalizedTweet[]> {
-	const capped = clampLimit(limit);
-	const profile = await searchUsers(client, screenName);
-	const tweetApi = client.getTweetApi();
-	const flag = tweetApi.flag.UserTweets;
-	if (!flag) {
-		throw new XError("UserTweets flag missing from SDK");
-	}
-	const args = getKwargs(flag, {
-		userId: profile.twitterUserId,
-		count: PAGE_COUNT,
-	});
-	const resp = await tweetApi.api
-		.getUserTweetsRaw(args, tweetApi.initOverrides(flag))
-		.catch((err: unknown) => {
-			throw mapError(err, `userTweets(${screenName})`);
-		});
-	const json: unknown = await resp.raw.json();
-	return normalizePage(parseUserTweetsTimeline(json).rawTweets, capped);
+	return userTimeline(client, screenName, limit, "UserTweets", (api, a, o) =>
+		api.api.getUserTweetsRaw(a as never, o as never)
+	);
+}
+
+export function userReplies(
+	client: XClient,
+	screenName: string,
+	limit?: number
+): Promise<NormalizedTweet[]> {
+	return userTimeline(
+		client,
+		screenName,
+		limit,
+		"UserTweetsAndReplies",
+		(api, a, o) => api.api.getUserTweetsAndRepliesRaw(a as never, o as never)
+	);
+}
+
+export function userMedia(
+	client: XClient,
+	screenName: string,
+	limit?: number
+): Promise<NormalizedTweet[]> {
+	return userTimeline(client, screenName, limit, "UserMedia", (api, a, o) =>
+		api.api.getUserMediaRaw(a as never, o as never)
+	);
+}
+
+export function userLikes(
+	client: XClient,
+	screenName: string,
+	limit?: number
+): Promise<NormalizedTweet[]> {
+	return userTimeline(client, screenName, limit, "Likes", (api, a, o) =>
+		api.api.getLikesRaw(a as never, o as never)
+	);
+}
+
+export function tweetThread(
+	client: XClient,
+	tweetId: string,
+	limit?: number
+): Promise<NormalizedTweet[]> {
+	return runTweetTimeline(
+		client.getTweetApi(),
+		"TweetDetail",
+		{ focalTweetId: tweetId },
+		(api, args, overrides) =>
+			api.api.getTweetDetailRaw(args as never, overrides as never),
+		parseUserTweetsTimeline,
+		`tweetDetail(${tweetId})`,
+		clampLimit(limit)
+	);
 }

@@ -22,7 +22,8 @@
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "dotenv": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@ai-sdk/provider": "3.0.10",

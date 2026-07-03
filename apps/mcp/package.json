@@ -11,7 +11,8 @@
   "dependencies": {
     "hono": "catalog:",
     "twitter-openapi-typescript": "catalog:",
-    "twitter-openapi-typescript-generated": "catalog:"
+    "twitter-openapi-typescript-generated": "catalog:",
+    "evlog": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20260625.1",

@@ -69,10 +69,19 @@ it("accepts the initialized notification without a body", async () => {
 	expect(res.status).toBe(ACCEPTED_STATUS);
 });
 
-it("lists the three X tools", async () => {
+it("lists all the X tools", async () => {
 	const body = asRpc(await (await rpc("tools/list")).json());
-	const names = (body.result?.tools ?? []).map((t) => t.name).sort();
-	expect(names).toEqual(["x_search_tweets", "x_search_users", "x_user_tweets"]);
+	const names = (body.result?.tools ?? []).map((t) => t.name);
+	expect(names).toContain("x_search_users");
+	expect(names).toContain("x_search_tweets");
+	expect(names).toContain("x_user_tweets");
+	expect(names).toContain("x_user_replies");
+	expect(names).toContain("x_user_media");
+	expect(names).toContain("x_user_likes");
+	expect(names).toContain("x_followers");
+	expect(names).toContain("x_following");
+	expect(names).toContain("x_tweet_thread");
+	expect(names.length).toBe(9);
 });
 
 it("returns a tool error when no auth_token is provided", async () => {
