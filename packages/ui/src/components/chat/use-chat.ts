@@ -109,6 +109,10 @@ async function finalizeSend(args: SendArgs) {
 		const rows = await args.queryClient.fetchQuery<MessageHistory>({
 			queryKey: messagesKey(args.sessionId),
 			queryFn: () => args.agentClient.listMessages(args.sessionId),
+			// MUST bypass any app-level staleTime default: within its freshness
+			// window fetchQuery returns the CACHED pre-turn rows without touching
+			// the network, and the swap would run against stale history.
+			staleTime: 0,
 		});
 		// If the SSE died early, the DETACHED server turn may still be running —
 		// the fetched rows are incomplete. Keep the draft (fullest content); the

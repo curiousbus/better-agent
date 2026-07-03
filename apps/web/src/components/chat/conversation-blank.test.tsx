@@ -135,9 +135,16 @@ function dyingClient(state: {
 	} as unknown as AgentClient;
 }
 
+// Mirror production's QueryClient defaults (apps/web/src/utils/orpc.ts): the
+// 60s global staleTime is load-bearing — it makes naive fetchQuery calls
+// return CACHED pre-turn rows without a network hit.
+const PROD_STALE_TIME_MS = 60_000;
+
 function renderChat(client: AgentClient, sessionId: string) {
 	const queryClient = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
+		defaultOptions: {
+			queries: { retry: false, staleTime: PROD_STALE_TIME_MS },
+		},
 	});
 	return render(
 		<QueryClientProvider client={queryClient}>
