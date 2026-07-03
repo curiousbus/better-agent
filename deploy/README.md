@@ -9,44 +9,33 @@
 - `secrets/`:SOPS+age 加密的 Secret(见下)
 - CI:`.github/workflows/deploy-prod.yml`
 
-## 一、服务器初始化(一次性)
+## 一、服务器初始化(一次性,已脚本化)
 
 ```bash
-# node1(control-plane)
-curl -sfL https://get.k3s.io | sh -                     # 内置 Traefik + local-path
-cat /var/lib/rancher/k3s/server/node-token               # 记下 join token
+# node1(root):k3s server + cert-manager,结束时打印 join token 和 hostname
+scp deploy/scripts/bootstrap-node1.sh node1: && ssh node1 ./bootstrap-node1.sh
 
-# node2(agent)
-curl -sfL https://get.k3s.io | K3S_URL=https://<node1-ip>:6443 K3S_TOKEN=<token> sh -
-
-# node1:装 cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.3/cert-manager.yaml
+# node2(root):
+scp deploy/scripts/bootstrap-node2.sh node2: && ssh node2 ./bootstrap-node2.sh https://<node1-ip>:6443 <token>
 ```
 
 DNS:`api./app./admin.<domain>` 三条 A 记录指向两台服务器(或前面的 LB IP)。
 
-## 二、Secrets(SOPS + age,一次性 + 轮换时)
+## 二、占位符 + Secrets + GitHub(一次性,已脚本化)
 
 ```bash
-age-keygen -o age.key                                    # 妥善保存!丢了密文全废
-# 1) 公钥填进 deploy/secrets/.sops.yaml 的 AGE_PUBLIC_KEY_HERE
-# 2) cp deploy/secrets/prod.secrets.example.yaml deploy/secrets/prod.secrets.yaml
-# 3) 填真实值(数据库密码、JWT/credentials 密钥、R2 S3 凭证等)
-sops -e -i deploy/secrets/prod.secrets.yaml              # 原地加密,之后才能 git add
+# 1) 占位符(owner/域名/node1 主机名/ACME 邮箱)一次替换,git diff 检查后提交
+./deploy/scripts/configure.sh <github-owner> <domain> <node1-hostname> <acme-email>
+
+# 2) 生成 age 密钥 → 编辑真实 secrets → 原地加密(需要 brew install sops age)
+./deploy/scripts/setup-secrets.sh
+
+# 3) 配置 GitHub Secrets/Variables(需要 gh auth;先把 node1 的
+#    /etc/rancher/k3s/k3s.yaml 拷到本机并把 server 改成公网 IP)
+./deploy/scripts/setup-github.sh ~/.config/better-agent/prod-age.key ./k3s.yaml https://api.<domain>
 ```
 
-GitHub 仓库配置:
-- Secret `SOPS_AGE_KEY` = age.key 文件内容(私钥)
-- Secret `PROD_KUBECONFIG` = node1 的 `/etc/rancher/k3s/k3s.yaml`,把 server 地址改成公网 `https://<node1-ip>:6443`
-- Variable `PROD_API_URL` = `https://api.<domain>`(打进 web/admin 客户端包)
-
-## 三、占位符替换(一次性)
-
-- `k8s/base/*.yaml` + workflow:`ghcr.io/OWNER/…` → 你的 GitHub owner(小写)
-- `k8s/base/ingress.yaml` + `overlays/prod/kustomization.yaml`:`example.com` → 真实域名
-- `overlays/prod/kustomization.yaml`:`NODE1_HOSTNAME` → `kubectl get nodes` 里 node1 的名字(postgres 卷钉在该节点)
-- `overlays/prod/cert-issuer.yaml`:ACME 邮箱
-- ghcr 私有镜像时:`kubectl -n better-agent create secret docker-registry ghcr-pull --docker-server=ghcr.io --docker-username=<u> --docker-password=<PAT>` 并在各 Deployment 加 `imagePullSecrets`(公开镜像可跳过)
+ghcr 私有镜像时:`kubectl -n better-agent create secret docker-registry ghcr-pull --docker-server=ghcr.io --docker-username=<u> --docker-password=<PAT>` 并在各 Deployment 加 `imagePullSecrets`(把 GitHub Packages 设为 public 可跳过)
 
 ## 四、日常发布
 
