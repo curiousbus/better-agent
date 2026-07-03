@@ -20,6 +20,10 @@ export function createQueryClient() {
 	return new QueryClient({
 		queryCache: new QueryCache({
 			onError: (error, query) => {
+				// Background catalog queries opt out of the global toast.
+				if (query.meta?.silent) {
+					return;
+				}
 				toast.error(`Error: ${error.message}`, {
 					action: {
 						label: "retry",

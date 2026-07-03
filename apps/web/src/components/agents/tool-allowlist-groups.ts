@@ -99,25 +99,57 @@ export function useToolToggles(
 const TOOLS_STALE_MS = 300_000;
 const TOOLS_GC_MS = 900_000;
 
+// An agent may reference sources that were deleted since (stale ids). Only
+// query catalogs for sources that still EXIST — a missing source is a normal
+// "0 tools" state, not a request worth making or an error worth toasting.
+function useLiveSourceIds(accountIds: string[], serverIds: string[]) {
+	const accounts = useQuery({
+		...orpc.composio.listAccounts.queryOptions(),
+		staleTime: TOOLS_STALE_MS,
+		meta: { silent: true },
+	});
+	const mcpServers = useQuery({
+		...orpc.mcp.listServers.queryOptions(),
+		staleTime: TOOLS_STALE_MS,
+		meta: { silent: true },
+	});
+	return {
+		liveAccountIds: accountIds.filter((id) =>
+			(accounts.data ?? []).some((row) => row.id === id)
+		),
+		liveServerIds: serverIds.filter((id) =>
+			(mcpServers.data ?? []).some((row) => row.id === id)
+		),
+		listsPending:
+			(accountIds.length > 0 && accounts.isPending) ||
+			(serverIds.length > 0 && mcpServers.isPending),
+		mcpServers,
+	};
+}
+
 export function useToolSources(accountIds: string[], serverIds: string[]) {
+	const { liveAccountIds, liveServerIds, listsPending, mcpServers } =
+		useLiveSourceIds(accountIds, serverIds);
 	const composioResults = useQueries({
-		queries: accountIds.map((accountId) => ({
+		queries: liveAccountIds.map((accountId) => ({
 			...orpc.composio.tools.queryOptions({ input: { accountId } }),
 			staleTime: TOOLS_STALE_MS,
 			gcTime: TOOLS_GC_MS,
 			retry: false,
+			meta: { silent: true },
 		})),
 	});
-	const mcpServers = useQuery(orpc.mcp.listServers.queryOptions());
 	const mcpResults = useQueries({
-		queries: serverIds.map((serverId) => ({
+		queries: liveServerIds.map((serverId) => ({
 			...orpc.mcp.tools.queryOptions({ input: { serverId } }),
 			staleTime: TOOLS_STALE_MS,
 			gcTime: TOOLS_GC_MS,
 			retry: false,
+			meta: { silent: true },
 		})),
 	});
 	const isPending =
+		listsPending ||
 		composioResults.some((r) => r.isPending) ||
 		mcpResults.some((r) => r.isPending);
 	const errors = [...composioResults, ...mcpResults]
@@ -129,8 +161,8 @@ export function useToolSources(accountIds: string[], serverIds: string[]) {
 		}
 		return [
 			...buildComposioGroups(composioResults),
-			...buildMcpGroups(serverIds, mcpServers.data, mcpResults),
+			...buildMcpGroups(liveServerIds, mcpServers.data, mcpResults),
 		].filter((group) => group.tools.length > 0);
-	}, [isPending, composioResults, mcpResults, mcpServers.data, serverIds]);
+	}, [isPending, composioResults, mcpResults, mcpServers.data, liveServerIds]);
 	return { groups, isPending, errors };
 }
