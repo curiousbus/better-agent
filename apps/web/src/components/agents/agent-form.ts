@@ -11,6 +11,7 @@ export interface AgentForm {
 	providerId: string;
 	systemPrompt: string;
 	temperature: string;
+	toolAllowlist: string[] | null;
 	topP: string;
 }
 
@@ -26,6 +27,7 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	temperature: "",
 	topP: "",
 	maxOutputTokens: "",
+	toolAllowlist: null,
 };
 
 export const WIZARD_STEPS = ["Identity", "Model", "Params", "Tools"] as const;
@@ -82,6 +84,7 @@ export function toAgentInput(form: AgentForm) {
 		providerId: form.providerId,
 		modelId: form.modelId,
 		params: toParams(form),
+		toolAllowlist: form.toolAllowlist,
 	};
 }
 
@@ -102,5 +105,6 @@ export function agentRowToForm(row: AgentRow): AgentForm {
 		temperature: numToStr(row.params?.temperature),
 		topP: numToStr(row.params?.topP),
 		maxOutputTokens: numToStr(row.params?.maxOutputTokens),
+		toolAllowlist: row.toolAllowlist ?? null,
 	};
 }
