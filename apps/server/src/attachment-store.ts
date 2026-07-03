@@ -5,7 +5,7 @@ import type {
 } from "@better-agent/db/repositories/attachment-meta-store";
 
 // Minimal shape of the Cloudflare R2 bucket binding we rely on.
-interface R2ObjectBody {
+export interface R2ObjectBody {
 	arrayBuffer(): Promise<ArrayBuffer>;
 }
 export interface R2Bucket {

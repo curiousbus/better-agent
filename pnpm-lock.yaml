@@ -152,7 +152,7 @@ importers:
         version: 17.4.2
       evlog:
         specifier: 'catalog:'
-        version: 2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       lucide-react:
         specifier: ^1.8.0
         version: 1.18.0(react@19.2.7)
@@ -161,7 +161,7 @@ importers:
         version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       nitro:
         specifier: ^3.0.260429-beta
-        version: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
+        version: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -323,6 +323,9 @@ importers:
       '@upstash/redis':
         specifier: 1.38.0
         version: 1.38.0
+      aws4fetch:
+        specifier: 1.0.20
+        version: 1.0.20
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2
@@ -425,7 +428,7 @@ importers:
         version: 17.4.2
       evlog:
         specifier: 'catalog:'
-        version: 2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       lucide-react:
         specifier: ^1.8.0
         version: 1.18.0(react@19.2.7)
@@ -434,7 +437,7 @@ importers:
         version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       nitro:
         specifier: ^3.0.260429-beta
-        version: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
+        version: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -3827,6 +3830,9 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
+
+  aws4fetch@1.0.20:
+    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   babel-dead-code-elimination@1.0.12:
     resolution: {integrity: sha512-GERT7L2TiYcYDtYk1IpD+ASAYXjKbLTDPhBtYj7X1NuRMDTMtAx9kyBenub1Ev41lo91OHCKdmP+egTDmfQ7Ig==}
@@ -10338,6 +10344,8 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
+  aws4fetch@1.0.20: {}
+
   babel-dead-code-elimination@1.0.12:
     dependencies:
       '@babel/core': 7.29.7
@@ -11366,14 +11374,14 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.0
 
-  evlog@2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
+  evlog@2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
     optionalDependencies:
       '@orpc/server': 1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0)
       '@tanstack/start-client-core': 1.170.12
       ai: 6.0.205(zod@4.4.3)
       express: 5.2.1
       hono: 4.12.25
-      nitro: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
+      nitro: 3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1))
       ofetch: 2.0.0-alpha.3
       react: 19.2.7
       vite: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -12809,7 +12817,7 @@ snapshots:
 
   nf3@0.3.17: {}
 
-  nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)):
+  nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.6(srvx@0.11.16)
@@ -12824,7 +12832,7 @@ snapshots:
       rolldown: 1.1.1
       srvx: 0.11.16
       unenv: 2.0.0-rc.24
-      unstorage: 2.0.0-alpha.7(@upstash/redis@1.38.0)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.5.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0)))(ioredis@5.11.1)(lru-cache@11.5.1)(ofetch@2.0.0-alpha.3)
+      unstorage: 2.0.0-alpha.7(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.5.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0)))(ioredis@5.11.1)(lru-cache@11.5.1)(ofetch@2.0.0-alpha.3)
     optionalDependencies:
       dotenv: 17.4.2
       jiti: 2.7.0
@@ -14232,9 +14240,10 @@ snapshots:
     dependencies:
       rolldown: 1.0.0-rc.17
 
-  unstorage@2.0.0-alpha.7(@upstash/redis@1.38.0)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.5.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0)))(ioredis@5.11.1)(lru-cache@11.5.1)(ofetch@2.0.0-alpha.3):
+  unstorage@2.0.0-alpha.7(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.5.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0)))(ioredis@5.11.1)(lru-cache@11.5.1)(ofetch@2.0.0-alpha.3):
     optionalDependencies:
       '@upstash/redis': 1.38.0
+      aws4fetch: 1.0.20
       chokidar: 5.0.0
       db0: 0.3.4(@electric-sql/pglite@0.5.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))
       ioredis: 5.11.1

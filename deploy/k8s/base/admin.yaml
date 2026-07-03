@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: better-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: admin }
+  template:
+    metadata:
+      labels: { app: admin }
+    spec:
+      containers:
+        - name: admin
+          image: ghcr.io/OWNER/better-agent-admin:latest
+          ports: [{ containerPort: 3000 }]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: better-agent
+spec:
+  selector: { app: admin }
+  ports: [{ port: 80, targetPort: 3000 }]

@@ -21,6 +21,12 @@ export const env = createEnv({
 		 * to coordinate client/remote tool-call results. Both must be set. */
 		UPSTASH_REDIS_REST_URL: z.string().optional(),
 		UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+		/** S3-compatible attachment storage (k3s/prod; Workers uses the R2
+		 * binding instead). All four must be set together. */
+		S3_ENDPOINT: z.string().optional(),
+		S3_BUCKET: z.string().optional(),
+		S3_ACCESS_KEY_ID: z.string().optional(),
+		S3_SECRET_ACCESS_KEY: z.string().optional(),
 		RESEND_API_KEY: z.string().optional(),
 		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
 		WEB_URL: z.url().default("http://localhost:3001"),

@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - cert-issuer.yaml
+configMapGenerator:
+  - name: app-config
+    namespace: better-agent
+    literals:
+      # ---- EDIT for your prod domains ----
+      - NODE_ENV=production
+      - WEB_URL=https://app.example.com
+      - ADMIN_URL=https://admin.example.com
+      - CORS_ORIGIN=https://app.example.com,https://admin.example.com
+      - REDIS_URL=redis://redis.better-agent.svc.cluster.local:6379
+      - AUTH_EMAIL_FROM=noreply@example.com
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  - name: ghcr.io/OWNER/better-agent-server
+    newTag: latest
+  - name: ghcr.io/OWNER/better-agent-web
+    newTag: latest
+  - name: ghcr.io/OWNER/better-agent-admin
+    newTag: latest
+patches:
+  # Pin postgres to the node that holds its local-path volume.
+  - target: { kind: StatefulSet, name: postgres }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: { "kubernetes.io/hostname": "NODE1_HOSTNAME" }

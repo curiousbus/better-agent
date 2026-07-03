@@ -3,6 +3,7 @@ import { env } from "@better-agent/env/server";
 import { serve } from "@hono/node-server";
 import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
+import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
 
 initLogger({
@@ -10,7 +11,21 @@ initLogger({
 });
 
 const db = createNodeDb(env.DATABASE_URL);
-const services = buildServices(db);
+// Attachments on non-Workers runtimes go through the S3 protocol (same R2
+// bucket the Workers deployment reaches via its native binding).
+const uploads =
+	env.S3_ENDPOINT &&
+	env.S3_BUCKET &&
+	env.S3_ACCESS_KEY_ID &&
+	env.S3_SECRET_ACCESS_KEY
+		? createS3Bucket({
+				endpoint: env.S3_ENDPOINT,
+				bucket: env.S3_BUCKET,
+				accessKeyId: env.S3_ACCESS_KEY_ID,
+				secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+			})
+		: undefined;
+const services = buildServices(db, undefined, uploads);
 const app = buildApp(services);
 
 serve(
