@@ -169,6 +169,72 @@ function assertNeverVanishes(snapshots: string[], marker: string) {
 	expect(snapshots.slice(first).filter((s) => !s.includes(marker))).toEqual([]);
 }
 
+// SECOND turn in an existing session: while streaming, the cached history is
+// the PRE-turn view (trailing = the PREVIOUS completed assistant). The new
+// exchange must never vanish against that stale view at completion.
+function secondTurnClient(state: {
+	phase: "idle" | "running" | "done";
+}): AgentClient {
+	const FETCH_DELAY_MS = 120;
+	const prior = [
+		row("u0", "user", "complete", 1, "old-question"),
+		row("a0", "assistant", "complete", 2, "old-answer"),
+	];
+	return {
+		listMessages: () => {
+			if (state.phase !== "done") {
+				return Promise.resolve(prior);
+			}
+			// Slow post-turn fetch: widens the window where stale history could
+			// wrongly clear the draft.
+			return new Promise((resolve) =>
+				setTimeout(
+					() =>
+						resolve([
+							...prior,
+							row("u1", "user", "complete", 3, "hi-question"),
+							row("a1", "assistant", "complete", 4, "OK-marker plus more"),
+						]),
+					FETCH_DELAY_MS
+				)
+			);
+		},
+		async *stream() {
+			state.phase = "running";
+			yield { type: "text-delta", delta: "OK-marker plus" };
+			// Let the typewriter reveal paint the marker.
+			await tick(400);
+			state.phase = "done";
+			yield { type: "done", usage: null, finishReason: "stop" };
+		},
+		cancel: () => Promise.resolve(),
+	} as unknown as AgentClient;
+}
+
+it("second turn never vanishes against stale pre-turn history", {
+	timeout: 10_000,
+}, async () => {
+	const state = { phase: "idle" as "idle" | "running" | "done" };
+	const { container } = renderChat(secondTurnClient(state), "s-second");
+	const dom = watchDom(container);
+
+	await waitFor(
+		() => {
+			expect(state.phase).toBe("done");
+		},
+		{ timeout: 6000 }
+	);
+	await act(async () => {
+		await tick(600);
+	});
+	dom.stop();
+
+	assertNeverVanishes(dom.snapshots, "hi-question");
+	assertNeverVanishes(dom.snapshots, "OK-marker");
+	expect(container.textContent).toContain("old-answer");
+	expect(container.textContent).toContain("OK-marker plus more");
+});
+
 it("keeps the draft when the stream dies while the server turn continues", {
 	timeout: 10_000,
 }, async () => {

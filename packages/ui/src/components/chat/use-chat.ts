@@ -80,6 +80,23 @@ interface SendArgs {
 	store: ChatSessionStore;
 }
 
+// A turn adds at least user + assistant rows past the pre-send baseline.
+const TURN_ROW_COUNT = 2;
+
+/** True only when `rows` PROVABLY contains the finished turn: it grew past the
+ * pre-send baseline AND its trailing message is no longer streaming. Guards
+ * against clearing the draft on stale pre-turn history (whose trailing row is
+ * the PREVIOUS turn's completed assistant). */
+export function turnLandedInHistory(
+	rows: MessageHistory | undefined,
+	baseHistoryCount: number
+): boolean {
+	if (!rows || rows.length < baseHistoryCount + TURN_ROW_COUNT) {
+		return false;
+	}
+	return !liveTrailingTurn(rows);
+}
+
 async function finalizeSend(args: SendArgs) {
 	args.store.setStreaming(false);
 	args.store.setController(null);
@@ -94,11 +111,9 @@ async function finalizeSend(args: SendArgs) {
 			queryFn: () => args.agentClient.listMessages(args.sessionId),
 		});
 		// If the SSE died early, the DETACHED server turn may still be running —
-		// the fetched rows are incomplete (trailing assistant still `streaming`).
-		// Keep the draft: it holds the fullest content. The observing poll keeps
-		// refreshing history, and the reconcile effect in useChat clears the
-		// draft only once the turn is really complete.
-		if (!liveTrailingTurn(rows)) {
+		// the fetched rows are incomplete. Keep the draft (fullest content); the
+		// observing poll + reconcile effect swap it once the turn really landed.
+		if (turnLandedInHistory(rows, args.store.getSnapshot().baseHistoryCount)) {
 			args.store.setDraft([]);
 		}
 	} catch {
@@ -234,20 +249,19 @@ export function useChat(
 	const observing = !streaming && isObserving(history.data, stallRef);
 
 	// Reconcile a draft kept past finalize (stream died while the detached
-	// server turn kept running): once history's trailing message is complete,
-	// the persisted rows take over and the draft goes away.
+	// server turn kept running): only once history PROVABLY contains the
+	// finished turn (grew past the pre-send baseline + trailing complete) do
+	// the persisted rows take over. Stale pre-turn history must never clear it.
 	const hasDraft = draft.length > 0;
 	useEffect(() => {
 		if (
 			!streaming &&
 			hasDraft &&
-			history.data &&
-			history.data.length > 0 &&
-			!liveTrailingTurn(history.data)
+			turnLandedInHistory(history.data, baseHistoryCount)
 		) {
 			store.setDraft([]);
 		}
-	}, [streaming, hasDraft, history.data, store]);
+	}, [streaming, hasDraft, history.data, baseHistoryCount, store]);
 
 	// While a draft is on screen it owns the current turn: history is capped at
 	// its pre-send length so the turn's persisted rows never double-render, and
