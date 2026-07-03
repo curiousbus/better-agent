@@ -2,19 +2,29 @@ import { Rocket } from "lucide-react";
 import type { CSSProperties } from "react";
 
 // Space bodies drifting past toward the lower-left (opposite the flight
-// direction). Small on purpose — motion cues, not scenery.
+// direction). A wider, denser field across the whole scene.
 const SPACE_BODIES = [
-	{ kind: "star", top: "12%", left: "26%", delay: "0s", duration: "2.2s" },
-	{ kind: "star", top: "62%", left: "14%", delay: "0.9s", duration: "2.6s" },
-	{ kind: "star", top: "34%", left: "70%", delay: "1.5s", duration: "2s" },
-	{ kind: "star", top: "80%", left: "52%", delay: "0.4s", duration: "2.8s" },
-	{ kind: "star", top: "48%", left: "40%", delay: "2s", duration: "2.4s" },
-	{ kind: "star", top: "22%", left: "84%", delay: "1.2s", duration: "1.9s" },
-	{ kind: "meteor", top: "24%", left: "58%", delay: "1.1s", duration: "1.8s" },
-	{ kind: "meteor", top: "66%", left: "30%", delay: "2.6s", duration: "1.6s" },
-	{ kind: "planet", top: "70%", left: "78%", delay: "0.2s", duration: "4.5s" },
-	{ kind: "planet", top: "16%", left: "44%", delay: "1.8s", duration: "5.2s" },
-	{ kind: "ringed", top: "44%", left: "8%", delay: "3s", duration: "6s" },
+	{ kind: "star", top: "8%", left: "18%", delay: "0s", duration: "2.2s" },
+	{ kind: "star", top: "62%", left: "10%", delay: "0.9s", duration: "2.6s" },
+	{ kind: "star", top: "34%", left: "72%", delay: "1.5s", duration: "2s" },
+	{ kind: "star", top: "82%", left: "50%", delay: "0.4s", duration: "2.8s" },
+	{ kind: "star", top: "48%", left: "38%", delay: "2s", duration: "2.4s" },
+	{ kind: "star", top: "18%", left: "88%", delay: "1.2s", duration: "1.9s" },
+	{ kind: "star", top: "6%", left: "56%", delay: "2.4s", duration: "2.1s" },
+	{ kind: "star", top: "90%", left: "24%", delay: "0.6s", duration: "2.7s" },
+	{ kind: "star", top: "72%", left: "64%", delay: "3.1s", duration: "2.3s" },
+	{ kind: "star", top: "40%", left: "6%", delay: "1.7s", duration: "2.5s" },
+	{ kind: "star", top: "28%", left: "48%", delay: "3.6s", duration: "2s" },
+	{ kind: "star", top: "58%", left: "92%", delay: "0.3s", duration: "1.8s" },
+	{ kind: "meteor", top: "24%", left: "60%", delay: "1.1s", duration: "1.8s" },
+	{ kind: "meteor", top: "66%", left: "28%", delay: "2.6s", duration: "1.6s" },
+	{ kind: "meteor", top: "12%", left: "38%", delay: "3.4s", duration: "1.7s" },
+	{ kind: "meteor", top: "84%", left: "72%", delay: "1.9s", duration: "1.5s" },
+	{ kind: "planet", top: "70%", left: "82%", delay: "0.2s", duration: "4.5s" },
+	{ kind: "planet", top: "14%", left: "10%", delay: "1.8s", duration: "5.2s" },
+	{ kind: "planet", top: "52%", left: "56%", delay: "3.8s", duration: "4.8s" },
+	{ kind: "ringed", top: "44%", left: "4%", delay: "3s", duration: "6s" },
+	{ kind: "ringed", top: "86%", left: "88%", delay: "1.4s", duration: "5.5s" },
 ] as const;
 
 // Exhaust dashes step down the flight axis behind the rocket.
@@ -64,7 +74,7 @@ export function RocketLoader({ label = "Loading" }: { label?: string }) {
 			className="flex h-full flex-1 items-center justify-center"
 			role="status"
 		>
-			<div className="relative size-44 overflow-hidden rounded-3xl bg-muted/40">
+			<div className="relative size-64 overflow-hidden">
 				{SPACE_BODIES.map((body) => {
 					const bodyClass = BODY_CLASS[body.kind];
 					const bodyOpacity = BODY_OPACITY[body.kind];
@@ -79,7 +89,7 @@ export function RocketLoader({ label = "Loading" }: { label?: string }) {
 				<div className="absolute inset-0 flex items-center justify-center">
 					<div className="relative">
 						{/* lucide's rocket artwork points up-right natively. */}
-						<Rocket className="rocket-fly size-10 text-primary" />
+						<Rocket className="rocket-fly size-12 text-primary" />
 						{EXHAUST.map((dash) => (
 							<span
 								className="rocket-exhaust absolute h-0.5 w-3 -rotate-45 rounded-full bg-primary/60"
