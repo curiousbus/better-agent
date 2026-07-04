@@ -10,6 +10,12 @@ import {
 
 import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
+import {
+	isObserving,
+	observePollInterval,
+	type StallRef,
+	turnLandedInHistory,
+} from "./chat-observe";
 import { type ChatSessionStore, chatSession } from "./chat-session-store";
 import { type GenuiStreamConfig, streamPrompt } from "./chat-stream";
 
@@ -21,88 +27,12 @@ export { streamPrompt } from "./chat-stream";
 const messagesKey = (sessionId: string) =>
 	["agent", "messages", sessionId] as const;
 
-// ── observing mode ───────────────────────────────────────────────────────────
-// Turns run detached on the server (parts persist progressively). After a
-// reload there is no local stream, but the trailing assistant message is still
-// `streaming` — so we OBSERVE it: poll history until it completes. A turn whose
-// content stops changing for too long is treated as orphaned and left alone.
-const OBSERVE_POLL_MS = 1500;
-const STALL_MS = 120_000;
-
-type StallRef = MutableRefObject<{ fingerprint: string; since: number } | null>;
-
-function liveTrailingTurn(rows: MessageHistory | undefined) {
-	const last = rows?.at(-1);
-	return last &&
-		last.message.role === "assistant" &&
-		last.message.status === "streaming"
-		? last
-		: null;
-}
-
-function turnFingerprint(row: MessageHistory[number]): string {
-	return `${row.message.id}:${row.parts.length}:${JSON.stringify(row.parts).length}`;
-}
-
-function observePollInterval(
-	rows: MessageHistory | undefined,
-	stallRef: StallRef
-): number | false {
-	const live = liveTrailingTurn(rows);
-	if (!live) {
-		stallRef.current = null;
-		return false;
-	}
-	const fingerprint = turnFingerprint(live);
-	const now = Date.now();
-	if (stallRef.current?.fingerprint !== fingerprint) {
-		stallRef.current = { fingerprint, since: now };
-	}
-	return now - stallRef.current.since > STALL_MS ? false : OBSERVE_POLL_MS;
-}
-
-function isObserving(
-	rows: MessageHistory | undefined,
-	stallRef: StallRef
-): boolean {
-	if (!liveTrailingTurn(rows)) {
-		return false;
-	}
-	const stall = stallRef.current;
-	return !(stall && Date.now() - stall.since > STALL_MS);
-}
-
 interface SendArgs {
 	agentClient: AgentClient;
 	genui?: GenuiStreamConfig;
 	queryClient: QueryClient;
 	sessionId: string;
 	store: ChatSessionStore;
-}
-
-// A turn adds at least user + assistant rows past the pre-send baseline.
-const TURN_ROW_COUNT = 2;
-
-/** True only when `rows` PROVABLY contains the finished turn: grew past the
- * pre-send baseline, trailing message no longer streaming, AND that trailing
- * assistant row HAS parts. The parts guard keeps the draft up if the persisted
- * row is still empty — else the swap flashes an empty reply ("vanish then
- * reappear"), as on an errored turn whose parts land after its status. */
-export function turnLandedInHistory(
-	rows: MessageHistory | undefined,
-	baseHistoryCount: number
-): boolean {
-	if (!rows || rows.length < baseHistoryCount + TURN_ROW_COUNT) {
-		return false;
-	}
-	if (liveTrailingTurn(rows)) {
-		return false;
-	}
-	const last = rows.at(-1);
-	if (last?.message.role === "assistant" && last.parts.length === 0) {
-		return false;
-	}
-	return true;
 }
 
 async function finalizeSend(args: SendArgs) {
@@ -227,6 +157,41 @@ function stopSession(
 	}
 }
 
+// Sticky last-non-empty messages, reset to empty whenever the session changes.
+function useSessionResetRef(
+	sessionId: string
+): MutableRefObject<ChatMessage[]> {
+	const lastMessagesRef = useRef<ChatMessage[]>([]);
+	const sessionRef = useRef(sessionId);
+	if (sessionRef.current !== sessionId) {
+		sessionRef.current = sessionId;
+		lastMessagesRef.current = [];
+	}
+	return lastMessagesRef;
+}
+
+// While a draft is on screen it owns the current turn: history is capped at its
+// pre-send length so the persisted rows never double-render. Sticky guard: the
+// draft→history handoff can momentarily yield an empty list in the real browser
+// (the draft clears a beat before the query hook reflects the persisted turn);
+// rendering [] flashes the empty state ("聊天窗口变白"). Once messages have been
+// shown, never fall back to empty (the ref resets when the session changes).
+function stickyMessages(
+	rows: MessageHistory,
+	draft: ChatMessage[],
+	baseHistoryCount: number,
+	lastRef: MutableRefObject<ChatMessage[]>
+): ChatMessage[] {
+	const visibleRows = draft.length > 0 ? rows.slice(0, baseHistoryCount) : rows;
+	const computed = [...visibleRows.map(toChatMessage), ...draft];
+	const messages =
+		computed.length === 0 && lastRef.current.length > 0
+			? lastRef.current
+			: computed;
+	lastRef.current = messages;
+	return messages;
+}
+
 export function useChat(
 	sessionId: string,
 	agentClient: AgentClient,
@@ -242,6 +207,7 @@ export function useChat(
 		store.getSnapshot
 	);
 	const stallRef: StallRef = useRef(null);
+	const lastMessagesRef = useSessionResetRef(sessionId);
 	const history = useQuery({
 		queryKey: messagesKey(sessionId),
 		queryFn: () => agentClient.listMessages(sessionId),
@@ -270,12 +236,12 @@ export function useChat(
 		}
 	}, [streaming, hasDraft, history.data, baseHistoryCount, store]);
 
-	// While a draft is on screen it owns the current turn: history is capped at
-	// its pre-send length so the turn's persisted rows never double-render, and
-	// the draft -> history handoff is a seamless in-place swap.
-	const rows = history.data ?? [];
-	const visibleRows = draft.length > 0 ? rows.slice(0, baseHistoryCount) : rows;
-	const messages: ChatMessage[] = [...visibleRows.map(toChatMessage), ...draft];
+	const messages = stickyMessages(
+		history.data ?? [],
+		draft,
+		baseHistoryCount,
+		lastMessagesRef
+	);
 
 	const send = (text: string, attachments: AttachmentRef[] = []) =>
 		sendMessage(text, attachments, {
