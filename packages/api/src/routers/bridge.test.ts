@@ -9,7 +9,14 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { expect, it } from "vitest";
 import type { AuthedBridgeToken } from "../context";
+import { createContext } from "../context";
 import { appRouter } from "./index";
+
+function fakeHonoRequest(authHeader?: string) {
+	const header = (name: string) =>
+		name.toLowerCase() === "authorization" ? authHeader : undefined;
+	return { req: { header } } as never;
+}
 
 const ALICE = {
 	id: "alice-uid",
@@ -139,7 +146,13 @@ function build() {
 				userAgent: null,
 			},
 		});
-	return { bridgeToken, bridgeSession, userClientFor, bridgeClientFor };
+	return {
+		bridgeToken,
+		bridgeSession,
+		services,
+		userClientFor,
+		bridgeClientFor,
+	};
 }
 
 it("createToken mints a one-time bt_ token; listTokens never exposes it again", async () => {
@@ -169,6 +182,27 @@ it("revokeToken only revokes the caller's own token", async () => {
 
 	await alice.bridge.revokeToken({ id: tokenId });
 	expect((await bridgeToken.listByUser(ALICE.id))[0]?.revokedAt).not.toBeNull();
+});
+
+it("a revoked raw bridge token is rejected end-to-end by bridgeProcedure", async () => {
+	const { userClientFor, bridgeToken, services } = build();
+	const alice = userClientFor(ALICE);
+	const created = await alice.bridge.createToken({ name: "laptop" });
+	const tokenId = (await bridgeToken.listByUser(ALICE.id))[0]?.id as string;
+	await alice.bridge.revokeToken({ id: tokenId });
+
+	// Re-derive the context from the raw revoked token via createContext, the
+	// same way the real HTTP layer would — end-to-end, not a store-level check.
+	const context = await createContext({
+		context: fakeHonoRequest(`Bearer ${created.token}`),
+		services: services as never,
+	});
+	expect(context.authedBridgeToken).toBeNull();
+
+	const cli = createRouterClient(appRouter, { context });
+	await expect(
+		cli.bridge.startSession({ agentKind: AGENT_KIND })
+	).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 });
 
 it("startSession binds a session to the bridge token's user", async () => {

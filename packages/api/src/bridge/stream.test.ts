@@ -114,10 +114,11 @@ it("stops delivering events once unsubscribed", async () => {
 });
 
 const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;
 
 function fakeContext(
-	authedUser: { id: string } | null,
+	authedUser: { blocked?: boolean; id: string } | null,
 	sessionOwner: string | null
 ): Context {
 	return {
@@ -168,4 +169,10 @@ it("resolveStreamAuth accepts the owner", async () => {
 	const context = fakeContext({ id: "alice" }, "alice");
 	const result = await resolveStreamAuth(context, "s1");
 	expect(result).toEqual({ ok: true, userId: "alice" });
+});
+
+it("resolveStreamAuth rejects a blocked owner (mirrors requireActiveUser)", async () => {
+	const context = fakeContext({ blocked: true, id: "alice" }, "alice");
+	const result = await resolveStreamAuth(context, "s1");
+	expect(result).toEqual({ ok: false, status: HTTP_FORBIDDEN });
 });

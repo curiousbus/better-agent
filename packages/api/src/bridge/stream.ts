@@ -57,17 +57,27 @@ export function observeBridgeEvents(options: ObserveOptions): () => void {
 }
 
 const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;
 
 export type StreamAuthResult =
 	| { ok: true; userId: string }
-	| { ok: false; status: typeof HTTP_UNAUTHORIZED | typeof HTTP_NOT_FOUND };
+	| {
+			ok: false;
+			status:
+				| typeof HTTP_UNAUTHORIZED
+				| typeof HTTP_FORBIDDEN
+				| typeof HTTP_NOT_FOUND;
+	  };
 
 /**
  * Resolves + authorizes an observe-stream request: the caller must be a
- * signed-in user who owns the bridge session. Kept separate from the raw Hono
- * route so it (and the ordering-critical observeBridgeEvents above) can be
- * unit-tested without booting an HTTP server.
+ * signed-in, non-blocked user who owns the bridge session. Mirrors
+ * requireActiveUser's semantics (see ./index.ts) so a blocked account loses
+ * access to its live SSE output the same way it loses access to every other
+ * authed endpoint. Kept separate from the raw Hono route so it (and the
+ * ordering-critical observeBridgeEvents above) can be unit-tested without
+ * booting an HTTP server.
  */
 export async function resolveStreamAuth(
 	context: Context,
@@ -76,6 +86,9 @@ export async function resolveStreamAuth(
 	const user = context.authedUser;
 	if (!user) {
 		return { ok: false, status: HTTP_UNAUTHORIZED };
+	}
+	if (user.blocked) {
+		return { ok: false, status: HTTP_FORBIDDEN };
 	}
 	try {
 		await requireOwnedBridgeSession(context, user.id, sessionId);

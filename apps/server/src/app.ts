@@ -34,6 +34,7 @@ function isStreamingPath(path: string): boolean {
 const HTTP_INTERNAL_SERVER_ERROR = 500;
 const HTTP_FORBIDDEN = 403;
 const HTTP_UNAUTHORIZED = 401;
+const HTTP_NOT_FOUND = 404;
 
 // Keeps the SSE connection alive through idle proxies (most close a
 // connection with no bytes flowing after ~30-60s).
@@ -143,6 +144,21 @@ function parseAfterId(raw: string | undefined): number {
 	return Number.isFinite(parsed) ? parsed : DEFAULT_AFTER_ID;
 }
 
+function streamAuthErrorMessage(
+	status:
+		| typeof HTTP_UNAUTHORIZED
+		| typeof HTTP_FORBIDDEN
+		| typeof HTTP_NOT_FOUND
+): string {
+	if (status === HTTP_UNAUTHORIZED) {
+		return "Unauthorized";
+	}
+	if (status === HTTP_FORBIDDEN) {
+		return "Forbidden";
+	}
+	return "Not Found";
+}
+
 // Long-lived observe stream for a bridge session's `events↑` channel. A plain
 // Hono route (not an oRPC procedure) so the response is genuine
 // `text/event-stream`, consumable by a browser EventSource with automatic
@@ -158,8 +174,7 @@ function applyBridgeStreamRoute(
 		const sessionId = c.req.param("id");
 		const auth = await resolveStreamAuth(context, sessionId);
 		if (!auth.ok) {
-			const message =
-				auth.status === HTTP_UNAUTHORIZED ? "Unauthorized" : "Not Found";
+			const message = streamAuthErrorMessage(auth.status);
 			return c.text(message, auth.status);
 		}
 		const afterId = parseAfterId(
