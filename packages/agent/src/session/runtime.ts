@@ -207,19 +207,18 @@ async function prepareMessages(
 	return applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 }
 
-// Assemble the turn's tool set. StructuredOutput is injected LAST so the model
-// can call remote tools first, then submit (it also becomes the Anthropic cache
-// breakpoint; its call replaying on a later non-structured turn is benign).
-// Past the defer threshold, bulky (defer-marked) schemas are withheld from the
-// model and reached through search_tools — token cost scales with tools USED,
-// not tools configured.
+// Assemble the turn's tool set. Past the defer threshold, defer-marked schemas
+// are withheld and reached through search_tools (token cost scales with tools
+// USED). StructuredOutput is injected last, before any deferral decision.
 function prepareToolBinding(
 	tools: ToolDef[] | undefined,
 	outputSchema?: Record<string, unknown>
 ): { activeNames?: () => string[]; defs: ToolDef[] } {
 	const toolDefs = [...(tools ?? [])];
 	if (outputSchema) {
+		// genui turns never defer: search_tools pollutes structured output.
 		toolDefs.push(buildStructuredOutputToolDef(outputSchema));
+		return { defs: toolDefs };
 	}
 	if (!shouldDefer(toolDefs)) {
 		return { defs: toolDefs };
