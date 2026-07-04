@@ -92,7 +92,10 @@ function applyStructured(event: RunEvent, state: StreamState): boolean {
 		return true;
 	}
 	if (event.type === "done") {
-		if (event.structured !== undefined) {
+		// `!= null`: plain-text turns finish with structured:null (the server field
+		// survives JSON, unlike undefined). Storing that null flipped the message
+		// into empty-tree rendering — the whole reply vanished at completion.
+		if (event.structured != null) {
 			state.assistant.structured = event.structured;
 			emit(state);
 		}

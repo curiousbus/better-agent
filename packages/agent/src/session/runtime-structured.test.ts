@@ -162,7 +162,7 @@ it("gathers via a tool then submits structured output", async () => {
 	});
 });
 
-it("leaves structured null when the model never submits", async () => {
+it("omits structured from done when the model never submits", async () => {
 	const happy: LanguageModelV3StreamPart[] = [
 		{ type: "text-start", id: "0" },
 		{ type: "text-delta", id: "0", delta: "hi" },
@@ -182,5 +182,7 @@ it("leaves structured null when the model never submits", async () => {
 		runtime.runTurn({ sessionId: session.id, text: "go", outputSchema: SCHEMA })
 	);
 	const done = events.find((e) => e.type === "done");
-	expect(done && "structured" in done ? done.structured : "MISSING").toBeNull();
+	// Omitted, not null: "structured":null on the wire made clients mistake a
+	// plain turn for genui and render an empty tree over the text.
+	expect(done && "structured" in done).toBe(false);
 });

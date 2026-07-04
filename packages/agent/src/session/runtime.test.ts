@@ -138,7 +138,6 @@ it("streams text and persists a complete assistant message", async () => {
 			costCents: null,
 		},
 		finishReason: "stop",
-		structured: null,
 	});
 
 	const history = await messageStore.listWithParts(session.id);

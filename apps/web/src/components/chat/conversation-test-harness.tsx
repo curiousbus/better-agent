@@ -42,6 +42,18 @@ export function row(
 	} as unknown as MessageHistory[number];
 }
 
+// Production always wires generative UI (chat-view passes GENUI_CHAT_CONFIG),
+// which makes renderTree defined — a message with a non-null `structured` then
+// renders as a tree INSTEAD of its text. The harness must match, or structured-
+// field regressions (e.g. the done event's structured:null wiping the reply)
+// are invisible here while breaking prod.
+const GENUI_TEST_CONFIG = {
+	handlers: {},
+	outputSchema: {},
+	renderers: {},
+	tools: [],
+};
+
 export function renderChat(client: AgentClient, sessionId: string) {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -52,6 +64,7 @@ export function renderChat(client: AgentClient, sessionId: string) {
 		<QueryClientProvider client={queryClient}>
 			<Conversation
 				agentClient={client}
+				generativeUI={GENUI_TEST_CONFIG}
 				initialText="hi-question"
 				sessionId={sessionId}
 			/>

@@ -105,6 +105,49 @@ function seededClient(state: {
 	} as unknown as AgentClient;
 }
 
+// The REAL server's done event carries structured:null on plain-text turns
+// (JSON keeps null on the wire; only undefined is dropped). A null structured
+// must NOT flip the message into empty-tree rendering — that wiped the whole
+// reply at the exact moment the turn completed.
+function nullStructuredClient(state: {
+	phase: "idle" | "running" | "done";
+}): AgentClient {
+	return {
+		listMessages: () => Promise.resolve([]),
+		async *stream() {
+			state.phase = "running";
+			yield { type: "text-delta", delta: "OK-marker plain reply" };
+			await tick(400);
+			state.phase = "done";
+			yield {
+				type: "done",
+				usage: null,
+				finishReason: "stop",
+				structured: null,
+			};
+		},
+		cancel: () => Promise.resolve(),
+	} as unknown as AgentClient;
+}
+
+it("a done event with structured:null keeps the text reply visible", {
+	timeout: 10_000,
+}, async () => {
+	const state = { phase: "idle" as "idle" | "running" | "done" };
+	const { container } = renderChat(
+		nullStructuredClient(state),
+		"s-null-structured"
+	);
+	const dom = watchDom(container);
+	await waitFor(() => expect(state.phase).toBe("done"), { timeout: 6000 });
+	await act(async () => {
+		await tick(600);
+	});
+	dom.stop();
+	assertNeverVanishes(dom.snapshots, "OK-marker");
+	expect(container.textContent).toContain("OK-marker plain reply");
+});
+
 it("the sent turn coexists with seeded history and never vanishes", {
 	timeout: 10_000,
 }, async () => {

@@ -59,7 +59,11 @@ export async function* finalizeAssistant(
 			type: "done",
 			usage,
 			finishReason: outcome.finishReason,
-			structured: outcome.structured,
+			// Omit when null: outcome.structured is null on plain-text turns, and
+			// JSON.stringify would keep "structured":null on the wire — clients that
+			// check `!== undefined` then mistook the turn for genui and rendered an
+			// empty tree instead of the text (the reply vanished at completion).
+			...(outcome.structured == null ? {} : { structured: outcome.structured }),
 		};
 	}
 	return final ?? fallback;

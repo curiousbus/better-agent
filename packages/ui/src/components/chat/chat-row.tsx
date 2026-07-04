@@ -97,7 +97,10 @@ function AssistantBody({
 }) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
-	const hasTree = message.structured !== undefined && renderTree !== undefined;
+	// `!= null` on purpose: the server's done event carries structured:null on
+	// plain-text turns (JSON keeps null, unlike undefined). Treating null as "has
+	// a tree" replaced the whole reply with an empty render at completion.
+	const hasTree = message.structured != null && renderTree !== undefined;
 	const showThinking = isThinking(message, hasTree);
 	return (
 		<div className="flex flex-col gap-2">
