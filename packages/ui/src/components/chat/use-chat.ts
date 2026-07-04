@@ -108,26 +108,21 @@ export function turnLandedInHistory(
 async function finalizeSend(args: SendArgs) {
 	args.store.setStreaming(false);
 	args.store.setController(null);
-	// The history observer is still DISABLED in this tick (it re-enables when the
-	// streaming flag lands on the next render), so invalidateQueries would no-op
-	// and resolve immediately — clearing the draft against an empty cache blanks
-	// a fresh session. Fetch imperatively instead: the cache holds the completed
-	// turn BEFORE the draft goes away.
+	// Populate the history cache with the completed turn, but do NOT clear the
+	// draft here. Clearing against the fetchQuery RETURN races the useQuery the
+	// view reads: for a frame that hook still holds the pre-turn data, so the
+	// turn vanishes until the observer catches up. Instead, this fetch updates
+	// the cache, useQuery re-renders with the turn, and the reconcile EFFECT
+	// (which keys on that same history.data) clears the draft in the render
+	// where the turn is already on screen — a seamless swap, no empty frame.
 	try {
-		const rows = await args.queryClient.fetchQuery<MessageHistory>({
+		await args.queryClient.fetchQuery<MessageHistory>({
 			queryKey: messagesKey(args.sessionId),
 			queryFn: () => args.agentClient.listMessages(args.sessionId),
-			// MUST bypass any app-level staleTime default: within its freshness
-			// window fetchQuery returns the CACHED pre-turn rows without touching
-			// the network, and the swap would run against stale history.
+			// Bypass any app-level staleTime: within its freshness window
+			// fetchQuery returns the CACHED pre-turn rows without a network hit.
 			staleTime: 0,
 		});
-		// If the SSE died early, the DETACHED server turn may still be running —
-		// the fetched rows are incomplete. Keep the draft (fullest content); the
-		// observing poll + reconcile effect swap it once the turn really landed.
-		if (turnLandedInHistory(rows, args.store.getSnapshot().baseHistoryCount)) {
-			args.store.setDraft([]);
-		}
 	} catch {
 		// Fetch failed — keep the draft visible; a later refetch reconciles.
 	}
