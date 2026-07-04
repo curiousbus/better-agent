@@ -35,7 +35,22 @@ export function mapError(err: unknown, context: string): Error {
 	if (isErrorWithStatus(err) && err.response?.status === 404) {
 		return new XNotFoundError(context);
 	}
-	return new XError(context, err);
+	// Surface the underlying reason — the SDK's status and message — instead of
+	// hiding it behind the bare context, so failures are actually diagnosable.
+	return new XError(errorDetail(context, err), err);
+}
+
+function errorDetail(context: string, err: unknown): string {
+	const status = isErrorWithStatus(err) ? err.response?.status : undefined;
+	const detail = err instanceof Error ? err.message : String(err);
+	const parts = [context];
+	if (status !== undefined) {
+		parts.push(`status ${status}`);
+	}
+	if (detail && detail !== context) {
+		parts.push(detail);
+	}
+	return parts.join(" — ");
 }
 
 const SNIPPET_LEN = 200;

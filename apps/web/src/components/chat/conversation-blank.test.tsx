@@ -1,46 +1,15 @@
 // @vitest-environment jsdom
-import { Conversation } from "@better-agent/ui/components/chat/conversation";
-import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, waitFor } from "@testing-library/react";
+import type { AgentClient } from "@curiousbus/agent-client";
+import { act, waitFor } from "@testing-library/react";
 import { expect, it } from "vitest";
-
-// Reproduction harness for "chat clears mid-turn, reappears at done": renders
-// the REAL Conversation over a realistic tool-using turn (text → tool-call →
-// execution gap → tool-result → text → done) and records a DOM snapshot on
-// every mutation. Once the user's message is visible it must never vanish.
-
-const STAMP = new Date("2026-07-02T00:00:00Z");
-const TICK_MS = 15;
-
-const tick = (ms: number) =>
-	new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-function row(
-	id: string,
-	role: "user" | "assistant",
-	status: string,
-	seq: number,
-	text: string
-): MessageHistory[number] {
-	return {
-		message: {
-			id,
-			sessionId: "s1",
-			role,
-			seq,
-			status,
-			providerId: null,
-			modelId: null,
-			usage: null,
-			finishReason: null,
-			error: null,
-			createdAt: STAMP,
-			updatedAt: STAMP,
-		},
-		parts: [{ id: `p-${id}`, type: "text", content: { text } }],
-	} as unknown as MessageHistory[number];
-}
+import {
+	assertNeverVanishes,
+	renderChat,
+	row,
+	TICK_MS,
+	tick,
+	watchDom,
+} from "./conversation-test-harness";
 
 // Server-realistic history: rows exist (streaming) DURING the turn.
 function fakeClient(state: {
@@ -133,47 +102,6 @@ function dyingClient(state: {
 		},
 		cancel: () => Promise.resolve(),
 	} as unknown as AgentClient;
-}
-
-// Mirror production's QueryClient defaults (apps/web/src/utils/orpc.ts): the
-// 60s global staleTime is load-bearing — it makes naive fetchQuery calls
-// return CACHED pre-turn rows without a network hit.
-const PROD_STALE_TIME_MS = 60_000;
-
-function renderChat(client: AgentClient, sessionId: string) {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, staleTime: PROD_STALE_TIME_MS },
-		},
-	});
-	return render(
-		<QueryClientProvider client={queryClient}>
-			<Conversation
-				agentClient={client}
-				initialText="hi-question"
-				sessionId={sessionId}
-			/>
-		</QueryClientProvider>
-	);
-}
-
-function watchDom(container: Element) {
-	const snapshots: string[] = [];
-	const observer = new MutationObserver(() => {
-		snapshots.push(container.textContent ?? "");
-	});
-	observer.observe(container, {
-		childList: true,
-		subtree: true,
-		characterData: true,
-	});
-	return { snapshots, stop: () => observer.disconnect() };
-}
-
-function assertNeverVanishes(snapshots: string[], marker: string) {
-	const first = snapshots.findIndex((s) => s.includes(marker));
-	expect(first).toBeGreaterThanOrEqual(0);
-	expect(snapshots.slice(first).filter((s) => !s.includes(marker))).toEqual([]);
 }
 
 // SECOND turn in an existing session: while streaming, the cached history is

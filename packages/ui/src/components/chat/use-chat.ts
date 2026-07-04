@@ -83,10 +83,11 @@ interface SendArgs {
 // A turn adds at least user + assistant rows past the pre-send baseline.
 const TURN_ROW_COUNT = 2;
 
-/** True only when `rows` PROVABLY contains the finished turn: it grew past the
- * pre-send baseline AND its trailing message is no longer streaming. Guards
- * against clearing the draft on stale pre-turn history (whose trailing row is
- * the PREVIOUS turn's completed assistant). */
+/** True only when `rows` PROVABLY contains the finished turn: grew past the
+ * pre-send baseline, trailing message no longer streaming, AND that trailing
+ * assistant row HAS parts. The parts guard keeps the draft up if the persisted
+ * row is still empty — else the swap flashes an empty reply ("vanish then
+ * reappear"), as on an errored turn whose parts land after its status. */
 export function turnLandedInHistory(
 	rows: MessageHistory | undefined,
 	baseHistoryCount: number
@@ -94,7 +95,14 @@ export function turnLandedInHistory(
 	if (!rows || rows.length < baseHistoryCount + TURN_ROW_COUNT) {
 		return false;
 	}
-	return !liveTrailingTurn(rows);
+	if (liveTrailingTurn(rows)) {
+		return false;
+	}
+	const last = rows.at(-1);
+	if (last?.message.role === "assistant" && last.parts.length === 0) {
+		return false;
+	}
+	return true;
 }
 
 async function finalizeSend(args: SendArgs) {
