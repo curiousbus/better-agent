@@ -1,5 +1,6 @@
 import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
+import { createInMemoryRelayStore } from "@better-agent/agent/bridge/relay-store";
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
@@ -43,6 +44,7 @@ import {
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
+import { createRedisRelayStore } from "./redis-relay-store";
 import { createRedisSessionLock } from "./redis-session-lock";
 import { createUpstashCancellationRegistry } from "./upstash-cancellation";
 import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
@@ -119,6 +121,12 @@ function buildRateLimiter() {
 	return env.REDIS_URL
 		? createRedisRateLimiter(new Redis(env.REDIS_URL))
 		: createInMemoryRateLimiter();
+}
+
+function buildRelayStore() {
+	return env.REDIS_URL
+		? createRedisRelayStore(new Redis(env.REDIS_URL))
+		: createInMemoryRelayStore();
 }
 
 function buildRuntime(parts: {
@@ -216,6 +224,7 @@ function assembleServices(parts: {
 		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
+		relayStore: buildRelayStore(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }

@@ -17,6 +17,7 @@ import type {
 	ProviderCatalogStore,
 	ProviderCredentialStore,
 	RefreshTokenStore,
+	RelayStore,
 	SessionStore,
 	SettingsStore,
 	UserStore,
@@ -53,6 +54,7 @@ export interface AgentServices {
 	modelFactory: ModelFactory;
 	pendingToolCallStore: PendingToolCallStore;
 	rateLimiter: RateLimiter;
+	relayStore: RelayStore;
 	runtime: SessionRuntime;
 	stores: {
 		providerCatalog: ProviderCatalogStore;
