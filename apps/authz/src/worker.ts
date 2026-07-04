@@ -18,8 +18,11 @@ interface Env {
 	AUTHZ_DATABASE_URL: string;
 	AUTHZ_JWT_SECRET: string;
 	AUTHZ_SERVICE_SECRET: string;
-	// Worker-to-worker binding to the main server (for the revoke push).
+	// The revoke push reaches the main server one of two ways: a worker-to-worker
+	// binding when the server also runs on Workers, or its public URL when the
+	// server runs on Node/Docker (where same-account 1042 blocking doesn't apply).
 	MAIN?: ServiceBinding;
+	MAIN_SERVER_URL?: string;
 }
 
 const BAD_REQUEST = 400;
@@ -39,20 +42,24 @@ const createInput = z.object({
 // Tell the main server to drop its cached authorization for these subjects, so a
 // revocation takes effect immediately (the 60s TTL is the fallback).
 async function pushInvalidate(env: Env, subjects: string[]): Promise<void> {
-	if (!(env.MAIN && subjects.length > 0)) {
+	if (subjects.length === 0) {
 		return;
 	}
+	const path = "/internal/authz-invalidate";
+	const init: RequestInit = {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			"x-service-secret": env.AUTHZ_SERVICE_SECRET,
+		},
+		body: JSON.stringify({ subjects }),
+	};
 	try {
-		await env.MAIN.fetch(
-			new Request("https://main.internal/internal/authz-invalidate", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					"x-service-secret": env.AUTHZ_SERVICE_SECRET,
-				},
-				body: JSON.stringify({ subjects }),
-			})
-		);
+		if (env.MAIN) {
+			await env.MAIN.fetch(new Request(`https://main.internal${path}`, init));
+		} else if (env.MAIN_SERVER_URL) {
+			await fetch(`${env.MAIN_SERVER_URL}${path}`, init);
+		}
 	} catch {
 		// best-effort; the TTL still expires the cache within 60s
 	}

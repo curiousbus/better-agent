@@ -8,11 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 NODE_ENV = "production"
 
-# Worker-to-worker binding to the main server (for pushing cache invalidations
-# on revoke; same-account public-URL fetch is unreliable on Cloudflare).
-[[services]]
-binding = "MAIN"
-service = "better-agent-server"
+# The main server now runs on Node/Docker, so the revoke-invalidation push goes
+# over its public URL (MAIN_SERVER_URL secret) via a normal fetch — no
+# worker-to-worker binding, and no same-account 1042 blocking to work around.
 
 # SPA via static assets; worker handles API paths first.
 [assets]
