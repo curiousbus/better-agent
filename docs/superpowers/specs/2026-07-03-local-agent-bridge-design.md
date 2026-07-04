@@ -43,22 +43,19 @@
 
 ## 3. 关键架构取舍
 
-### 3.1 传输(已定):SSE + Redis 中继,**在 Cloudflare Workers 上可行**
+### 3.1 传输(已定,2026-07-04 更新):**原生 SSE push + 真 Redis pub/sub**(server 已迁至 Docker)
 
-决策:**SSE 下行 + POST 上行 + Redis 中继**,不上 WebSocket/Durable Objects,**暂不部署 k3s,直接在现有 Workers 上做**。
+> **背景变更**:server 已从 Cloudflare Workers 迁到**自托管 Docker(单机 Node + compose 自带 Redis,`ioredis` 已在用**:pending-store / session-lock 都走 `new Redis(REDIS_URL)`)。原方案为 Workers 限制(无常驻 SUBSCRIBE、SSE 会被回收、Upstash REST 按调用计费)所做的"轮询中继"妥协**全部失效**,升级为原生推送。
 
-**Workers 可行性分析(关键)**:
-- **真 Redis pub/sub 在 Workers 上不好用** —— Upstash REST 是请求/响应式,没有常驻 SUBSCRIBE。所以中继**不用 pub/sub 的 push,用轮询**:Redis 里为每个 session 存两条**滚动事件流 + 事件 id**(`events↑` 给 controller、`commands↓` 给 bridge),两端各自**轮询增量**。这正是现有「可续传回合 observing 模式」用的模式(每 1.5s 轮询历史),已在 Workers 上验证可行。
-- **两端都可用纯轮询,规避 Workers 的 SSE 时长限制**:
-  - 本地 bridge client 是 Node 进程,轮询零成本:agent 事件产生即 **POST 上行**;**轮询** `commands↓` 拿用户指令喂给 agent stdin。
-  - web controller:**轮询** `events↑`(或短时 SSE + 轮询兜底),用户指令 **POST 上行**。
-  - 好处:不依赖长 SSE 连接的稳定性,Workers 回收连接也无所谓 —— 断了下次轮询用 `lastEventId` 续上。
-- **Redis 事件缓冲**:每 session 一个**滚动窗口**(如最近 500 条 / 5 分钟 TTL),供刚接入/重连的一方回放;终端输出量大,需**截断超长行 + 限窗口**。
-- **成本控制**:自适应轮询(活跃时 ~300–500ms,空闲退避到几秒;**仅当有 controller 在看时才高频**),避免 Upstash REST 调用堆积。
+**新方案**:
+- **下行即时 push**:controller 打开一条**长驻 SSE**(Node 进程随便开);server 对每个 session `SUBSCRIBE bridge:{sid}:events`,`PUBLISH` 一到就写给 SSE —— **即时,不再是 300ms–1s 轮询级**。bridge client 拿指令同理(SSE 订阅 `commands↓`)或保留轮询(本地 Node 进程,成本为零,实现更简单可后换)。
+- **上行仍是 POST**:agent 事件产生即 POST;server `RPUSH` 进滚动窗口 + `PUBLISH` 通知订阅者。
+- **滚动窗口降级为重连回放缓冲**(不再是主数据通道):每 (session, dir) 一个 capped list(如 500 条 / 15 分钟 TTL),SSE 断线重连时带 `lastEventId` 先 `LRANGE` 回放增量、再接上直播。**轮询作为兜底路径保留**(同一 read(afterId) 接口),不是主通道。
+- **单实例简化**:当前 server 是单 Node 进程,理论上进程内 EventEmitter 直连即可;**仍走 Redis(pub/sub + 窗口)** —— 代价极低(compose 里现成),换来 server 重启不丢缓冲、日后横向扩容不改协议。
+- **实现注意**:SSE 经外层 Caddy 反代(默认不缓冲流式响应,无需特殊配置),但 server 侧要**定期发心跳注释行(`:ping`)**防链路超时断连;终端输出仍需**截断超长行 + 限窗口**。
+- ~~Upstash REST 调用成本控制 / 自适应轮询频率~~ —— 自建 Redis,零调用成本,整段删除。
 
-**Workers 上的取舍(可接受)**:延迟是**轮询级(300ms–1s)而非即时 push** —— 对"远程驱动编码 agent、看输出、发指令"完全够用,不是 60fps 终端。若日后要更低延迟,再评估把中继迁到 k3s(真 pub/sub)或上 WebSocket/DO —— 但**当前 Workers 方案不阻塞一期**。
-
-> 一句话:**可行**。复用 pending-store / observing 模式的「Upstash REST + 轮询 + 事件 id 续传」同一套打法,零新基建,不碰 Durable Objects,不需要 k3s。
+> 一句话:部署迁移把"为 Workers 妥协的轮询"升级成"Node 原生 SSE push + 真 Redis pub/sub":延迟从秒级到即时,复杂度反而下降(删掉自适应轮询/成本控制),复用 server 现有的 ioredis 基建。
 
 ### 3.2 认证与信任模型 ★安全关键
 - bridge 驱动的是**本地编码 agent**,能跑任意命令、改任意文件 —— 权力极大。
@@ -80,8 +77,8 @@
 
 共享层:归一化事件模型(消息 / 工具调用 / 文件改动 / 命令输出 / 状态)、Workers 轮询中继、bridge token、web 终端视图。
 
-## 5. 决策(review 已完成,全部锁定)
-- **传输**:SSE + Redis 轮询中继(Workers 可行,零新基建)。
+## 5. 决策(review 已完成,全部锁定;传输项 2026-07-04 随部署迁移更新)
+- **传输**:**原生 SSE push + 真 Redis pub/sub**(server 在 Docker/Node 上;ioredis 现成),滚动窗口只作重连回放缓冲,轮询仅兜底。(原"Workers 轮询中继"方案随 server 迁出 Workers 作废。)
 - **bridge token**:**独立 `bridge_tokens` 表**(可命名、可撤销、审计;与 agent token 语义分离)。
 - **多人旁观**:**一期仅本人**(session.userId === caller;中继底层已支持多 observer,权限收紧即可)。
 - **事件持久化**:**只留 Redis 滚动窗口**(会话结束即失,不落库)。
