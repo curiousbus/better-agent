@@ -45,7 +45,10 @@ const refreshClient = createORPCClient(refreshLink) as RouterClient<AppRouter>;
 
 let refreshInFlight: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<boolean> {
+// Exported so callers that talk to the server outside the oRPC link (e.g. the
+// bridge SSE stream, a plain fetch that can't run through RPCLink's own
+// interceptor) can reuse the exact same refresh-then-retry semantics on a 401.
+export async function refreshAccessToken(): Promise<boolean> {
 	const refreshToken = loadRefreshToken();
 	if (!refreshToken) {
 		return false;
@@ -66,7 +69,7 @@ function isUnauthorized(error: unknown): boolean {
 
 // Session is gone (refresh failed) — send the user back to login. A hard
 // navigation is fine here: it tears down all stale in-memory state.
-function redirectToLogin(): void {
+export function redirectToLogin(): void {
 	if (typeof window === "undefined") {
 		return;
 	}

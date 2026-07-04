@@ -17,6 +17,7 @@ import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
+import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
@@ -62,6 +63,11 @@ const IntegrationsIndexRoute = IntegrationsIndexRouteImport.update({
   path: '/integrations/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BridgeIndexRoute = BridgeIndexRouteImport.update({
+  id: '/bridge/',
+  path: '/bridge/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/agents/': typeof AgentsIndexRoute
+  '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/agents': typeof AgentsIndexRoute
+  '/bridge': typeof BridgeIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/agents/': typeof AgentsIndexRoute
+  '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/auth/verify'
     | '/integrations/$accountId'
     | '/agents/'
+    | '/bridge/'
     | '/integrations/'
     | '/auth/google/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/auth/verify'
     | '/integrations/$accountId'
     | '/agents'
+    | '/bridge'
     | '/integrations'
     | '/auth/google/callback'
   id:
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/auth/verify'
     | '/integrations/$accountId'
     | '/agents/'
+    | '/bridge/'
     | '/integrations/'
     | '/auth/google/callback'
   fileRoutesById: FileRoutesById
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   AuthVerifyRoute: typeof AuthVerifyRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  BridgeIndexRoute: typeof BridgeIndexRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
 }
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bridge/': {
+      id: '/bridge/'
+      path: '/bridge'
+      fullPath: '/bridge/'
+      preLoaderRoute: typeof BridgeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/agents/': {
       id: '/agents/'
       path: '/agents'
@@ -286,6 +306,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthVerifyRoute: AuthVerifyRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  BridgeIndexRoute: BridgeIndexRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
 }

@@ -24,3 +24,11 @@ export type ComposioConnectionRow = Awaited<
 export type McpServerRow = Awaited<
 	ReturnType<Client["mcp"]["listServers"]>
 >[number];
+
+export type BridgeTokenRow = Awaited<
+	ReturnType<Client["bridge"]["listTokens"]>
+>[number];
+
+export type BridgeSessionRow = Awaited<
+	ReturnType<Client["bridge"]["listSessions"]>
+>[number];
