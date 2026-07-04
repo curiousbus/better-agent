@@ -41,12 +41,24 @@
 - 类终端:等宽输出区(渲染归一化事件:agent 消息 / 工具调用 / 文件改动 / 命令输出)+ 底部输入框。
 - 绑定一个在线 bridge session;显示连接状态。复用聊天的 SSE 消费模式。
 
-## 3. 关键架构取舍(需 review 拍板)
+## 3. 关键架构取舍
 
-### 3.1 传输:WebSocket vs SSE+POST 中继 ★最重要
-- **WebSocket**(双向低延迟,最贴合终端):在 **Cloudflare Workers 上需要 Durable Objects** 来维持有状态配对 —— **新基建、有状态、按用量计费**。
-- **SSE 下行 + POST 上行 + Redis pub/sub**(复用现有基建,零新依赖):延迟略高但对"驱动编码 agent"完全够用;而且我们即将上的 **k3s 部署没有 waitUntil 30s 限制 + 有真 Redis**,长连接中继在 k3s 上非常自然。
-- **建议**:一期用 **SSE+POST+Redis 中继**(与现有可续传回合、pending-store 同源),避免引入 Durable Objects;若延迟体感差,二期再评估 WebSocket/DO 或直接把 bridge 中继放 k3s。
+### 3.1 传输(已定):SSE + Redis 中继,**在 Cloudflare Workers 上可行**
+
+决策:**SSE 下行 + POST 上行 + Redis 中继**,不上 WebSocket/Durable Objects,**暂不部署 k3s,直接在现有 Workers 上做**。
+
+**Workers 可行性分析(关键)**:
+- **真 Redis pub/sub 在 Workers 上不好用** —— Upstash REST 是请求/响应式,没有常驻 SUBSCRIBE。所以中继**不用 pub/sub 的 push,用轮询**:Redis 里为每个 session 存两条**滚动事件流 + 事件 id**(`events↑` 给 controller、`commands↓` 给 bridge),两端各自**轮询增量**。这正是现有「可续传回合 observing 模式」用的模式(每 1.5s 轮询历史),已在 Workers 上验证可行。
+- **两端都可用纯轮询,规避 Workers 的 SSE 时长限制**:
+  - 本地 bridge client 是 Node 进程,轮询零成本:agent 事件产生即 **POST 上行**;**轮询** `commands↓` 拿用户指令喂给 agent stdin。
+  - web controller:**轮询** `events↑`(或短时 SSE + 轮询兜底),用户指令 **POST 上行**。
+  - 好处:不依赖长 SSE 连接的稳定性,Workers 回收连接也无所谓 —— 断了下次轮询用 `lastEventId` 续上。
+- **Redis 事件缓冲**:每 session 一个**滚动窗口**(如最近 500 条 / 5 分钟 TTL),供刚接入/重连的一方回放;终端输出量大,需**截断超长行 + 限窗口**。
+- **成本控制**:自适应轮询(活跃时 ~300–500ms,空闲退避到几秒;**仅当有 controller 在看时才高频**),避免 Upstash REST 调用堆积。
+
+**Workers 上的取舍(可接受)**:延迟是**轮询级(300ms–1s)而非即时 push** —— 对"远程驱动编码 agent、看输出、发指令"完全够用,不是 60fps 终端。若日后要更低延迟,再评估把中继迁到 k3s(真 pub/sub)或上 WebSocket/DO —— 但**当前 Workers 方案不阻塞一期**。
+
+> 一句话:**可行**。复用 pending-store / observing 模式的「Upstash REST + 轮询 + 事件 id 续传」同一套打法,零新基建,不碰 Durable Objects,不需要 k3s。
 
 ### 3.2 认证与信任模型 ★安全关键
 - bridge 驱动的是**本地编码 agent**,能跑任意命令、改任意文件 —— 权力极大。
@@ -58,17 +70,22 @@
 ### 3.3 与现有"远程工具协议"的关系
 - 现有 remote-tools 是"server 端 LLM 调用 → 客户端执行工具 → 交回结果"(pending-store/submitToolResult)。**bridge 不复用它** —— bridge 没有 server 端 LLM 回合,是纯双向中继。但两者共享 **Redis 跨实例协调**的基建思路。
 
-## 4. 分期
-- **一期(MVP)**:Claude Code adapter(stream-json 双向)+ SSE/POST/Redis 中继 + web 终端视图 + bridge token。跑通"网页发指令 → 本地 Claude Code 执行 → 输出回网页"。
-- **二期**:opencode(ACP)+ codex adapter;事件类型细化渲染(diff/工具卡)。
-- **三期**:pi-agent;多会话管理;可选 WebSocket/DO 或 k3s 常驻中继降延迟;移动端终端优化。
+## 4. 范围(一期全做,已定)
 
-## 5. 待确认(review 问题)
-1. 传输选 **SSE+POST+Redis 中继**(推荐,零新基建)还是 WebSocket+Durable Objects?
-2. 一期只做 **Claude Code** 一个 adapter 打通链路,可接受吗?
-3. bridge token 的形态:复用 agent token 机制,还是新建独立的 bridge-token 表 + 生成/撤销 UI?
-4. 是否需要**多人协作观看**同一 bridge session(只读旁观),还是一期仅本人?
-5. 中继要不要把事件流**落库**做回放(成本 vs 价值),还是只保留内存/Redis 最近窗口?
+一期即覆盖**全部四个 adapter** + 中继 + web 终端 + bridge token。adapter 接口很薄,四个共享同一归一化协议与中继/UI,一起做可行:
+- **Claude Code**:stream-json 双向(stdin JSON / stdout NDJSON)。
+- **opencode**:ACP(stdin/stdout nd-JSON)优先;或 `opencode serve` HTTP+SSE。
+- **Codex**:`codex exec` JSONL 或 app-server JSON-RPC。
+- **pi-agent**:⚠️ 驱动接口文档少,**实现前需先确认它的 headless/streaming CLI 形态**(预期同类 stdin/stdout NDJSON);若无合适接口,pi 降级为二期,不阻塞其余三个。
+
+共享层:归一化事件模型(消息 / 工具调用 / 文件改动 / 命令输出 / 状态)、Workers 轮询中继、bridge token、web 终端视图。
+
+## 5. 待确认(剩余 review 问题)
+已定:传输 = SSE+Redis 轮询中继(Workers 可行);范围 = 一期全做。剩:
+1. **bridge token 形态**:复用现有 agent token 机制,还是新建独立 `bridge_tokens` 表 + 生成/撤销 UI?(建议:独立表,可撤销、可命名、审计,权限语义与 agent token 不同)
+2. **多人旁观**:是否支持多人只读观看同一 session,还是一期仅本人?(中继天然支持多 observer;仅需放开权限。建议:一期仅本人,够用)
+3. **事件落库回放**:只留 Redis 最近窗口(便宜、会话结束即失),还是把事件流落库做持久回放?(终端流量大;建议:一期只 Redis 窗口,不落库)
+4. **pi-agent**:能否先确认它的 headless 驱动接口?否则 pi 降二期,其余三个先上。
 
 ## 6. 不做/边界(一期)
 - 不代管本地 agent 的模型密钥;不做本地文件的云端镜像;不做 agent 进程的资源隔离(信任本地环境);移动端终端只保证可读可输入,不做完整 IDE。
