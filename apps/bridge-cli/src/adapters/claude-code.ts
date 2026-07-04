@@ -26,9 +26,10 @@ function tryParseJson(line: string): unknown {
 
 /** `claude -p --output-format stream-json --input-format stream-json --verbose`. */
 export const claudeCodeAdapter: Adapter = {
-	start(dir: string): Promise<AgentHandle> {
-		const io = spawnProcessIo("claude", CLAUDE_ARGS, dir);
+	async start(dir: string): Promise<AgentHandle> {
+		const io = await spawnProcessIo("claude", CLAUDE_ARGS, dir);
 		const events = createAsyncQueue<NormalizedEvent>();
+		io.onExit(() => events.close());
 
 		(async () => {
 			for await (const line of io.lines) {
@@ -37,7 +38,6 @@ export const claudeCodeAdapter: Adapter = {
 					events.push(event);
 				}
 			}
-			events.close();
 		})();
 
 		(async () => {
@@ -46,7 +46,7 @@ export const claudeCodeAdapter: Adapter = {
 			}
 		})();
 
-		return Promise.resolve({
+		return {
 			events,
 			send(text: string): void {
 				io.writeLine(buildClaudeInputFrame(text));
@@ -54,6 +54,6 @@ export const claudeCodeAdapter: Adapter = {
 			stop(): void {
 				io.stop();
 			},
-		});
+		};
 	},
 };

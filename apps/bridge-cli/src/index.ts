@@ -30,6 +30,9 @@ async function main(): Promise<void> {
 		transport,
 		handle,
 		signal: controller.signal,
+		forwardOptions: {
+			onWarning: (message) => process.stderr.write(`${message}\n`),
+		},
 	});
 
 	process.stdout.write(`Bridge session ended: ${sessionId}\n`);

@@ -7,8 +7,9 @@ import type { Adapter, AgentHandle } from "./types";
 /** `opencode acp` — the Agent Client Protocol server built into opencode. */
 export const opencodeAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
-		const rpc = connectJsonRpc("opencode", ["acp"], dir);
+		const rpc = await connectJsonRpc("opencode", ["acp"], dir);
 		const events = createAsyncQueue<NormalizedEvent>();
+		rpc.onExit(() => events.close());
 
 		rpc.onNotification((method, params) => {
 			for (const event of normalizeOpencode({ method, params })) {

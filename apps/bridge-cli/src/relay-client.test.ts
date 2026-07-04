@@ -173,33 +173,117 @@ describe("pollLoop - reconnect", () => {
 	});
 });
 
-describe("runBridgeSession", () => {
-	it("starts a session, pushes events, and polls under one sessionId", async () => {
-		const controller = new AbortController();
-		const transport = fakeTransport(vi.fn().mockResolvedValue([]));
-		const send = vi.fn();
-		const sleep: Sleep = () => {
-			controller.abort();
-			return Promise.resolve();
-		};
+async function startsSessionPushesEventsAndPollsUnderOneSessionId(): Promise<void> {
+	const controller = new AbortController();
+	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
+	const send = vi.fn();
+	const stop = vi.fn();
+	const sleep: Sleep = () => {
+		controller.abort();
+		return Promise.resolve();
+	};
 
-		const result = await runBridgeSession({
+	const result = await runBridgeSession({
+		agentKind: "claude-code",
+		label: "my project",
+		transport,
+		handle: { events: arrayEvents(["e1", "e2"]), send, stop },
+		signal: controller.signal,
+		pollOptions: { sleep },
+	});
+
+	expect(result).toEqual({ sessionId: "sess_1" });
+	expect(transport.startSession).toHaveBeenCalledExactlyOnceWith({
+		agentKind: "claude-code",
+		label: "my project",
+	});
+	expect(transport.pushEvents).toHaveBeenCalledWith({
+		sessionId: "sess_1",
+		events: ["e1", "e2"],
+	});
+	// The agent process must be released once the session winds down,
+	// whether that's a clean finish or a failure below.
+	expect(stop).toHaveBeenCalledTimes(1);
+}
+
+async function stopsTheAgentEvenWhenStartingTheSessionFailsOutright(): Promise<void> {
+	const controller = new AbortController();
+	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
+	transport.startSession = vi
+		.fn()
+		.mockRejectedValue(new Error("server unreachable"));
+	const stop = vi.fn();
+
+	await expect(
+		runBridgeSession({
 			agentKind: "claude-code",
 			label: "my project",
 			transport,
-			handle: { events: arrayEvents(["e1", "e2"]), send },
+			handle: { events: arrayEvents([]), send: vi.fn(), stop },
 			signal: controller.signal,
-			pollOptions: { sleep },
-		});
+		})
+	).rejects.toThrow("server unreachable");
 
-		expect(result).toEqual({ sessionId: "sess_1" });
-		expect(transport.startSession).toHaveBeenCalledExactlyOnceWith({
-			agentKind: "claude-code",
-			label: "my project",
-		});
-		expect(transport.pushEvents).toHaveBeenCalledWith({
-			sessionId: "sess_1",
-			events: ["e1", "e2"],
-		});
+	expect(stop).toHaveBeenCalledTimes(1);
+}
+
+const FORWARD_TEST_MAX_BATCH_SIZE = 100;
+
+async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void> {
+	const controller = new AbortController();
+	const pushedBatches: number[][] = [];
+	let failuresRemaining = 1;
+	const pushEvents = vi.fn(
+		async (input: { events: unknown[] }): Promise<void> => {
+			await Promise.resolve();
+			if (failuresRemaining > 0) {
+				failuresRemaining -= 1;
+				throw new Error("network blip");
+			}
+			pushedBatches.push(input.events as number[]);
+		}
+	);
+	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
+	transport.pushEvents = pushEvents;
+	const stop = vi.fn();
+	// The flush-interval timer never fires (so the only batch is the
+	// trailing one, once the events complete); the retry backoff resolves
+	// immediately so the test doesn't wait on real timers.
+	const neverSleep: Sleep = () => new Promise(() => undefined);
+
+	await runBridgeSession({
+		agentKind: "claude-code",
+		transport,
+		handle: { events: arrayEvents([1, 2, 3]), send: vi.fn(), stop },
+		signal: controller.signal,
+		forwardOptions: {
+			maxBatchSize: FORWARD_TEST_MAX_BATCH_SIZE,
+			sleep: neverSleep,
+			pushRetrySleep: () => Promise.resolve(),
+		},
+		pollOptions: { sleep: () => Promise.resolve() },
 	});
+
+	// First attempt failed and was never counted as delivered; the retry
+	// carried the exact same batch through, in order, exactly once.
+	expect(pushedBatches).toEqual([[1, 2, 3]]);
+	expect(pushEvents).toHaveBeenCalledTimes(2);
+	expect(stop).toHaveBeenCalledTimes(1);
+}
+
+describe("runBridgeSession", () => {
+	it(
+		"starts a session, pushes events, and polls under one sessionId",
+		startsSessionPushesEventsAndPollsUnderOneSessionId
+	);
+
+	it(
+		"stops the agent even when starting the session fails outright",
+		stopsTheAgentEvenWhenStartingTheSessionFailsOutright
+	);
+
+	it(
+		"retries a failed pushEvents batch instead of dropping it, preserving order",
+		retriesAFailedPushEventsBatchInsteadOfDroppingIt
+	);
 });

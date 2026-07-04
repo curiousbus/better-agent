@@ -28,8 +28,9 @@ const CODEX_ARGS = ["app-server"];
 
 export const codexAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
-		const rpc = connectJsonRpc("codex", CODEX_ARGS, dir);
+		const rpc = await connectJsonRpc("codex", CODEX_ARGS, dir);
 		const events = createAsyncQueue<NormalizedEvent>();
+		rpc.onExit(() => events.close());
 
 		rpc.onNotification((method, params) => {
 			for (const event of normalizeCodex({ method, params })) {

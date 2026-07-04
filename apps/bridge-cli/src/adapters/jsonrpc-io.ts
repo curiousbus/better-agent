@@ -1,7 +1,9 @@
 // Shared newline-delimited JSON-RPC-over-stdio plumbing for the opencode
 // (ACP) and codex (app-server) adapters: both speak request/response +
-// server-to-client notifications down the same pipe. Not unit tested — see
-// process-io.ts for why.
+// server-to-client notifications down the same pipe. `connectJsonRpc` itself
+// is exercised in jsonrpc-io.test.ts against real short-lived processes (see
+// process-io.ts for why that's safe in CI); the "codex"/"opencode" binaries
+// it's actually invoked with in production are not.
 //
 // Known gap: neither adapter answers server-initiated requests (e.g. codex's
 // `item/commandExecution/requestApproval`) — those arrive with a `method` and
@@ -10,10 +12,11 @@
 // to the web UI is out of scope for this task; tracked as a follow-up.
 
 import { isRecord } from "../normalize/types";
-import { spawnProcessIo } from "./process-io";
+import { type ProcessExitInfo, spawnProcessIo } from "./process-io";
 
 export interface JsonRpcIo {
 	notify(method: string, params: unknown): void;
+	onExit(handler: (info: ProcessExitInfo) => void): void;
 	onNotification(handler: (method: string, params: unknown) => void): void;
 	request(method: string, params: unknown): Promise<unknown>;
 	stop(): void;
@@ -73,12 +76,12 @@ function handleLine(
 	}
 }
 
-export function connectJsonRpc(
+export async function connectJsonRpc(
 	command: string,
 	args: string[],
 	cwd: string
-): JsonRpcIo {
-	const io = spawnProcessIo(command, args, cwd);
+): Promise<JsonRpcIo> {
+	const io = await spawnProcessIo(command, args, cwd);
 	const pending = new Map<number, PendingRequest>();
 	const handlers: Array<(method: string, params: unknown) => void> = [];
 	let nextId = 1;
@@ -99,6 +102,9 @@ export function connectJsonRpc(
 		},
 		notify(method: string, params: unknown): void {
 			io.writeLine(JSON.stringify({ method, params }));
+		},
+		onExit(handler: (info: ProcessExitInfo) => void): void {
+			io.onExit(handler);
 		},
 		onNotification(handler: (method: string, params: unknown) => void): void {
 			handlers.push(handler);
