@@ -100,6 +100,11 @@ export const mcpRouter = {
 				input.serverId
 			);
 			await context.services.stores.mcpServer.delete(input.serverId);
+			// Cascade: drop this server from every agent that linked it.
+			await context.services.stores.agent.unlinkMcpServer(
+				context.authedUser.id,
+				input.serverId
+			);
 			await context.services.stores.activity.log({
 				userId: context.authedUser.id,
 				type: "mcp_server_removed",

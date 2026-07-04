@@ -66,6 +66,7 @@ function build() {
 			}),
 		stores: {
 			activity: { log: () => Promise.resolve() },
+			agent: { unlinkMcpServer: () => Promise.resolve() },
 			mcpServer: serverStore,
 		},
 	};

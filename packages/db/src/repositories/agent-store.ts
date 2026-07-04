@@ -90,6 +90,31 @@ function makeAgentWriteOps(
 	};
 }
 
+// Removes a value from a jsonb id-array column across all of a user's agents.
+async function unlinkFromColumn(
+	db: Db,
+	userId: string,
+	column: "mcpServerIds" | "composioAccountIds",
+	id: string
+): Promise<void> {
+	const rows = await db
+		.select()
+		.from(schema.agents)
+		.where(eq(schema.agents.userId, userId));
+	for (const row of rows) {
+		const ids = row[column] ?? [];
+		if (ids.includes(id)) {
+			await db
+				.update(schema.agents)
+				.set({
+					[column]: ids.filter((value) => value !== id),
+					updatedAt: new Date(),
+				})
+				.where(eq(schema.agents.id, row.id));
+		}
+	}
+}
+
 export function createAgentStore(db: Db, box: SecretBox): AgentStore {
 	return {
 		...makeAgentReadOps(db, box),
@@ -125,6 +150,12 @@ export function createAgentStore(db: Db, box: SecretBox): AgentStore {
 		},
 		async delete(id) {
 			await db.delete(schema.agents).where(eq(schema.agents.id, id));
+		},
+		unlinkMcpServer(userId, serverId) {
+			return unlinkFromColumn(db, userId, "mcpServerIds", serverId);
+		},
+		unlinkComposioAccount(userId, accountId) {
+			return unlinkFromColumn(db, userId, "composioAccountIds", accountId);
 		},
 	};
 }

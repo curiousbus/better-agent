@@ -56,6 +56,9 @@ export interface AgentStore {
 		tokenHash: string,
 		token?: string
 	): Promise<AgentConfig | null>;
+	/** Remove a deleted source from every one of the user's agents. */
+	unlinkComposioAccount(userId: string, accountId: string): Promise<void>;
+	unlinkMcpServer(userId: string, serverId: string): Promise<void>;
 	update(id: string, input: AgentInput): Promise<AgentConfig | null>;
 }
 

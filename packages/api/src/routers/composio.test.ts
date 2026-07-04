@@ -60,6 +60,7 @@ function build() {
 			}),
 		stores: {
 			activity: { log: () => Promise.resolve() },
+			agent: { unlinkComposioAccount: () => Promise.resolve() },
 			composioAccount: accountStore,
 		},
 	};

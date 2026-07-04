@@ -140,6 +140,11 @@ export const composioRouter = {
 				input.accountId
 			);
 			await context.services.stores.composioAccount.delete(input.accountId);
+			// Cascade: drop this account from every agent that linked it.
+			await context.services.stores.agent.unlinkComposioAccount(
+				context.authedUser.id,
+				input.accountId
+			);
 			await context.services.stores.activity.log({
 				userId: context.authedUser.id,
 				type: "composio_account_removed",

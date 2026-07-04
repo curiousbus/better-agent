@@ -140,3 +140,39 @@ it("getToken round-trips the encrypted token; rotateToken replaces it", async ()
 		await store.getToken("00000000-0000-0000-0000-000000000000")
 	).toBeNull();
 });
+
+it("unlinkMcpServer drops the id from every one of the user's agents", async () => {
+	const store = createAgentStore(db, box);
+	const [alice] = await db
+		.insert(users)
+		.values({ email: "alice@x.com", passwordHash: "x" })
+		.returning();
+	const [bob] = await db
+		.insert(users)
+		.values({ email: "bob@x.com", passwordHash: "x" })
+		.returning();
+	const a1 = await store.create({
+		...INPUT,
+		tokenHash: "h1",
+		userId: alice?.id,
+		mcpServerIds: ["srv-1", "srv-2"],
+	});
+	const a2 = await store.create({
+		...INPUT,
+		tokenHash: "h2",
+		userId: alice?.id,
+		mcpServerIds: ["srv-2"],
+	});
+	const other = await store.create({
+		...INPUT,
+		tokenHash: "h3",
+		userId: bob?.id,
+		mcpServerIds: ["srv-1"],
+	});
+
+	await store.unlinkMcpServer(alice?.id ?? "", "srv-1");
+
+	expect((await store.get(a1.id))?.mcpServerIds).toEqual(["srv-2"]);
+	expect((await store.get(a2.id))?.mcpServerIds).toEqual(["srv-2"]);
+	expect((await store.get(other.id))?.mcpServerIds).toEqual(["srv-1"]);
+});

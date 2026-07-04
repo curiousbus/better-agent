@@ -50,6 +50,19 @@ function makeAgentTokenOps(
 	};
 }
 
+function unlinkFromArray(
+	map: Map<string, AgentConfig>,
+	userId: string,
+	field: "mcpServerIds" | "composioAccountIds",
+	id: string
+): void {
+	for (const agent of map.values()) {
+		if (agent.userId === userId && agent[field].includes(id)) {
+			agent[field] = agent[field].filter((value) => value !== id);
+		}
+	}
+}
+
 export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 	const map = new Map(seed.map((agent) => [agent.id, agent]));
 	const hashes = new Map<string, string>(); // agentId -> tokenHash
@@ -84,6 +97,14 @@ export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 			map.delete(id);
 			hashes.delete(id);
 			tokens.delete(id);
+			return Promise.resolve();
+		},
+		unlinkMcpServer(userId, serverId) {
+			unlinkFromArray(map, userId, "mcpServerIds", serverId);
+			return Promise.resolve();
+		},
+		unlinkComposioAccount(userId, accountId) {
+			unlinkFromArray(map, userId, "composioAccountIds", accountId);
 			return Promise.resolve();
 		},
 	};
