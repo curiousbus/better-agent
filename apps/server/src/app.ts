@@ -1,3 +1,7 @@
+import {
+	observeBridgeEvents,
+	resolveStreamAuth,
+} from "@better-agent/api/bridge/stream";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { env } from "@better-agent/env/server";
@@ -10,18 +14,31 @@ import { log } from "evlog";
 import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
 
 // Streaming (event-iterator) endpoints must skip the logging middleware: it
 // buffers the response, which locks the body stream and makes the streamed
-// response throw "ReadableStream is locked". Both the agent plane
-// (sessions/prompt) and the user/web plane (userSessions/prompt) stream.
+// response throw "ReadableStream is locked". The agent plane
+// (sessions/prompt), the user/web plane (userSessions/prompt), and the bridge
+// SSE observe stream (/bridge/sessions/:id/stream) all stream.
 const STREAMING_PATHS = new Set([
 	"/rpc/sessions/prompt",
 	"/rpc/userSessions/prompt",
 ]);
+const BRIDGE_STREAM_PATH = /^\/bridge\/sessions\/[^/]+\/stream$/;
+
+function isStreamingPath(path: string): boolean {
+	return STREAMING_PATHS.has(path) || BRIDGE_STREAM_PATH.test(path);
+}
 
 const HTTP_INTERNAL_SERVER_ERROR = 500;
 const HTTP_FORBIDDEN = 403;
+const HTTP_UNAUTHORIZED = 401;
+
+// Keeps the SSE connection alive through idle proxies (most close a
+// connection with no bytes flowing after ~30-60s).
+const HEARTBEAT_MS = 15_000;
+const DEFAULT_AFTER_ID = 0;
 
 const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -49,7 +66,7 @@ export type AgentServices = Parameters<typeof createContext>[0]["services"];
 function applyMiddleware(app: Hono<EvlogVariables>): void {
 	const evlogMiddleware = evlog();
 	app.use("/*", (c, next) =>
-		STREAMING_PATHS.has(c.req.path) ? next() : evlogMiddleware(c, next)
+		isStreamingPath(c.req.path) ? next() : evlogMiddleware(c, next)
 	);
 	app.use(
 		"/*",
@@ -118,9 +135,68 @@ function applyInternalRoutes(
 	});
 }
 
+function parseAfterId(raw: string | undefined): number {
+	if (!raw) {
+		return DEFAULT_AFTER_ID;
+	}
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) ? parsed : DEFAULT_AFTER_ID;
+}
+
+// Long-lived observe stream for a bridge session's `events↑` channel. A plain
+// Hono route (not an oRPC procedure) so the response is genuine
+// `text/event-stream`, consumable by a browser EventSource with automatic
+// reconnect via Last-Event-ID. Auth + ownership + replay/live-dedupe logic
+// live in the tested @better-agent/api/bridge/stream helpers — this stays a
+// thin transport shim over them.
+function applyBridgeStreamRoute(
+	app: Hono<EvlogVariables>,
+	services: AgentServices
+): void {
+	app.get("/bridge/sessions/:id/stream", async (c) => {
+		const context = await createContext({ context: c, services });
+		const sessionId = c.req.param("id");
+		const auth = await resolveStreamAuth(context, sessionId);
+		if (!auth.ok) {
+			const message =
+				auth.status === HTTP_UNAUTHORIZED ? "Unauthorized" : "Not Found";
+			return c.text(message, auth.status);
+		}
+		const afterId = parseAfterId(
+			c.req.query("afterId") ?? c.req.header("last-event-id")
+		);
+		return streamSSE(c, async (stream) => {
+			const unsubscribe = observeBridgeEvents({
+				relayStore: services.relayStore,
+				sessionId,
+				afterId,
+				onEvent: (event) => {
+					stream
+						.writeSSE({
+							data: JSON.stringify(event.data),
+							id: String(event.id),
+						})
+						.catch(() => undefined);
+				},
+			});
+			const heartbeat = setInterval(() => {
+				stream.write(":ping\n\n").catch(() => undefined);
+			}, HEARTBEAT_MS);
+			await new Promise<void>((resolve) => {
+				stream.onAbort(() => {
+					clearInterval(heartbeat);
+					unsubscribe();
+					resolve();
+				});
+			});
+		});
+	});
+}
+
 export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	const app = new Hono<EvlogVariables>();
 	applyMiddleware(app);
+	applyBridgeStreamRoute(app, services);
 	applyInternalRoutes(app, services);
 	applyRpcHandler(app, services);
 	app.get("/", (c) => c.text("OK"));

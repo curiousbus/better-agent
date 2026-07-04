@@ -6,6 +6,8 @@ import type {
 	AgentStore,
 	AttachmentStore,
 	AuthzClient,
+	BridgeSessionStore,
+	BridgeTokenStore,
 	ComposioAccountStore,
 	EmailSender,
 	GoogleOAuth,
@@ -74,6 +76,8 @@ export interface AgentServices {
 		usage: UsageStore;
 		activity: ActivityStore;
 		webAuthzCache: WebAuthzCacheStore;
+		bridgeToken: BridgeTokenStore;
+		bridgeSession: BridgeSessionStore;
 	};
 	tokenService: TokenService;
 }

@@ -18,6 +18,8 @@ import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pen
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
+import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-session-store";
+import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
@@ -156,6 +158,8 @@ function buildRuntime(parts: {
 function buildStores(parts: {
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	authStores: ReturnType<typeof buildAuthServices>["authStores"];
+	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
+	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	deps: ReturnType<typeof buildProviderDeps>;
@@ -181,6 +185,8 @@ function buildStores(parts: {
 		usage: parts.usageStore,
 		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
+		bridgeToken: parts.bridgeTokenStore,
+		bridgeSession: parts.bridgeSessionStore,
 		...authStores,
 	};
 }
@@ -190,6 +196,8 @@ function assembleServices(parts: {
 	auth: ReturnType<typeof buildAuthServices>;
 	authzBinding?: ServiceBinding;
 	mcpBinding?: ServiceBinding;
+	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
+	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	cancellation: CancellationRegistry;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
@@ -265,6 +273,8 @@ export function buildServices(
 		composioAccount: createComposioAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
 		webAuthzCache: createWebAuthzCacheStore(db),
+		bridgeTokenStore: createBridgeTokenStore(db),
+		bridgeSessionStore: createBridgeSessionStore(db),
 		authzBinding,
 		mcpBinding,
 	});

@@ -1,4 +1,8 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
+import {
+	generateToken,
+	hashToken,
+} from "@better-agent/agent/crypto/auth-tokens";
 import { createJwtService } from "@better-agent/agent/crypto/jwt";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import { createFakeUserStore } from "@better-agent/agent/testing/fake-auth-stores";
@@ -88,4 +92,57 @@ it("authedUser is null for a non-JWT bearer token", async () => {
 		services,
 	});
 	expect(ctx.authedUser).toBeNull();
+});
+
+it("resolves authedBridgeToken from a valid bt_ token", async () => {
+	const token = generateToken("bt_");
+	const services = {
+		stores: {
+			bridgeToken: {
+				findByHash: (hash: string) =>
+					Promise.resolve(
+						hash === hashToken(token)
+							? { id: "tok-1", userId: "user-1", revokedAt: null }
+							: null
+					),
+			},
+		},
+	} as unknown as AgentServices;
+	const ctx = await createContext({
+		context: fakeHono(`Bearer ${token}`),
+		services,
+	});
+	expect(ctx.authedBridgeToken).toEqual({ tokenId: "tok-1", userId: "user-1" });
+});
+
+it("authedBridgeToken is null for a revoked token", async () => {
+	const token = generateToken("bt_");
+	const services = {
+		stores: {
+			bridgeToken: {
+				findByHash: () =>
+					Promise.resolve({
+						id: "tok-1",
+						userId: "user-1",
+						revokedAt: new Date(),
+					}),
+			},
+		},
+	} as unknown as AgentServices;
+	const ctx = await createContext({
+		context: fakeHono(`Bearer ${token}`),
+		services,
+	});
+	expect(ctx.authedBridgeToken).toBeNull();
+});
+
+it("authedBridgeToken is null for an unknown bt_ token", async () => {
+	const services = {
+		stores: { bridgeToken: { findByHash: () => Promise.resolve(null) } },
+	} as unknown as AgentServices;
+	const ctx = await createContext({
+		context: fakeHono("Bearer bt_nope"),
+		services,
+	});
+	expect(ctx.authedBridgeToken).toBeNull();
 });

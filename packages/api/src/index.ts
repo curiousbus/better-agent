@@ -17,6 +17,18 @@ export const agentProcedure = o.use(({ context, next }) => {
 	return next({ context: { authedAgent: agent } });
 });
 
+// Local bridge CLI auth: a long-lived `bt_…` token bound to a user, not tied
+// to any single session (a CLI may run many sessions over the token's life).
+export const bridgeProcedure = o.use(({ context, next }) => {
+	const bridgeToken = context.authedBridgeToken;
+	if (!bridgeToken) {
+		throw new ORPCError("UNAUTHORIZED", {
+			message: "Missing or invalid bridge token",
+		});
+	}
+	return next({ context: { authedBridgeToken: bridgeToken } });
+});
+
 // Context resolves the user from the DB on every request, so this rejects
 // blocked users immediately — access tokens die the moment an admin blocks.
 function requireActiveUser(context: Context) {
