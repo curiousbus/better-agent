@@ -7,7 +7,11 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm -F server build
 # Pruned production node_modules for the server app (workspace deps included).
-RUN pnpm --filter=server deploy --prod /out \
+# --ignore-scripts: the runtime is prebuilt (dist/index.mjs), so dependency
+# postinstalls aren't needed — and some (lefthook needs git, workerd needs glibc)
+# fail on alpine. The root install above already runs script-free (pnpm 10
+# default), so this just keeps deploy consistent with it.
+RUN pnpm --filter=server deploy --prod --ignore-scripts /out \
   && cp -r apps/server/dist /out/dist \
   && cp -r packages/db/src/migrations /out/migrations
 
