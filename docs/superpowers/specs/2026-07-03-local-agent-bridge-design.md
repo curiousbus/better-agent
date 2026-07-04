@@ -80,12 +80,12 @@
 
 共享层:归一化事件模型(消息 / 工具调用 / 文件改动 / 命令输出 / 状态)、Workers 轮询中继、bridge token、web 终端视图。
 
-## 5. 待确认(剩余 review 问题)
-已定:传输 = SSE+Redis 轮询中继(Workers 可行);范围 = 一期全做。剩:
-1. **bridge token 形态**:复用现有 agent token 机制,还是新建独立 `bridge_tokens` 表 + 生成/撤销 UI?(建议:独立表,可撤销、可命名、审计,权限语义与 agent token 不同)
-2. **多人旁观**:是否支持多人只读观看同一 session,还是一期仅本人?(中继天然支持多 observer;仅需放开权限。建议:一期仅本人,够用)
-3. **事件落库回放**:只留 Redis 最近窗口(便宜、会话结束即失),还是把事件流落库做持久回放?(终端流量大;建议:一期只 Redis 窗口,不落库)
-4. **pi-agent**:能否先确认它的 headless 驱动接口?否则 pi 降二期,其余三个先上。
+## 5. 决策(review 已完成,全部锁定)
+- **传输**:SSE + Redis 轮询中继(Workers 可行,零新基建)。
+- **bridge token**:**独立 `bridge_tokens` 表**(可命名、可撤销、审计;与 agent token 语义分离)。
+- **多人旁观**:**一期仅本人**(session.userId === caller;中继底层已支持多 observer,权限收紧即可)。
+- **事件持久化**:**只留 Redis 滚动窗口**(会话结束即失,不落库)。
+- **adapter 范围**:一期 = **Claude Code + opencode + Codex** 三个;**pi-agent 降二期**(headless 接口待确认)。
 
 ## 6. 不做/边界(一期)
 - 不代管本地 agent 的模型密钥;不做本地文件的云端镜像;不做 agent 进程的资源隔离(信任本地环境);移动端终端只保证可读可输入,不做完整 IDE。

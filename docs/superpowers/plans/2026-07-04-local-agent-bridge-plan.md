@@ -1,0 +1,113 @@
+# Local Agent Bridge — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development to execute task-by-task.
+
+**Goal:** A local CLI drives a local coding agent (Claude Code / opencode / Codex) and bridges it to better-agent: the agent's output streams up to the server, the web terminal sends commands down. Transport = SSE/poll + Redis window relay on Cloudflare Workers (no new infra).
+
+**Spec:** `docs/superpowers/specs/2026-07-03-local-agent-bridge-design.md` (all decisions locked there).
+
+**Architecture:** `local agent proc ↔ bridge CLI (adapters) ↔ server relay (Redis rolling window, poll-based) ↔ web terminal`. Two Redis streams per session: `events↑` (agent→web), `commands↓` (web→agent), each a capped, TTL'd, id-ordered window. Both sides poll for increments after `lastEventId`.
+
+## Global Constraints
+- No `any`; magic numbers only -1/0/1 (named consts); files ≤299 lines; functions ≤50 lines; deps pinned exact; drizzle migrations; conventional commits; work on dev.
+- Relay MUST be poll-based over Upstash REST (mirror `apps/server/src/upstash-pending-store.ts`) — no pub/sub, no Durable Objects. In-memory impl for dev/test, Upstash impl for prod, selected the same way pending-store is.
+- bridge tokens are a NEW independent mechanism (prefix `bt_`), NOT agent tokens. Phase 1 is single-user (session.userId === caller). Events are Redis-only (no DB persistence of the stream). pi-agent adapter is OUT (phase 2).
+
+---
+
+## Task 1: DB — bridge tokens + sessions
+
+**Files:**
+- Create `packages/db/src/schema/bridge.ts`, migration (drizzle generate)
+- Create `packages/db/src/repositories/bridge-token-store.ts`, `bridge-session-store.ts` (+ integration tests)
+- Modify `packages/agent/src/ports.ts` (interfaces), `packages/db/src/schema/index.ts`
+
+**Schema:**
+- `bridge_tokens`: id uuid pk, user_id uuid notNull, name text, token_hash text notNull unique, last4 text, created_at, revoked_at timestamptz null. index (user_id).
+- `bridge_sessions`: id uuid pk, user_id uuid notNull, token_id uuid notNull, agent_kind text ('claude-code'|'opencode'|'codex'), label text, status text ('active'|'ended') default 'active', created_at, last_seen_at. index (user_id).
+
+**Stores (interfaces in ports):**
+- `BridgeTokenStore`: create({userId,name,tokenHash,last4}) / listByUser / findByHash (returns {id,userId,revokedAt}) / revoke(id,userId).
+- `BridgeSessionStore`: create({userId,tokenId,agentKind,label}) / listByUser / get(id) / touch(id) (lastSeenAt) / end(id,userId).
+
+**Test:** PGlite integration — token create/find/revoke, session create/list/end, owner scoping. Reuse `bt_` token via `createTokenService`-style hashing (sha256), or a small dedicated hasher.
+
+**Interfaces produced:** `BridgeTokenStore`, `BridgeSessionStore`, the two row types.
+
+## Task 2: Relay — Redis rolling-window event store
+
+**Files:**
+- Create `packages/agent/src/bridge/relay-store.ts` (interface + in-memory impl), `apps/server/src/upstash-relay-store.ts` (Upstash impl)
+- Modify `packages/api/src/services.ts` (type), `apps/server/src/services.ts` (wire, pick Upstash when redis present else in-memory), `packages/agent/src/ports.ts`
+
+**Interface `RelayStore`:**
+```ts
+type RelayDir = "events" | "commands";
+interface RelayEvent { id: number; data: unknown }
+interface RelayStore {
+  append(sessionId, dir, data): Promise<number>;          // returns new id
+  read(sessionId, dir, afterId): Promise<RelayEvent[]>;    // ids > afterId, in order
+}
+```
+- Rolling window: cap `MAX_WINDOW = 500` events per (session,dir); TTL `WINDOW_TTL_SEC = 900`. id = monotonic per (session,dir) (Redis INCR of a counter key).
+- Upstash impl: counter key `bridge:{sid}:{dir}:seq` (INCR); list key `bridge:{sid}:{dir}` storing `{id,data}` JSON (RPUSH + LTRIM -MAX..-1); both keyed with EXPIRE. read = LRANGE then filter id>afterId. Mirror the REST/poll style of upstash-pending-store.
+- In-memory impl: per-(session,dir) array + counter.
+
+**Test:** append→read increments; afterId filtering; window cap (LTRIM) keeps only last MAX_WINDOW; both dirs isolated.
+
+**Interfaces produced:** `RelayStore`, `RelayEvent`, `RelayDir`.
+
+## Task 3: API — bridge router + bridge-token auth
+
+**Files:**
+- Create `packages/api/src/routers/bridge.ts`, register in `packages/api/src/routers/index.ts` as `bridge:`
+- Create a `bridgeProcedure` (validates `Authorization: Bearer bt_...` → {userId, tokenId, sessionId?}) alongside the existing procedures in `packages/api/src/context.ts` / procedures file
+- Modify context to expose relay + bridge stores (via services)
+
+**Endpoints:**
+- `createToken` (userProcedure): {name} → {token: "bt_…", last4}. Store hash. Return raw once.
+- `listTokens` / `revokeToken` (userProcedure).
+- `startSession` (bridgeProcedure): {agentKind, label} → {sessionId}. Creates bridge_session bound to token's user.
+- `pushEvents` (bridgeProcedure): {sessionId, events: unknown[]} → append each to `events↑`; touch session. Reject if session not owned by token's user.
+- `pollCommands` (bridgeProcedure): {sessionId, afterId} → RelayEvent[] from `commands↓`.
+- `observe` (userProcedure): {sessionId, afterId} → RelayEvent[] from `events↑` (assert session.userId === caller).
+- `sendInput` (userProcedure): {sessionId, data} → append to `commands↓` (assert owner).
+- `listSessions` (userProcedure) / `endSession` (userProcedure).
+
+**Test:** api tests — token create/revoke; a bridge-token session pushes events, an owner observes them; a non-owner observe → NOT_FOUND; sendInput lands in commands poll; revoked token rejected.
+
+**Interfaces produced:** the `bridge` router contract (consumed by CLI + web via orpc types).
+
+## Task 4: Bridge CLI — `apps/bridge-cli` (adapters + relay client)
+
+**Files:** new workspace pkg `apps/bridge-cli` (bin `better-agent-bridge`), `src/index.ts` (arg parse), `src/relay-client.ts` (push + poll loop, reconnect), `src/adapters/{types,claude-code,opencode,codex}.ts`, `src/normalize.ts` (NDJSON event → normalized), tests for the pure parts (normalize, relay-client with a fake transport).
+
+**Normalized event model:** `{ kind: "message"|"tool"|"file"|"output"|"status"|"error", …payload }`. Each adapter maps its agent's NDJSON to this.
+
+**Adapter interface:**
+```ts
+interface Adapter { start(dir: string): Promise<AgentHandle> }
+interface AgentHandle { events: AsyncIterable<NormalizedEvent>; send(text: string): void; stop(): void }
+```
+- **claude-code**: spawn `claude -p --output-format stream-json --input-format stream-json --verbose` in `dir`; read stdout NDJSON → normalize; write user commands as stream-json input to stdin. (Confirm exact input frame shape against the installed claude version at implement time.)
+- **opencode**: prefer ACP (spawn opencode in ACP mode, stdin/stdout nd-JSON) OR `opencode serve` + REST/SSE. Pick whichever the installed opencode exposes; normalize.
+- **codex**: `codex exec` JSONL or app-server JSON-RPC; normalize.
+
+**Relay client:** `startSession` → loop: (a) drain adapter.events → batch `pushEvents`; (b) poll `pollCommands(afterId)` → adapter.send. Adaptive interval (fast when active). Reconnect on transient failure; resume afterId from last seen.
+
+**Test:** normalize mapping (fixtures per agent), relay-client loop against a fake relay (pushes recorded, polled commands dispatched), reconnect resumes afterId. Do NOT spawn real agents in CI.
+
+## Task 5: Web — terminal view + token management
+
+**Files:** `apps/web/src/routes/bridge.index.tsx` (+ sidebar nav item), `apps/web/src/components/bridge/{terminal,session-list,token-manager,event-line}.tsx`, api-types additions.
+
+- **Token manager**: list tokens, create (show `bt_…` once with copy + the `better-agent-bridge --token …` command), revoke.
+- **Session list**: the user's active bridge sessions (poll `listSessions`).
+- **Terminal**: for a selected session — monospaced output area rendering normalized events (message/tool/file/output/status/error each styled), auto-scroll, connection status; bottom input box → `sendInput`. Observe loop polls `observe(afterId)` (~500ms adaptive), appends events. Mobile-friendly (fits narrow, scrolls).
+
+**Test:** web jsdom — terminal renders a sequence of normalized events and never drops/duplicates; input posts and clears. (Mirror the chat regression-harness style.)
+
+---
+
+## Execution order & notes
+1→2→3 are the backend spine (each independently testable). 4 (CLI) depends on 3's contract. 5 (web) depends on 3's contract; can proceed in parallel with 4. pi-agent adapter and multi-observer are explicitly phase 2. The whole thing ships behind the new `/bridge` route; nothing existing changes behavior.
