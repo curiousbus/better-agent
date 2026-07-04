@@ -46,7 +46,7 @@ function SetupDialog({
 }) {
 	return (
 		<Dialog onOpenChange={(open) => !open && onClose()} open>
-			<DialogContent className="sm:max-w-lg">
+			<DialogContent className="w-full sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>
 						Add “{server.name}” to {target}

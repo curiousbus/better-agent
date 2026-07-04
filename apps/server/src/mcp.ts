@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { log } from "evlog";
 
-const MCP_TIMEOUT_MS = 20_000;
+const MCP_TIMEOUT_MS = 45_000;
 const CLIENT_INFO = { name: "better-agent", version: "1.0.0" };
 // Our own MCP worker's name; same-account worker-to-worker fetches over the
 // public URL are blocked by Cloudflare (error 1042), so those route through a
