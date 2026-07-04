@@ -55,7 +55,7 @@ function AuthedShell() {
 	return (
 		<SidebarProvider className="h-svh overflow-hidden">
 			<WebSidebar />
-			<SidebarInset className="min-h-0 overflow-hidden">
+			<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
 					<SidebarTrigger />
 					<span className="font-medium text-sm">better-agent</span>

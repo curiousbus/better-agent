@@ -53,7 +53,7 @@ function IntegrationsPage() {
 	const { tab = DEFAULT_TAB } = Route.useSearch();
 
 	return (
-		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 overflow-auto p-6 sm:flex-row">
+		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 overflow-auto p-4 sm:flex-row sm:p-6">
 			<nav className="flex shrink-0 flex-row gap-1 sm:w-48 sm:flex-col">
 				{TABS.map((t) => (
 					<SettingsTabLink active={t.id === tab} key={t.id} {...t} />
