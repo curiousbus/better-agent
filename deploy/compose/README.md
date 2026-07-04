@@ -22,7 +22,7 @@ every push to `dev` and pushes them to **ghcr.io**. This compose file only
 ## Setup
 ```bash
 cd deploy/compose
-cp .env.example .env      # fill in domains, secrets, R2 creds, IMAGE_OWNER
+cp .env.example .env      # fill in domains, secrets, R2 creds
 
 # One-time: log in so Docker can pull the private ghcr images.
 echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-username> --password-stdin
