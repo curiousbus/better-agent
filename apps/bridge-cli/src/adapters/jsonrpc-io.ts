@@ -1,0 +1,110 @@
+// Shared newline-delimited JSON-RPC-over-stdio plumbing for the opencode
+// (ACP) and codex (app-server) adapters: both speak request/response +
+// server-to-client notifications down the same pipe. Not unit tested — see
+// process-io.ts for why.
+//
+// Known gap: neither adapter answers server-initiated requests (e.g. codex's
+// `item/commandExecution/requestApproval`) — those arrive with a `method` and
+// an `id` and are surfaced as ordinary notifications instead of being replied
+// to, which will stall a turn that needs approval. Wiring approvals through
+// to the web UI is out of scope for this task; tracked as a follow-up.
+
+import { isRecord } from "../normalize/types";
+import { spawnProcessIo } from "./process-io";
+
+export interface JsonRpcIo {
+	notify(method: string, params: unknown): void;
+	onNotification(handler: (method: string, params: unknown) => void): void;
+	request(method: string, params: unknown): Promise<unknown>;
+	stop(): void;
+}
+
+interface PendingRequest {
+	reject(reason: unknown): void;
+	resolve(value: unknown): void;
+}
+
+function tryParseJson(line: string): unknown {
+	try {
+		return JSON.parse(line);
+	} catch {
+		return null;
+	}
+}
+
+/** Settles a pending `request()` call from its matching response line, if any is still waiting. */
+function settlePendingResponse(
+	parsed: Record<string, unknown>,
+	pending: Map<number, PendingRequest>
+): void {
+	const waiter = pending.get(parsed.id as number);
+	pending.delete(parsed.id as number);
+	if (!waiter) {
+		return;
+	}
+	if ("error" in parsed) {
+		waiter.reject(parsed.error);
+	} else {
+		waiter.resolve(parsed.result);
+	}
+}
+
+/** Dispatches a single parsed line to either a pending request or the notification handlers. */
+function handleLine(
+	line: string,
+	pending: Map<number, PendingRequest>,
+	handlers: Array<(method: string, params: unknown) => void>
+): void {
+	const parsed = tryParseJson(line);
+	if (!isRecord(parsed)) {
+		return;
+	}
+	if (
+		typeof parsed.id === "number" &&
+		("result" in parsed || "error" in parsed)
+	) {
+		settlePendingResponse(parsed, pending);
+		return;
+	}
+	if (typeof parsed.method === "string") {
+		for (const handler of handlers) {
+			handler(parsed.method, parsed.params);
+		}
+	}
+}
+
+export function connectJsonRpc(
+	command: string,
+	args: string[],
+	cwd: string
+): JsonRpcIo {
+	const io = spawnProcessIo(command, args, cwd);
+	const pending = new Map<number, PendingRequest>();
+	const handlers: Array<(method: string, params: unknown) => void> = [];
+	let nextId = 1;
+
+	(async () => {
+		for await (const line of io.lines) {
+			handleLine(line, pending, handlers);
+		}
+	})();
+
+	return {
+		request(method: string, params: unknown): Promise<unknown> {
+			const id = nextId++;
+			return new Promise((resolve, reject) => {
+				pending.set(id, { resolve, reject });
+				io.writeLine(JSON.stringify({ id, method, params }));
+			});
+		},
+		notify(method: string, params: unknown): void {
+			io.writeLine(JSON.stringify({ method, params }));
+		},
+		onNotification(handler: (method: string, params: unknown) => void): void {
+			handlers.push(handler);
+		},
+		stop(): void {
+			io.stop();
+		},
+	};
+}
