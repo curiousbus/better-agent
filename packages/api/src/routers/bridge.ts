@@ -2,6 +2,7 @@ import {
 	generateToken,
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import { bridgeProcedure, userProcedure } from "../index";
@@ -9,6 +10,47 @@ import { bridgeProcedure, userProcedure } from "../index";
 const TOKEN_PREFIX = "bt_";
 const LAST4 = 4;
 const AGENT_KINDS = ["claude-code", "opencode", "codex"] as const;
+/** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
+const MAX_PUSH_BATCH = 50;
+/** Max serialized size (bytes) of a single pushed event before it's rejected. */
+const MAX_EVENT_BYTES = 32_768;
+/** Max size (characters) of sendInput's `data` before it's rejected. */
+const MAX_INPUT_CHARS = 8192;
+
+/** Serialized size of `value` in UTF-8 bytes, as JSON. */
+function byteSizeOf(value: unknown): number {
+	return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
+}
+
+/** Serialized size of `value` in characters: raw length for a string,
+ * JSON length otherwise. */
+function charSizeOf(value: unknown): number {
+	if (typeof value === "string") {
+		return value.length;
+	}
+	return (JSON.stringify(value) ?? "").length;
+}
+
+/** Rejects the whole call with BAD_REQUEST naming the first oversized event,
+ * rather than silently truncating — real line-truncation belongs in the
+ * CLI's adapters, which know how to shrink an event without corrupting it. */
+function assertEventsWithinSizeLimit(events: readonly unknown[]): void {
+	for (const [index, event] of events.entries()) {
+		if (byteSizeOf(event) > MAX_EVENT_BYTES) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `Event at index ${index} exceeds ${MAX_EVENT_BYTES} bytes`,
+			});
+		}
+	}
+}
+
+function assertInputWithinSizeLimit(data: unknown): void {
+	if (charSizeOf(data) > MAX_INPUT_CHARS) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `sendInput data exceeds ${MAX_INPUT_CHARS} characters`,
+		});
+	}
+}
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -66,13 +108,19 @@ export const bridgeRouter = {
 		}),
 
 	pushEvents: bridgeProcedure
-		.input(z.object({ sessionId: z.uuid(), events: z.array(z.unknown()) }))
+		.input(
+			z.object({
+				sessionId: z.uuid(),
+				events: z.array(z.unknown()).max(MAX_PUSH_BATCH),
+			})
+		)
 		.handler(async ({ input, context }) => {
 			await requireOwnedBridgeSession(
 				context,
 				context.authedBridgeToken.userId,
 				input.sessionId
 			);
+			assertEventsWithinSizeLimit(input.events);
 			for (const event of input.events) {
 				await context.services.relayStore.append(
 					input.sessionId,
@@ -123,6 +171,7 @@ export const bridgeRouter = {
 				context.authedUser.id,
 				input.sessionId
 			);
+			assertInputWithinSizeLimit(input.data);
 			await context.services.relayStore.append(
 				input.sessionId,
 				"commands",

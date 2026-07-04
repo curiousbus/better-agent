@@ -1,10 +1,11 @@
 import {
 	MAX_WINDOW,
 	type RelayEvent,
+	WINDOW_TTL_SEC,
 } from "@better-agent/agent/bridge/relay-store";
 import RedisMock from "ioredis-mock";
 import { expect, it } from "vitest";
-import { createRedisRelayStore } from "./redis-relay-store";
+import { createRedisRelayStore, SEQ_TTL_SEC } from "./redis-relay-store";
 
 // ioredis-mock v8 shares a single in-process data store (and pub/sub bus)
 // across every instance created with `new RedisMock()` — so each test below
@@ -117,6 +118,33 @@ it("read returns ids in ascending order even when RPUSH landed them out of order
 		{ id: SECOND_ID, data: "b" },
 		{ id: THIRD_ID, data: "c" },
 	]);
+});
+
+it("gives the seq counter a TTL far longer than the window list, refreshed on every append", async () => {
+	const redis = new RedisMock();
+	const store = createRedisRelayStore(redis);
+
+	await store.append("seq-ttl", "events", "a");
+	await expect(redis.ttl("bridge:seq-ttl:events:seq")).resolves.toBe(
+		SEQ_TTL_SEC
+	);
+	await expect(redis.ttl("bridge:seq-ttl:events")).resolves.toBe(
+		WINDOW_TTL_SEC
+	);
+	expect(SEQ_TTL_SEC).toBeGreaterThan(WINDOW_TTL_SEC);
+});
+
+it("keeps ids monotonic across a simulated window-list expiry (seq key outlives it)", async () => {
+	const redis = new RedisMock();
+	const store = createRedisRelayStore(redis);
+
+	const id1 = await store.append("seq-survives-expiry", "events", "a");
+	// Simulate the 900s window list TTL elapsing while the much-longer-lived
+	// seq key survives: delete only the list key, leaving the counter intact.
+	await redis.del("bridge:seq-survives-expiry:events");
+	const id2 = await store.append("seq-survives-expiry", "events", "b");
+
+	expect(id2).toBe(id1 + 1);
 });
 
 it("subscribers are scoped to their own session/dir channel", async () => {

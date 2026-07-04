@@ -10,6 +10,15 @@ import type { Redis } from "ioredis";
 
 const LAST_INDEX = -1;
 const WINDOW_START_INDEX = -MAX_WINDOW;
+/**
+ * TTL (seconds) applied to the seq counter key — deliberately much longer
+ * than WINDOW_TTL_SEC. The counter must never reset while a session is still
+ * realistically alive: consumers (web's maxSeenId, the CLI's afterIdRef)
+ * hold a persistent high-water mark and filter id > mark, so if INCR ever
+ * restarted at 1 after an idle gap, every post-reset event/command would be
+ * silently dropped as "already seen". Refreshed on every append.
+ */
+export const SEQ_TTL_SEC = 86_400;
 
 function seqKey(sessionId: string, dir: RelayDir): string {
 	return `bridge:${sessionId}:${dir}:seq`;
@@ -41,7 +50,7 @@ async function appendEvent(
 	await redis.rpush(key, payload);
 	await redis.ltrim(key, WINDOW_START_INDEX, LAST_INDEX);
 	await redis.expire(key, WINDOW_TTL_SEC);
-	await redis.expire(seqKey(sessionId, dir), WINDOW_TTL_SEC);
+	await redis.expire(seqKey(sessionId, dir), SEQ_TTL_SEC);
 	await redis.publish(channelFor(sessionId, dir), payload);
 
 	return id;
