@@ -61,6 +61,19 @@ describe("forwardEvents", () => {
 		queue.close();
 		await done;
 	});
+
+	it("rejects once pushEvents exhausts its retry budget, even mid-stream", async () => {
+		const events = createAsyncQueue<number>(); // left open on purpose
+		events.push(1);
+		const push = vi.fn().mockRejectedValue(new Error("expired token"));
+		await expect(
+			forwardEvents(events, push, {
+				maxBatchSize: 1,
+				sleep: () => new Promise(() => undefined),
+				pushRetrySleep: () => Promise.resolve(),
+			})
+		).rejects.toThrow("attempts, giving up");
+	});
 });
 
 describe("parseCommandText", () => {
@@ -246,9 +259,7 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
 	transport.pushEvents = pushEvents;
 	const stop = vi.fn();
-	// The flush-interval timer never fires (so the only batch is the
-	// trailing one, once the events complete); the retry backoff resolves
-	// immediately so the test doesn't wait on real timers.
+	// Only the trailing batch ever flushes; the retry backoff resolves instantly.
 	const neverSleep: Sleep = () => new Promise(() => undefined);
 
 	await runBridgeSession({
@@ -264,8 +275,7 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 		pollOptions: { sleep: () => Promise.resolve() },
 	});
 
-	// First attempt failed and was never counted as delivered; the retry
-	// carried the exact same batch through, in order, exactly once.
+	// The retry carried the exact same batch through, in order, exactly once.
 	expect(pushedBatches).toEqual([[1, 2, 3]]);
 	expect(pushEvents).toHaveBeenCalledTimes(2);
 	expect(stop).toHaveBeenCalledTimes(1);

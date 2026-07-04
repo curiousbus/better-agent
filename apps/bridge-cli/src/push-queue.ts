@@ -7,26 +7,51 @@
 // which is why the queue is capped: past `maxBufferedEvents`, the oldest
 // queued batch is dropped (and reported via `onWarning`) instead of growing
 // without bound.
+//
+// Retrying is bounded on two axes. First, an aborted session — checked, like
+// `pollLoop` checks `options.signal`, right after a failed attempt rather
+// than by interrupting an in-flight `push()` or `sleep()` — skips the
+// backoff and stops retrying immediately instead of grinding on after nobody
+// cares about the result any more; a batch already being attempted always
+// gets that one attempt, abort or not, so a session that ends the instant a
+// batch is handed off still gives it a fair shot. Second, a batch that keeps
+// failing past `MAX_PUSH_RETRIES` is a permanent failure, not a transient
+// one — the queue gives up and surfaces it via `fatal` rather than retrying
+// forever against a dead server or an expired token.
 
 export type Sleep = (ms: number) => Promise<void>;
 
 const PUSH_RETRY_MIN_INTERVAL_MS = 500;
 const PUSH_RETRY_MAX_INTERVAL_MS = 5000;
 const PUSH_RETRY_BACKOFF_FACTOR = 2;
+/** How many attempts a single batch gets before the queue gives up on it and
+ * surfaces a fatal error via `fatal` — see the module comment above. */
+export const MAX_PUSH_RETRIES = 8;
 
 export interface PushQueueOptions<T> {
 	maxBufferedEvents: number;
 	onWarning?: (message: string) => void;
 	push: (batch: T[]) => Promise<void>;
+	/** Aborting stops a batch from being retried further once its current
+	 * attempt fails — see the module comment. */
+	signal?: AbortSignal;
 	sleep?: Sleep;
 }
 
 export interface PushQueue<T> {
 	/** Signals that no more batches will be enqueued, and resolves once every
-	 * already-enqueued batch has been successfully pushed. */
+	 * already-enqueued batch has been successfully pushed. Rejects if a batch
+	 * permanently failed (see `fatal`). */
 	close(): Promise<void>;
 	/** Enqueues a batch for sending. Never rejects and never blocks. */
 	enqueue(batch: T[]): void;
+	/** Never resolves; rejects the moment a batch exhausts `MAX_PUSH_RETRIES`,
+	 * ahead of `close()` ever being called, unlike `close()`'s own rejection.
+	 * Race this alongside an upstream producer (e.g. `forwardEvents`'s event
+	 * loop) so a fatal push failure surfaces immediately instead of only
+	 * being noticed once the caller gets around to draining and closing the
+	 * queue. */
+	fatal: Promise<never>;
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -60,21 +85,41 @@ function enforceCap<T>(
 	}
 }
 
-/** Pushes `batch`, retrying with backoff until it succeeds. Never gives up:
- * a persistent outage is the caller's problem to notice via `onWarning`, not
- * a reason to drop events that were already collected. */
-async function pushWithRetry<T>(
-	batch: T[],
-	push: (batch: T[]) => Promise<void>,
-	sleep: Sleep,
-	onWarning?: (message: string) => void
-): Promise<void> {
+interface PushAttempt<T> {
+	batch: T[];
+	onWarning?: (message: string) => void;
+	push: (batch: T[]) => Promise<void>;
+	signal?: AbortSignal;
+	sleep: Sleep;
+}
+
+/** Pushes `batch`, retrying with backoff until it succeeds, the caller's
+ * `signal` aborts, or it has failed `MAX_PUSH_RETRIES` times — whichever
+ * comes first. The first attempt always happens regardless of `signal`, so a
+ * batch handed off right as a session ends still gets a fair shot; `signal`
+ * is only consulted after a failure, to decide whether it's worth backing
+ * off and trying again. A persistent outage below the retry bound is the
+ * caller's problem to notice via `onWarning`, not a reason to drop events
+ * that were already collected; past it, it's the caller's problem to notice
+ * via the thrown error (surfaced through `PushQueue.fatal`), because
+ * retrying forever against a dead server or an expired token would just
+ * hang everything downstream. */
+async function pushWithRetry<T>(attempt: PushAttempt<T>): Promise<void> {
+	const { batch, push, sleep, onWarning, signal } = attempt;
 	let intervalMs = PUSH_RETRY_MIN_INTERVAL_MS;
-	for (;;) {
+	for (let tries = 1; tries <= MAX_PUSH_RETRIES; tries++) {
 		try {
 			await push(batch);
 			return;
 		} catch (error) {
+			if (tries === MAX_PUSH_RETRIES) {
+				throw new Error(
+					`bridge: push failed after ${MAX_PUSH_RETRIES} attempts, giving up: ${String(error)}`
+				);
+			}
+			if (signal?.aborted) {
+				return;
+			}
 			onWarning?.(
 				`bridge: push failed, retrying in ${intervalMs}ms: ${String(error)}`
 			);
@@ -85,6 +130,47 @@ async function pushWithRetry<T>(
 			);
 		}
 	}
+	// Unreachable: the loop above always returns or throws by the time `tries`
+	// reaches MAX_PUSH_RETRIES. Present only so this stays a well-formed
+	// `Promise<void>` function under strict lint rules.
+	throw new Error("bridge: pushWithRetry exited its retry loop unexpectedly");
+}
+
+interface SenderControls {
+	isClosed(): boolean;
+	waitForWork(): Promise<void>;
+}
+
+/** Drains `pending` one batch at a time, retrying each with `pushWithRetry`
+ * until it succeeds or (per-batch) the retry bound is exhausted — in which
+ * case this rejects, which is what makes `fatal` (and `close()`) reject too.
+ * Split out of `createPushQueue` to keep that function's own body small. */
+async function runSender<T>(
+	pending: T[][],
+	options: PushQueueOptions<T>,
+	sleep: Sleep,
+	controls: SenderControls
+): Promise<void> {
+	for (;;) {
+		// Dequeueing before pushing (rather than peeking) is deliberate: once a
+		// batch is picked up, it's "in flight" and must never be visible to
+		// `enforceCap` — only the not-yet-attempted backlog is droppable.
+		const batch = pending.shift();
+		if (!batch) {
+			if (controls.isClosed()) {
+				return;
+			}
+			await controls.waitForWork();
+			continue;
+		}
+		await pushWithRetry({
+			batch,
+			push: options.push,
+			sleep,
+			onWarning: options.onWarning,
+			signal: options.signal,
+		});
+	}
 }
 
 export function createPushQueue<T>(options: PushQueueOptions<T>): PushQueue<T> {
@@ -92,6 +178,16 @@ export function createPushQueue<T>(options: PushQueueOptions<T>): PushQueue<T> {
 	const sleep = options.sleep ?? defaultSleep;
 	let wake: (() => void) | null = null;
 	let closed = false;
+	let rejectFatal: (error: unknown) => void = () => undefined;
+	// A dedicated promise, distinct from `finished` below: it only ever
+	// rejects (on a fatal per-batch failure), never resolves — even once the
+	// queue aborts or closes cleanly — so it's always safe to race alongside
+	// an upstream producer without that producer mistaking "the queue is
+	// idle/closed" for "a fatal failure just happened".
+	const fatal: Promise<never> = new Promise((_resolve, reject) => {
+		rejectFatal = reject;
+	});
+	fatal.catch(() => undefined); // no-op if nobody ever races `fatal`
 
 	function wakeSender(): void {
 		if (wake) {
@@ -101,24 +197,22 @@ export function createPushQueue<T>(options: PushQueueOptions<T>): PushQueue<T> {
 		}
 	}
 
+	const waitForWork = () =>
+		new Promise<void>((resolve) => {
+			wake = resolve;
+		});
 	const finished = (async () => {
-		for (;;) {
-			// Dequeueing before pushing (rather than peeking) is deliberate: once
-			// a batch is picked up, it's "in flight" and must never be visible
-			// to `enforceCap` — only the not-yet-attempted backlog is droppable.
-			const batch = pending.shift();
-			if (!batch) {
-				if (closed) {
-					return;
-				}
-				await new Promise<void>((resolve) => {
-					wake = resolve;
-				});
-				continue;
-			}
-			await pushWithRetry(batch, options.push, sleep, options.onWarning);
+		try {
+			await runSender(pending, options, sleep, {
+				isClosed: () => closed,
+				waitForWork,
+			});
+		} catch (error) {
+			rejectFatal(error);
+			throw error;
 		}
 	})();
+	finished.catch(() => undefined); // no-op if `close()` is never awaited
 
 	return {
 		enqueue(batch: T[]): void {
@@ -131,5 +225,6 @@ export function createPushQueue<T>(options: PushQueueOptions<T>): PushQueue<T> {
 			wakeSender();
 			return finished;
 		},
+		fatal,
 	};
 }

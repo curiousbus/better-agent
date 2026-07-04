@@ -53,6 +53,9 @@ export interface ForwardEventsOptions {
 	 * the retry backoff independently (they're unrelated timers that happen
 	 * to share a default implementation). */
 	pushRetrySleep?: Sleep;
+	/** Aborting stops the `pushEvents` retry queue from retrying (or waiting on
+	 * more events) promptly, and rejects this call — see push-queue.ts. */
+	signal?: AbortSignal;
 	/** Sleep implementation for the flush-interval timer. */
 	sleep?: Sleep;
 }
@@ -92,6 +95,7 @@ function resolveForwardEventsConfig<T>(
 		maxBufferedEvents,
 		onWarning: options.onWarning,
 		push,
+		signal: options.signal,
 		sleep: pushRetrySleep,
 	});
 	return { flushIntervalMs, maxBatchSize, queue, sleep };
@@ -104,7 +108,9 @@ function resolveForwardEventsConfig<T>(
  * that fails to push is retried with backoff in the background instead of
  * blocking (or losing) the next batch — see push-queue.ts. Resolves once
  * `events` completes and every batch (including the trailing partial one)
- * has been successfully pushed.
+ * has been successfully pushed; rejects immediately if a batch permanently
+ * fails to push (see `PushQueue.fatal`) instead of waiting for `events` to
+ * complete first.
  */
 export async function forwardEvents<T>(
 	events: AsyncIterable<T>,
@@ -118,7 +124,7 @@ export async function forwardEvents<T>(
 
 	for (;;) {
 		const tick = sleep(flushIntervalMs).then(() => FLUSH_TICK);
-		const next = await Promise.race([iterator.next(), tick]);
+		const next = await Promise.race([iterator.next(), tick, queue.fatal]);
 		if (next === FLUSH_TICK) {
 			buffer = flushToQueue(buffer, queue);
 			continue;
@@ -266,7 +272,7 @@ export async function runBridgeSession(
 				forwardEvents(
 					options.handle.events,
 					(batch) => options.transport.pushEvents({ sessionId, events: batch }),
-					options.forwardOptions
+					{ ...options.forwardOptions, signal: options.signal }
 				).finally(stopPolling),
 				pollLoop(
 					options.transport,

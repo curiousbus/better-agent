@@ -40,4 +40,25 @@ describe("connectJsonRpc", () => {
 		expect(result).toEqual({ echoed: { hello: "world" } });
 		await exited;
 	});
+
+	it("rejects an in-flight request (and any made afterwards) once the process exits", async () => {
+		// Never answers, so `hang` below would wait forever without the exit
+		// handling under test — standing in for the agent dying mid-request.
+		const HANGING_SCRIPT = "process.stdin.resume();";
+		const rpc = await connectJsonRpc(
+			process.execPath,
+			["-e", HANGING_SCRIPT],
+			process.cwd()
+		);
+
+		const hang = rpc.request("initialize", {});
+		rpc.stop();
+
+		await expect(hang).rejects.toThrow(
+			"agent process exited before responding"
+		);
+		await expect(rpc.request("ping", {})).rejects.toThrow(
+			"agent process exited before responding"
+		);
+	});
 });

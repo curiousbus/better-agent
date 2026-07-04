@@ -27,6 +27,20 @@ interface PendingRequest {
 	resolve(value: unknown): void;
 }
 
+/** Message used both to settle in-flight requests when the process exits and
+ * to reject any `request()` call made afterwards — in both cases the agent
+ * is gone before it could answer. */
+const EXIT_ERROR_MESSAGE = "agent process exited before responding";
+
+/** Rejects every still-outstanding `request()` call and clears the map, so a
+ * dead child process can never leave a caller awaiting a response forever. */
+function rejectAllPending(pending: Map<number, PendingRequest>): void {
+	for (const waiter of pending.values()) {
+		waiter.reject(new Error(EXIT_ERROR_MESSAGE));
+	}
+	pending.clear();
+}
+
 function tryParseJson(line: string): unknown {
 	try {
 		return JSON.parse(line);
@@ -85,6 +99,7 @@ export async function connectJsonRpc(
 	const pending = new Map<number, PendingRequest>();
 	const handlers: Array<(method: string, params: unknown) => void> = [];
 	let nextId = 1;
+	let exited = false;
 
 	(async () => {
 		for await (const line of io.lines) {
@@ -92,8 +107,19 @@ export async function connectJsonRpc(
 		}
 	})();
 
+	// A dead child can never answer whatever's still outstanding: settle it
+	// now instead of leaving `request()` callers awaiting forever, and reject
+	// any request made after this point immediately.
+	io.onExit(() => {
+		exited = true;
+		rejectAllPending(pending);
+	});
+
 	return {
 		request(method: string, params: unknown): Promise<unknown> {
+			if (exited) {
+				return Promise.reject(new Error(EXIT_ERROR_MESSAGE));
+			}
 			const id = nextId++;
 			return new Promise((resolve, reject) => {
 				pending.set(id, { resolve, reject });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPushQueue, type Sleep } from "./push-queue";
+import { createPushQueue, MAX_PUSH_RETRIES, type Sleep } from "./push-queue";
 
 /** A `sleep` double that resolves immediately — the tests care about retry
  * *ordering* and *counts*, not real backoff timing. */
@@ -106,6 +106,52 @@ async function dropsOldestQueuedBatchButNeverAnInFlightOne(): Promise<void> {
 	expect(push).toHaveBeenCalledTimes(3);
 }
 
+async function givesUpAfterMaxRetriesAndRejects(): Promise<void> {
+	let attempts = 0;
+	const push = vi.fn((): Promise<void> => {
+		attempts += 1;
+		return Promise.reject(new Error("still down"));
+	});
+	const queue = createPushQueue<number>({
+		maxBufferedEvents: 100,
+		onWarning: vi.fn(),
+		push,
+		sleep: instantSleep,
+	});
+
+	queue.enqueue([1]);
+
+	const expectedMessage = `push failed after ${MAX_PUSH_RETRIES} attempts`;
+	await expect(queue.close()).rejects.toThrow(expectedMessage);
+	// `fatal` settles at the same time as (in fact, just before) `close()`,
+	// so it's already rejected by the time `close()` is.
+	await expect(queue.fatal).rejects.toThrow(expectedMessage);
+	expect(attempts).toBe(MAX_PUSH_RETRIES);
+}
+
+async function abortMidRetryStopsPromptlyWithoutRejecting(): Promise<void> {
+	const controller = new AbortController();
+	let attempts = 0;
+	const push = vi.fn((): Promise<void> => {
+		attempts += 1;
+		// Abort right after the first attempt fails — long before
+		// MAX_PUSH_RETRIES would otherwise be exhausted.
+		controller.abort();
+		return Promise.reject(new Error("still down"));
+	});
+	const queue = createPushQueue<number>({
+		maxBufferedEvents: 100,
+		push,
+		signal: controller.signal,
+		sleep: instantSleep,
+	});
+
+	queue.enqueue([1]);
+	await queue.close(); // resolves — an aborted session isn't a fatal error
+
+	expect(attempts).toBe(1);
+}
+
 describe("createPushQueue", () => {
 	it(
 		"retries a failing batch with backoff until it succeeds, without losing or reordering it",
@@ -120,5 +166,15 @@ describe("createPushQueue", () => {
 	it(
 		"drops the oldest *queued* batch under cap pressure, but never one already in flight",
 		dropsOldestQueuedBatchButNeverAnInFlightOne
+	);
+
+	it(
+		`gives up and rejects (via close() and fatal) after ${MAX_PUSH_RETRIES} attempts`,
+		givesUpAfterMaxRetriesAndRejects
+	);
+
+	it(
+		"stops retrying promptly once aborted, without treating it as a fatal error",
+		abortMidRetryStopsPromptlyWithoutRejecting
 	);
 });
