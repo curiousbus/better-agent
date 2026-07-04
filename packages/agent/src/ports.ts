@@ -123,6 +123,10 @@ export type {
 	UserStore,
 } from "./auth/store-ports";
 
+// Bridge relay ports live beside the relay implementation; re-exported here
+// so all ports keep a single import path.
+export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
+
 export interface SettingsStore {
 	delete(key: string): Promise<void>;
 	get(key: string): Promise<string | null>;

@@ -10,6 +10,7 @@
     "./provider/*": "./src/provider/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
     "./auth/*": "./src/auth/*.ts",
+    "./bridge/*": "./src/bridge/*.ts",
     "./tool/*": "./src/tool/*.ts",
     "./task/*": "./src/task/*.ts",
     "./testing/*": "./src/testing/*.ts"
