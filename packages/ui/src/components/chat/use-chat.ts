@@ -1,12 +1,6 @@
-import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
-import type { QueryClient } from "@tanstack/react-query";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	type MutableRefObject,
-	useEffect,
-	useRef,
-	useSyncExternalStore,
-} from "react";
+import type { AgentClient } from "@curiousbus/agent-client";
+import { useQuery } from "@tanstack/react-query";
+import { useRef, useSyncExternalStore } from "react";
 
 import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
@@ -14,7 +8,6 @@ import {
 	isObserving,
 	observePollInterval,
 	type StallRef,
-	turnLandedInHistory,
 } from "./chat-observe";
 import { type ChatSessionStore, chatSession } from "./chat-session-store";
 import { type GenuiStreamConfig, streamPrompt } from "./chat-stream";
@@ -30,32 +23,8 @@ const messagesKey = (sessionId: string) =>
 interface SendArgs {
 	agentClient: AgentClient;
 	genui?: GenuiStreamConfig;
-	queryClient: QueryClient;
 	sessionId: string;
 	store: ChatSessionStore;
-}
-
-async function finalizeSend(args: SendArgs) {
-	args.store.setStreaming(false);
-	args.store.setController(null);
-	// Populate the history cache with the completed turn, but do NOT clear the
-	// draft here. Clearing against the fetchQuery RETURN races the useQuery the
-	// view reads: for a frame that hook still holds the pre-turn data, so the
-	// turn vanishes until the observer catches up. Instead, this fetch updates
-	// the cache, useQuery re-renders with the turn, and the reconcile EFFECT
-	// (which keys on that same history.data) clears the draft in the render
-	// where the turn is already on screen — a seamless swap, no empty frame.
-	try {
-		await args.queryClient.fetchQuery<MessageHistory>({
-			queryKey: messagesKey(args.sessionId),
-			queryFn: () => args.agentClient.listMessages(args.sessionId),
-			// Bypass any app-level staleTime: within its freshness window
-			// fetchQuery returns the CACHED pre-turn rows without a network hit.
-			staleTime: 0,
-		});
-	} catch {
-		// Fetch failed — keep the draft visible; a later refetch reconciles.
-	}
 }
 
 function userDraftBlocks(
@@ -72,28 +41,11 @@ function userDraftBlocks(
 	return blocks;
 }
 
-// Freeze the visible history at its pre-send length: the server persists the
-// turn's rows immediately, and any refetch landing mid-turn (or the finalize
-// fetch) must not render them NEXT TO the draft (a duplicate flash).
-function captureHistoryBaseline(args: SendArgs) {
-	const cached = args.queryClient.getQueryData<unknown[]>(
-		messagesKey(args.sessionId)
-	);
-	args.store.setBaseHistoryCount(cached?.length ?? 0);
-}
-
-async function sendMessage(
+function initDraft(
 	text: string,
 	attachments: AttachmentRef[],
-	args: SendArgs
-) {
-	if (args.sessionId === "" || args.store.getSnapshot().streaming) {
-		return;
-	}
-	const controller = new AbortController();
-	args.store.setController(controller);
-	args.store.setStreaming(true);
-	captureHistoryBaseline(args);
+	store: ChatSessionStore
+): { assistant: ChatMessage; user: ChatMessage } {
 	const user: ChatMessage = {
 		id: "draft-user",
 		role: "user",
@@ -107,7 +59,22 @@ async function sendMessage(
 		blocks: [],
 		live: true,
 	};
-	args.store.setDraft([user, assistant]);
+	store.setDraft([user, assistant]);
+	return { user, assistant };
+}
+
+async function sendMessage(
+	text: string,
+	attachments: AttachmentRef[],
+	args: SendArgs
+) {
+	if (args.sessionId === "" || args.store.getSnapshot().streaming) {
+		return;
+	}
+	const controller = new AbortController();
+	args.store.setController(controller);
+	args.store.setStreaming(true);
+	const { user, assistant } = initDraft(text, attachments, args.store);
 	try {
 		await streamPrompt({
 			agentClient: args.agentClient,
@@ -129,7 +96,15 @@ async function sendMessage(
 			]);
 		}
 	} finally {
-		await finalizeSend(args);
+		args.store.setStreaming(false);
+		args.store.setController(null);
+		// The turn is DONE building on the client — move the live draft into the
+		// committed log in one atomic store update. No server fetch, no draft→
+		// history swap: while the user is on the page there is exactly one copy of
+		// each turn (the live one), so the turn can never blink out. Server history
+		// is authoritative only on the next cold start (refresh), where it seeds
+		// the view from scratch.
+		args.store.commit();
 	}
 }
 
@@ -141,7 +116,7 @@ function stopSession(
 	store.abort();
 	// Reflect the stop immediately: mark the in-flight assistant draft stopped
 	// (so it stops showing "Thinking…") and free the composer, without waiting
-	// for the stream to actually unwind.
+	// for the stream to actually unwind. The finally-commit preserves it.
 	store.setStreaming(false);
 	store.setDraft(
 		store
@@ -157,104 +132,49 @@ function stopSession(
 	}
 }
 
-// Sticky last-non-empty messages, reset to empty whenever the session changes.
-function useSessionResetRef(
-	sessionId: string
-): MutableRefObject<ChatMessage[]> {
-	const lastMessagesRef = useRef<ChatMessage[]>([]);
-	const sessionRef = useRef(sessionId);
-	if (sessionRef.current !== sessionId) {
-		sessionRef.current = sessionId;
-		lastMessagesRef.current = [];
-	}
-	return lastMessagesRef;
-}
-
-// While a draft is on screen it owns the current turn: history is capped at its
-// pre-send length so the persisted rows never double-render. Sticky guard: the
-// draft→history handoff can momentarily yield an empty list in the real browser
-// (the draft clears a beat before the query hook reflects the persisted turn);
-// rendering [] flashes the empty state ("聊天窗口变白"). Once messages have been
-// shown, never fall back to empty (the ref resets when the session changes).
-function stickyMessages(
-	rows: MessageHistory,
-	draft: ChatMessage[],
-	baseHistoryCount: number,
-	lastRef: MutableRefObject<ChatMessage[]>
-): ChatMessage[] {
-	const visibleRows = draft.length > 0 ? rows.slice(0, baseHistoryCount) : rows;
-	const computed = [...visibleRows.map(toChatMessage), ...draft];
-	const messages =
-		computed.length === 0 && lastRef.current.length > 0
-			? lastRef.current
-			: computed;
-	lastRef.current = messages;
-	return messages;
-}
-
 export function useChat(
 	sessionId: string,
 	agentClient: AgentClient,
 	genui?: GenuiStreamConfig
 ) {
-	const queryClient = useQueryClient();
-	// The stream + draft live in a module-level per-session store, so navigating
-	// away does NOT abort the turn — remounting resubscribes to the live output.
+	// The stream + committed/draft live in a module-level per-session store, so
+	// navigating away neither aborts the turn nor loses the conversation —
+	// remounting resubscribes and the accumulated turns are still here.
 	const store = chatSession(sessionId);
-	const { draft, streaming, baseHistoryCount } = useSyncExternalStore(
+	const { committed, draft, streaming } = useSyncExternalStore(
 		store.subscribe,
 		store.getSnapshot,
 		store.getSnapshot
 	);
 	const stallRef: StallRef = useRef(null);
-	const lastMessagesRef = useSessionResetRef(sessionId);
+	// Server history seeds the view ONLY on cold start (refresh): before the user
+	// has interacted this session (no committed turns, no draft). Once they do,
+	// the query freezes at its seed value and committed/draft own everything —
+	// no mid-session refetch, so the completed-turn handoff simply doesn't exist.
+	const seedPhase = committed.length === 0 && draft.length === 0;
 	const history = useQuery({
 		queryKey: messagesKey(sessionId),
 		queryFn: () => agentClient.listMessages(sessionId),
-		// Paused while a turn streams: the server persists the turn's rows at turn
-		// START, so a mid-stream (re)mount refetch would duplicate the live draft.
-		// Cached history + draft is the correct view until finalize invalidates.
-		enabled: sessionId !== "" && !streaming,
-		// Re-attach after a reload: while the trailing assistant message is still
-		// streaming server-side, poll so the persisted parts keep flowing in.
+		enabled: sessionId !== "" && seedPhase,
+		// On a cold start where the trailing turn is still streaming server-side,
+		// poll until it lands so a refresh mid-turn keeps updating.
 		refetchInterval: (query) => observePollInterval(query.state.data, stallRef),
 	});
-	const observing = !streaming && isObserving(history.data, stallRef);
+	const observing = seedPhase && isObserving(history.data, stallRef);
 
-	// Reconcile a draft kept past finalize (stream died while the detached
-	// server turn kept running): only once history PROVABLY contains the
-	// finished turn (grew past the pre-send baseline + trailing complete) do
-	// the persisted rows take over. Stale pre-turn history must never clear it.
-	const hasDraft = draft.length > 0;
-	useEffect(() => {
-		if (
-			!streaming &&
-			hasDraft &&
-			turnLandedInHistory(history.data, baseHistoryCount)
-		) {
-			store.setDraft([]);
-		}
-	}, [streaming, hasDraft, history.data, baseHistoryCount, store]);
-
-	const messages = stickyMessages(
-		history.data ?? [],
-		draft,
-		baseHistoryCount,
-		lastMessagesRef
-	);
+	const seedRows = history.data ?? [];
+	const messages: ChatMessage[] = [
+		...seedRows.map(toChatMessage),
+		...committed,
+		...draft,
+	];
 
 	const send = (text: string, attachments: AttachmentRef[] = []) =>
-		sendMessage(text, attachments, {
-			agentClient,
-			sessionId,
-			store,
-			queryClient,
-			genui,
-		});
+		sendMessage(text, attachments, { agentClient, sessionId, store, genui });
 
 	const stop = () => stopSession(store, sessionId, agentClient);
 
-	// `streaming` also covers observing a detached server-side turn, so the
-	// composer stays disabled and Stop stays available after a reload.
+	// `streaming` also covers observing a detached server-side turn on cold start,
+	// so the composer stays disabled and Stop stays available after a reload.
 	return { messages, streaming: streaming || observing, send, stop };
 }

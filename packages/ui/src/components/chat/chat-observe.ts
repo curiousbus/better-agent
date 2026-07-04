@@ -8,8 +8,6 @@ import type { MutableRefObject } from "react";
 // content stops changing for too long is treated as orphaned and left alone.
 const OBSERVE_POLL_MS = 1500;
 const STALL_MS = 120_000;
-// A turn adds at least user + assistant rows past the pre-send baseline.
-const TURN_ROW_COUNT = 2;
 
 export type StallRef = MutableRefObject<{
 	fingerprint: string;
@@ -55,26 +53,4 @@ export function isObserving(
 	}
 	const stall = stallRef.current;
 	return !(stall && Date.now() - stall.since > STALL_MS);
-}
-
-/** True only when `rows` PROVABLY contains the finished turn: grew past the
- * pre-send baseline, trailing message no longer streaming, AND that trailing
- * assistant row HAS parts. The parts guard keeps the draft up if the persisted
- * row is still empty — else the swap flashes an empty reply ("vanish then
- * reappear"), as on an errored turn whose parts land after its status. */
-export function turnLandedInHistory(
-	rows: MessageHistory | undefined,
-	baseHistoryCount: number
-): boolean {
-	if (!rows || rows.length < baseHistoryCount + TURN_ROW_COUNT) {
-		return false;
-	}
-	if (liveTrailingTurn(rows)) {
-		return false;
-	}
-	const last = rows.at(-1);
-	if (last?.message.role === "assistant" && last.parts.length === 0) {
-		return false;
-	}
-	return true;
 }

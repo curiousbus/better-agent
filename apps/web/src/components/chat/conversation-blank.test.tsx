@@ -62,82 +62,41 @@ function fakeClient(state: {
 	} as unknown as AgentClient;
 }
 
-// SSE dies right after the text, but the DETACHED server turn keeps running
-// and completes later. The draft must stay on screen the whole time — no
-// clear-then-reappear window.
+// The SSE dies mid-reply. In the on-page model the live draft is the single
+// source of truth, so the partially-streamed reply is COMMITTED and stays on
+// screen (the full server version loads only on refresh). It must never vanish.
 function dyingClient(state: {
 	phase: "idle" | "running" | "done";
 }): AgentClient {
-	const SERVER_FINISH_MS = 2500;
 	return {
-		listMessages: () => {
-			if (state.phase === "idle") {
-				return Promise.resolve([]);
-			}
-			if (state.phase === "done") {
-				return Promise.resolve([
-					row("u1", "user", "complete", 1, "hi-question"),
-					row("a1", "assistant", "complete", 2, "OK-marker plus more detail"),
-				]);
-			}
-			// Parts not flushed yet while the detached turn is still running.
-			return Promise.resolve([
-				row("u1", "user", "complete", 1, "hi-question"),
-				{
-					...row("a1", "assistant", "streaming", 2, ""),
-					parts: [],
-				} as unknown as ReturnType<typeof row>,
-			]);
-		},
+		listMessages: () => Promise.resolve([]),
 		async *stream() {
 			state.phase = "running";
-			yield { type: "text-delta", delta: "OK-marker plus" };
-			// Give the typewriter reveal time to paint the marker before death.
+			yield { type: "text-delta", delta: "OK-marker partial reply" };
 			await tick(400);
-			// Server keeps going after the client stream dies.
-			setTimeout(() => {
-				state.phase = "done";
-			}, SERVER_FINISH_MS);
+			state.phase = "done";
 			throw new Error("SSE connection lost");
 		},
 		cancel: () => Promise.resolve(),
 	} as unknown as AgentClient;
 }
 
-// SECOND turn in an existing session: while streaming, the cached history is
-// the PRE-turn view (trailing = the PREVIOUS completed assistant). The new
-// exchange must never vanish against that stale view at completion.
-function secondTurnClient(state: {
+// A chat opened WITH prior server history (loaded once as the seed), then a new
+// turn is sent. Both the seeded history and the new committed turn must show —
+// the new turn renders its CLIENT draft content (the on-page source of truth),
+// not a re-fetched server copy.
+function seededClient(state: {
 	phase: "idle" | "running" | "done";
 }): AgentClient {
-	const FETCH_DELAY_MS = 120;
 	const prior = [
 		row("u0", "user", "complete", 1, "old-question"),
 		row("a0", "assistant", "complete", 2, "old-answer"),
 	];
 	return {
-		listMessages: () => {
-			if (state.phase !== "done") {
-				return Promise.resolve(prior);
-			}
-			// Slow post-turn fetch: widens the window where stale history could
-			// wrongly clear the draft.
-			return new Promise((resolve) =>
-				setTimeout(
-					() =>
-						resolve([
-							...prior,
-							row("u1", "user", "complete", 3, "hi-question"),
-							row("a1", "assistant", "complete", 4, "OK-marker plus more"),
-						]),
-					FETCH_DELAY_MS
-				)
-			);
-		},
+		listMessages: () => Promise.resolve(prior),
 		async *stream() {
 			state.phase = "running";
-			yield { type: "text-delta", delta: "OK-marker plus" };
-			// Let the typewriter reveal paint the marker.
+			yield { type: "text-delta", delta: "OK-marker new reply" };
 			await tick(400);
 			state.phase = "done";
 			yield { type: "done", usage: null, finishReason: "stop" };
@@ -146,54 +105,39 @@ function secondTurnClient(state: {
 	} as unknown as AgentClient;
 }
 
-it("second turn never vanishes against stale pre-turn history", {
+it("the sent turn coexists with seeded history and never vanishes", {
 	timeout: 10_000,
 }, async () => {
 	const state = { phase: "idle" as "idle" | "running" | "done" };
-	const { container } = renderChat(secondTurnClient(state), "s-second");
+	const { container } = renderChat(seededClient(state), "s-seed");
 	const dom = watchDom(container);
-
-	await waitFor(
-		() => {
-			expect(state.phase).toBe("done");
-		},
-		{ timeout: 6000 }
-	);
+	await waitFor(() => expect(state.phase).toBe("done"), { timeout: 6000 });
 	await act(async () => {
 		await tick(600);
 	});
 	dom.stop();
-
 	assertNeverVanishes(dom.snapshots, "hi-question");
 	assertNeverVanishes(dom.snapshots, "OK-marker");
+	// Seeded history and the committed turn both remain.
 	expect(container.textContent).toContain("old-answer");
-	expect(container.textContent).toContain("OK-marker plus more");
+	expect(container.textContent).toContain("OK-marker new reply");
 });
 
-it("keeps the draft when the stream dies while the server turn continues", {
+it("a stream that dies mid-reply commits the partial and never vanishes", {
 	timeout: 10_000,
 }, async () => {
 	const state = { phase: "idle" as "idle" | "running" | "done" };
 	const { container } = renderChat(dyingClient(state), "s-dying");
 	const dom = watchDom(container);
-
-	// Wait until the server-side turn completed AND the polling swap settled.
-	await waitFor(
-		() => {
-			expect(state.phase).toBe("done");
-		},
-		{ timeout: 6000 }
-	);
+	await waitFor(() => expect(state.phase).toBe("done"), { timeout: 6000 });
 	await act(async () => {
-		await tick(2000);
+		await tick(600);
 	});
 	dom.stop();
-
 	assertNeverVanishes(dom.snapshots, "hi-question");
-	// The partially-revealed reply must survive the disconnect window too.
 	assertNeverVanishes(dom.snapshots, "OK-marker");
-	// And the final view renders the persisted rows.
-	expect(container.textContent).toContain("OK-marker plus more detail");
+	// The partial reply stays committed on screen.
+	expect(container.textContent).toContain("OK-marker partial reply");
 });
 
 it("chat content never vanishes between first paint and completion", async () => {
