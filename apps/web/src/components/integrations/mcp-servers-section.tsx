@@ -20,6 +20,7 @@ import { orpc } from "@/utils/orpc";
 
 import { AddMcpServerDialog } from "./add-mcp-server-dialog";
 import { IntegrationsEmptyState } from "./empty-state";
+import { ExportMcpMenu } from "./export-mcp-menu";
 import { McpToolsPreview } from "./mcp-tools-preview";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -81,6 +82,7 @@ function ServerRow({
 			<TableCell className="text-right">
 				<div className="flex items-center justify-end gap-1">
 					<McpToolsPreview serverId={row.id} serverName={row.name} />
+					<ExportMcpMenu server={row} />
 					<DeleteConfirm
 						label={`Delete ${row.name}?`}
 						onConfirm={() => onDelete(row.id)}
