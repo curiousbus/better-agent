@@ -50,6 +50,9 @@ services:
     command: ["node", "dist/migrate.mjs"]
     environment:
       DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
+      # migrate only needs DATABASE_URL; skip the full app env schema (which
+      # requires AUTH_JWT_SECRET, CORS_ORIGIN, … that this one-shot doesn't use).
+      SKIP_ENV_VALIDATION: "1"
     depends_on:
       postgres:
         condition: service_healthy
