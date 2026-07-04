@@ -32,15 +32,17 @@ function StepDot({
 	index,
 	step,
 	label,
+	onSelect,
 }: {
 	index: number;
 	step: number;
 	label: string;
+	onSelect?: (index: number) => void;
 }) {
 	const done = index < step;
 	const active = index === step;
-	return (
-		<div className="flex items-center gap-1.5">
+	const dot = (
+		<>
 			<span
 				className={cn(
 					"flex size-6 items-center justify-center rounded-full border text-xs",
@@ -61,11 +63,31 @@ function StepDot({
 			>
 				{label}
 			</span>
-		</div>
+		</>
+	);
+	if (!onSelect) {
+		return <div className="flex items-center gap-1.5">{dot}</div>;
+	}
+	return (
+		<button
+			className="flex items-center gap-1.5 rounded-md hover:opacity-80"
+			onClick={() => onSelect(index)}
+			type="button"
+		>
+			{dot}
+		</button>
 	);
 }
 
-export function Stepper({ step }: { step: number }) {
+// `onStepClick` makes the steps navigable (used when editing an existing agent,
+// so any step can be jumped to directly).
+export function Stepper({
+	step,
+	onStepClick,
+}: {
+	step: number;
+	onStepClick?: (index: number) => void;
+}) {
 	return (
 		<div className="flex items-center gap-2">
 			{WIZARD_STEPS.map((label, index) => (
@@ -78,7 +100,12 @@ export function Stepper({ step }: { step: number }) {
 							)}
 						/>
 					) : null}
-					<StepDot index={index} label={label} step={step} />
+					<StepDot
+						index={index}
+						label={label}
+						onSelect={onStepClick}
+						step={step}
+					/>
 				</Fragment>
 			))}
 		</div>

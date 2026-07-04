@@ -76,7 +76,6 @@ it("create returns the agent plus a one-time ba_ token", async () => {
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
 const ACCOUNT_B = "22222222-2222-4222-8222-222222222222";
 const ACCOUNT_C = "33333333-3333-4333-8333-333333333333";
-const OWN_ACCOUNTS_RE = /your own Composio accounts/;
 
 it("round-trips composioAccountIds on create and update", async () => {
 	const { client } = buildClient(ADMIN_USER, createFakeAgentStore(), [
@@ -97,13 +96,17 @@ it("round-trips composioAccountIds on create and update", async () => {
 	expect(updated.composioAccountIds).toEqual([ACCOUNT_B, ACCOUNT_C]);
 });
 
-it("rejects linking a composio account the caller does not own", async () => {
+it("drops a composio account the caller does not own", async () => {
 	const { client } = buildClient(ADMIN_USER, createFakeAgentStore(), [
 		ACCOUNT_A,
 	]);
-	await expect(
-		client.agents.create({ ...INPUT, composioAccountIds: [ACCOUNT_B] })
-	).rejects.toThrow(OWN_ACCOUNTS_RE);
+	// A non-owned (or since-deleted) id is silently filtered out rather than
+	// rejected, so a save never locks up over a stale link.
+	const { agent } = await client.agents.create({
+		...INPUT,
+		composioAccountIds: [ACCOUNT_A, ACCOUNT_B],
+	});
+	expect(agent.composioAccountIds).toEqual([ACCOUNT_A]);
 });
 
 it("scopes agents to their owner (isolation)", async () => {

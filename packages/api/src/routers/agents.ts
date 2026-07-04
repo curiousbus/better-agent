@@ -40,41 +40,41 @@ async function assertValidAgent(
 
 // A user may only wire THEIR OWN composio accounts / MCP servers into an agent
 // — a foreign id would let them use someone else's credentials.
-async function assertOwnedIds(
+// Keep only the ids the user actually owns. Non-owned or since-deleted ids are
+// dropped rather than rejected: editing an agent that still references a
+// deleted source must not lock the whole save (and a user can only ever end up
+// linked to their own sources this way).
+async function filterOwnedIds(
 	listByUser: (userId: string) => Promise<Array<{ id: string }>>,
 	userId: string,
-	ids: string[],
-	label: string
-): Promise<void> {
+	ids: string[]
+): Promise<string[]> {
 	if (ids.length === 0) {
-		return;
+		return [];
 	}
 	const owned = new Set((await listByUser(userId)).map((row) => row.id));
-	if (ids.some((id) => !owned.has(id))) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: `You can only link your own ${label}`,
-		});
-	}
+	return ids.filter((id) => owned.has(id));
 }
 
-async function assertOwnedLinks(
+async function filterOwnedLinks(
 	context: Context,
 	userId: string,
 	input: { composioAccountIds: string[]; mcpServerIds: string[] }
-): Promise<void> {
+): Promise<{ composioAccountIds: string[]; mcpServerIds: string[] }> {
 	const { composioAccount, mcpServer } = context.services.stores;
-	await assertOwnedIds(
-		(id) => composioAccount.listByUser(id),
-		userId,
-		input.composioAccountIds,
-		"Composio accounts"
-	);
-	await assertOwnedIds(
-		(id) => mcpServer.listByUser(id),
-		userId,
-		input.mcpServerIds,
-		"MCP servers"
-	);
+	const [composioAccountIds, mcpServerIds] = await Promise.all([
+		filterOwnedIds(
+			(id) => composioAccount.listByUser(id),
+			userId,
+			input.composioAccountIds
+		),
+		filterOwnedIds(
+			(id) => mcpServer.listByUser(id),
+			userId,
+			input.mcpServerIds
+		),
+	]);
+	return { composioAccountIds, mcpServerIds };
 }
 
 // Loads an agent and asserts the caller owns it. NOT_FOUND for both missing and
@@ -143,10 +143,15 @@ export const agentsRouter = {
 				providerId: input.providerId,
 				modelId: input.modelId,
 			});
-			await assertOwnedLinks(context, context.authedUser.id, input);
+			const ownedLinks = await filterOwnedLinks(
+				context,
+				context.authedUser.id,
+				input
+			);
 			const { token, hash } = context.services.tokenService.generate();
 			const agent = await context.services.stores.agent.create({
 				...input,
+				...ownedLinks,
 				tokenHash: hash,
 				token,
 				userId: context.authedUser.id,
@@ -194,8 +199,15 @@ export const agentsRouter = {
 				providerId: rest.providerId,
 				modelId: rest.modelId,
 			});
-			await assertOwnedLinks(context, context.authedUser.id, rest);
-			const updated = await context.services.stores.agent.update(id, rest);
+			const ownedLinks = await filterOwnedLinks(
+				context,
+				context.authedUser.id,
+				rest
+			);
+			const updated = await context.services.stores.agent.update(id, {
+				...rest,
+				...ownedLinks,
+			});
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", { message: `Agent ${id} not found` });
 			}

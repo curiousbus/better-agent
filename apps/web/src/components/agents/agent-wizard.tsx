@@ -91,7 +91,10 @@ export function AgentWizard({
 				<DialogHeader>
 					<DialogTitle>{initial ? "Edit agent" : "New agent"}</DialogTitle>
 				</DialogHeader>
-				<Stepper step={step} />
+				<Stepper
+					onStepClick={initial ? (index) => setStep(index) : undefined}
+					step={step}
+				/>
 				{/* Fixed height so the modal stays the same size across every step. */}
 				<div className="flex min-h-80 flex-col">
 					{step === IDENTITY_STEP ? (
