@@ -25,7 +25,13 @@ export interface RelayStore {
 		dir: RelayDir,
 		afterId: number
 	): Promise<RelayEvent[]>;
-	/** Live push; returns an unsubscribe function. */
+	/**
+	 * Live push; returns an unsubscribe function.
+	 *
+	 * Call subscribe() before read(afterId): append persists to the window
+	 * before publishing, so that order guarantees no event is missed
+	 * (duplicates across replay+live are possible; dedupe by id).
+	 */
 	subscribe(
 		sessionId: string,
 		dir: RelayDir,

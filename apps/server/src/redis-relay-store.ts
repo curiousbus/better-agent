@@ -54,9 +54,14 @@ async function readEvents(
 	afterId: number
 ): Promise<RelayEvent[]> {
 	const raw = await redis.lrange(listKey(sessionId, dir), 0, LAST_INDEX);
+	// INCR (id allocation) and RPUSH (list insertion) are separate round
+	// trips, so two concurrent appends can interleave and land in the list
+	// out of id order. Sort here so read() always honors its "in order"
+	// contract regardless of list order.
 	return raw
 		.map((item) => JSON.parse(item) as RelayEvent)
-		.filter((event) => event.id > afterId);
+		.filter((event) => event.id > afterId)
+		.sort((a, b) => a.id - b.id);
 }
 
 type ListenersByChannel = Map<string, Set<(event: RelayEvent) => void>>;

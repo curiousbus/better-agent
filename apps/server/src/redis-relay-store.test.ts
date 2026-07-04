@@ -99,6 +99,26 @@ it("subscribe receives appended events live (cross-connection); unsubscribe stop
 	expect(received).toEqual([{ id: 1, data: "first" }]);
 });
 
+it("read returns ids in ascending order even when RPUSH landed them out of order", async () => {
+	// appendEvent's INCR (id allocation) and RPUSH (list insertion) are
+	// separate round trips, so two concurrent appends can race and land in
+	// the list out of id order. Simulate that race by RPUSHing directly,
+	// bypassing store.append(), with the higher id pushed first.
+	const redis = new RedisMock();
+	const store = createRedisRelayStore(redis);
+	const key = "bridge:out-of-order:events";
+
+	await redis.rpush(key, JSON.stringify({ id: SECOND_ID, data: "b" }));
+	await redis.rpush(key, JSON.stringify({ id: 1, data: "a" }));
+	await redis.rpush(key, JSON.stringify({ id: THIRD_ID, data: "c" }));
+
+	await expect(store.read("out-of-order", "events", 0)).resolves.toEqual([
+		{ id: 1, data: "a" },
+		{ id: SECOND_ID, data: "b" },
+		{ id: THIRD_ID, data: "c" },
+	]);
+});
+
 it("subscribers are scoped to their own session/dir channel", async () => {
 	const redisA = new RedisMock();
 	const redisB = new RedisMock();
