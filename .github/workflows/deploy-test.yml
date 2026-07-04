@@ -1,7 +1,8 @@
 name: Deploy test (Workers)
 
-# Pushing to `dev` deploys the server + web + admin to Cloudflare Workers
-# (test env, Postgres on Neon). No local deploys.
+# Pushing to `dev` deploys authz + mcp to Cloudflare Workers. server / web /
+# admin now run on the self-hosted Docker server — their images are built by
+# build-images.yml and pulled from ghcr (see deploy/compose). No local deploys.
 on:
   push:
     branches: [dev]
@@ -11,62 +12,7 @@ concurrency:
   group: deploy-test
   cancel-in-progress: true
 
-env:
-  SERVER_URL: https://better-agent-server.jacksonwen001.workers.dev
-
 jobs:
-  server:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: pnpm check-types
-      - name: Migrate test database
-        run: pnpm -F @better-agent/db exec drizzle-kit migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - name: Seed built-in admin
-        run: pnpm -F server exec tsx src/seed-admin.ts
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
-          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
-      - name: Ensure R2 bucket exists (attachments)
-        run: pnpm exec wrangler r2 bucket create better-agent-uploads || true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Deploy server
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-          secrets: |
-            DATABASE_URL
-            AUTH_JWT_SECRET
-            CREDENTIALS_SECRET
-            CORS_ORIGIN
-            AUTHZ_URL
-            AUTHZ_SERVICE_SECRET
-            UPSTASH_REDIS_REST_URL
-            UPSTASH_REDIS_REST_TOKEN
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
-          CREDENTIALS_SECRET: ${{ secrets.CREDENTIALS_SECRET }}
-          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
-          AUTHZ_URL: ${{ secrets.AUTHZ_URL }}
-          AUTHZ_SERVICE_SECRET: ${{ secrets.AUTHZ_SERVICE_SECRET }}
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-
   mcp:
     runs-on: ubuntu-latest
     steps:
@@ -126,31 +72,3 @@ jobs:
           AUTHZ_JWT_SECRET: ${{ secrets.AUTHZ_JWT_SECRET }}
           AUTHZ_SERVICE_SECRET: ${{ secrets.AUTHZ_SERVICE_SECRET }}
           MAIN_SERVER_URL: ${{ secrets.MAIN_SERVER_URL }}
-
-  frontends:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [web, admin]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Build ${{ matrix.app }} (SPA shell)
-        run: pnpm -F ${{ matrix.app }} build
-        env:
-          VITE_SERVER_URL: ${{ env.SERVER_URL }}
-      - name: Promote shell to index.html (SPA fallback)
-        run: cp .output/public/_shell.html .output/public/index.html
-        working-directory: apps/${{ matrix.app }}
-      - name: Deploy ${{ matrix.app }}
-        run: pnpm exec wrangler deploy
-        working-directory: apps/${{ matrix.app }}
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
