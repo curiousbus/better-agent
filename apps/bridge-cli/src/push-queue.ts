@@ -112,13 +112,13 @@ async function pushWithRetry<T>(attempt: PushAttempt<T>): Promise<void> {
 			await push(batch);
 			return;
 		} catch (error) {
+			if (signal?.aborted) {
+				return;
+			}
 			if (tries === MAX_PUSH_RETRIES) {
 				throw new Error(
 					`bridge: push failed after ${MAX_PUSH_RETRIES} attempts, giving up: ${String(error)}`
 				);
-			}
-			if (signal?.aborted) {
-				return;
 			}
 			onWarning?.(
 				`bridge: push failed, retrying in ${intervalMs}ms: ${String(error)}`
