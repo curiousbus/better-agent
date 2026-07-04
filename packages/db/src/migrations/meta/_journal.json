@@ -204,6 +204,13 @@
       "when": 1783063181911,
       "tag": "0028_tough_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1783180672507,
+      "tag": "0029_sour_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

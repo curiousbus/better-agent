@@ -176,6 +176,59 @@ export interface ComposioAccountStore {
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
 
+export type BridgeAgentKind = "claude-code" | "opencode" | "codex";
+export type BridgeSessionStatus = "active" | "ended";
+
+/** A bridge token as exposed to clients: never includes the hash. */
+export interface BridgeTokenRow {
+	createdAt: Date;
+	id: string;
+	last4: string | null;
+	name: string | null;
+	revokedAt: Date | null;
+	userId: string;
+}
+
+export interface BridgeTokenStore {
+	create(input: {
+		userId: string;
+		name?: string;
+		tokenHash: string;
+		last4?: string;
+	}): Promise<BridgeTokenRow>;
+	/** Looked up on every bridge request; null when the hash is unknown. */
+	findByHash(
+		tokenHash: string
+	): Promise<{ id: string; userId: string; revokedAt: Date | null } | null>;
+	listByUser(userId: string): Promise<BridgeTokenRow[]>;
+	revoke(id: string, userId: string): Promise<void>;
+}
+
+export interface BridgeSessionRow {
+	agentKind: BridgeAgentKind;
+	createdAt: Date;
+	id: string;
+	label: string | null;
+	lastSeenAt: Date;
+	status: BridgeSessionStatus;
+	tokenId: string;
+	userId: string;
+}
+
+export interface BridgeSessionStore {
+	create(input: {
+		userId: string;
+		tokenId: string;
+		agentKind: BridgeAgentKind;
+		label?: string;
+	}): Promise<BridgeSessionRow>;
+	end(id: string, userId: string): Promise<void>;
+	get(id: string): Promise<BridgeSessionRow | null>;
+	listByUser(userId: string): Promise<BridgeSessionRow[]>;
+	/** Bumps lastSeenAt (bridge heartbeats while relaying output). */
+	touch(id: string): Promise<void>;
+}
+
 export interface WebAuthzCacheRow {
 	authorized: boolean;
 	checkedAt: Date;
