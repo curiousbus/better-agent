@@ -1,0 +1,136 @@
+# better-agent on a single server via docker-compose.
+# Runs: postgres, redis, the API server, web, admin, and a Caddy reverse proxy
+# (auto-HTTPS). authz and mcp stay on Cloudflare Workers — the server reaches
+# them over their public URLs (AUTHZ_URL / the MCP server URL a user configures).
+#
+# Usage:
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# Build context is the REPO ROOT (two levels up) so the Dockerfiles see the
+# whole workspace.
+
+name: better-agent
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: better_agent
+      POSTGRES_USER: better_agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U better_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: applies pending drizzle migrations, then exits. The server waits
+  # for it to complete successfully.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/server.Dockerfile
+    command: ["node", "dist/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/server.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
+      REDIS_URL: redis://redis:6379
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?}
+      CREDENTIALS_SECRET: ${CREDENTIALS_SECRET:?}
+      CORS_ORIGIN: ${CORS_ORIGIN:?}
+      WEB_URL: ${WEB_URL:?}
+      ADMIN_URL: ${ADMIN_URL:?}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-noreply@example.com}
+      # Attachments via R2's S3 API (stays on Cloudflare).
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      # Invite gate — authz stays on Workers, reached over its public URL.
+      AUTHZ_URL: ${AUTHZ_URL:-}
+      AUTHZ_SERVICE_SECRET: ${AUTHZ_SERVICE_SECRET:-}
+      # Optional OAuth.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/app.Dockerfile
+      args:
+        APP: web
+        VITE_SERVER_URL: ${PUBLIC_API_URL:?}
+    restart: unless-stopped
+    depends_on:
+      - server
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/app.Dockerfile
+      args:
+        APP: admin
+        VITE_SERVER_URL: ${PUBLIC_API_URL:?}
+    restart: unless-stopped
+    depends_on:
+      - server
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?}
+      WEB_DOMAIN: ${WEB_DOMAIN:?}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - server
+      - web
+      - admin
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

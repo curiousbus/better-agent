@@ -1,0 +1,14 @@
+# Auto-HTTPS reverse proxy. Caddy fetches Let's Encrypt certs for each domain
+# (the domains must resolve to this server and ports 80/443 be reachable).
+
+{$API_DOMAIN} {
+	reverse_proxy server:3000
+}
+
+{$WEB_DOMAIN} {
+	reverse_proxy web:3000
+}
+
+{$ADMIN_DOMAIN} {
+	reverse_proxy admin:3000
+}

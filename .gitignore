@@ -59,3 +59,6 @@ temp
 # k3s prod secrets: only the sops-ENCRYPTED file may be committed. The
 # plaintext working copy must never land in git (encrypt in place instead).
 deploy/secrets/*.plaintext.yaml
+
+# docker-compose secrets (only .env.example is committed)
+deploy/compose/.env
