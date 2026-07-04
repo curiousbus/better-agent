@@ -3,12 +3,15 @@
 # (auto-HTTPS). authz and mcp stay on Cloudflare Workers — the server reaches
 # them over their public URLs (AUTHZ_URL / the MCP server URL a user configures).
 #
-# Usage:
-#   cp .env.example .env   # then fill it in
-#   docker compose up -d --build
+# Images are NOT built here — the server is memory-constrained and would OOM.
+# GitHub Actions (.github/workflows/build-images.yml) builds server/web/admin
+# and pushes them to ghcr.io; this file only PULLS those prebuilt images.
 #
-# Build context is the REPO ROOT (two levels up) so the Dockerfiles see the
-# whole workspace.
+# Usage:
+#   cp .env.example .env               # then fill it in (incl. IMAGE_OWNER)
+#   docker login ghcr.io               # one-time, to pull the private images
+#   docker compose pull                # fetch the latest images
+#   docker compose up -d               # start (no --build)
 
 name: better-agent
 
@@ -41,11 +44,9 @@ services:
       retries: 5
 
   # One-shot: applies pending drizzle migrations, then exits. The server waits
-  # for it to complete successfully.
+  # for it to complete successfully. Reuses the server image.
   migrate:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/server.Dockerfile
+    image: ghcr.io/${IMAGE_OWNER:?set IMAGE_OWNER, e.g. curiousbus}/better-agent-server:${IMAGE_TAG:-latest}
     command: ["node", "dist/migrate.mjs"]
     environment:
       DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
@@ -55,9 +56,7 @@ services:
     restart: "no"
 
   server:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/server.Dockerfile
+    image: ghcr.io/${IMAGE_OWNER:?}/better-agent-server:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -89,23 +88,13 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/app.Dockerfile
-      args:
-        APP: web
-        VITE_SERVER_URL: ${PUBLIC_API_URL:?}
+    image: ghcr.io/${IMAGE_OWNER:?}/better-agent-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - server
 
   admin:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/app.Dockerfile
-      args:
-        APP: admin
-        VITE_SERVER_URL: ${PUBLIC_API_URL:?}
+    image: ghcr.io/${IMAGE_OWNER:?}/better-agent-admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - server
