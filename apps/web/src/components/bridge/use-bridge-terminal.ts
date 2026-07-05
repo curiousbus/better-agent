@@ -1,4 +1,5 @@
 import { type Dispatch, useReducer, useState } from "react";
+import { toast } from "sonner";
 import type { StreamEvent } from "./bridge-events";
 import type { BridgeTransport } from "./bridge-transport";
 import {
@@ -41,13 +42,20 @@ function useSendInput(sessionId: string, transport: BridgeTransport) {
 	return { sending, sendInput };
 }
 
+const APPROVAL_SEND_FAILURE_MESSAGE =
+	"Couldn't send that decision — try again.";
+
 /**
  * Builds the approval-decision callback: marks it answered in the feed
  * store immediately (so the buttons disable and the chosen option shows
  * before the network round trip settles — no window for a double-click to
  * send twice), then relays the decision as the `{ type: "approval",
  * requestId, optionId }` command the CLI's `commands.ts` parses back out.
- * Not itself a hook — takes the dispatch/sendInput a hook already produced.
+ * If that send rejects, the optimistic mark is rolled back — approvals gate
+ * destructive operations, so a decision that never reached the agent must
+ * not sit there looking answered — and a toast surfaces the failure so the
+ * user knows to retry. Not itself a hook — takes the dispatch/sendInput a
+ * hook already produced.
  */
 function makeAnswerApproval(
 	dispatchFeed: Dispatch<FeedAction>,
@@ -55,7 +63,16 @@ function makeAnswerApproval(
 ) {
 	return async (requestId: string, optionId: string): Promise<void> => {
 		dispatchFeed({ type: "answer", requestId, optionId });
-		await sendInput(JSON.stringify({ type: "approval", requestId, optionId }));
+		try {
+			await sendInput(
+				JSON.stringify({ type: "approval", requestId, optionId })
+			);
+		} catch (error) {
+			dispatchFeed({ type: "unanswer", requestId });
+			const message =
+				error instanceof Error ? error.message : APPROVAL_SEND_FAILURE_MESSAGE;
+			toast.error(message);
+		}
 	};
 }
 

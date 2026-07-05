@@ -19,6 +19,7 @@ export const initialFeedState: FeedState = {
 export type FeedAction =
 	| { type: "events"; events: RawBridgeEvent[] }
 	| { optionId: string; requestId: string; type: "answer" }
+	| { requestId: string; type: "unanswer" }
 	| { type: "reset" };
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
@@ -30,6 +31,11 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 				...state,
 				answered: { ...state.answered, [action.requestId]: action.optionId },
 			};
+		case "unanswer": {
+			const answered = { ...state.answered };
+			delete answered[action.requestId];
+			return { ...state, answered };
+		}
 		default: {
 			const result = mergeEvents(state.events, state.maxSeenId, action.events);
 			return { ...state, events: result.events, maxSeenId: result.maxSeenId };
