@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BridgeTransport } from "./bridge-transport";
 import type { ConnectionAction, ConnectionState } from "./terminal-connection";
 import type { FeedAction } from "./use-bridge-feed";
@@ -40,6 +40,59 @@ export function useMaxSeenIdRef(maxSeenId: number): MutableRefObject<number> {
 		ref.current = maxSeenId;
 	}, [maxSeenId]);
 	return ref;
+}
+
+export interface HistorySeedArgs {
+	dispatchFeed: Dispatch<FeedAction>;
+	sessionId: string;
+	transport: BridgeTransport;
+}
+
+/**
+ * Seeds the feed with persisted history (once per session) BEFORE the live
+ * SSE/poll connection is allowed to open — see the `enabled` gate the caller
+ * (useBridgeTerminal) builds from the returned flag. This ordering isn't
+ * just cosmetic: `mergeEvents` tracks a single running high-water mark, not
+ * an id set, so if live/poll bumped `maxSeenId` past some id BEFORE history
+ * for that same range was merged in, the history rows at or under that mark
+ * would be filtered out as "already seen" and silently lost rather than
+ * rendered. Loading history first — and waiting for it to land — keeps
+ * `maxSeenId` monotonic from the persisted backlog forward, so live only
+ * ever adds NEW events on top of it. A history fetch failure is swallowed
+ * (logged nowhere, surfaced nowhere): the terminal still works going
+ * forward, just without the pre-reload backlog, and the live connection is
+ * still allowed to open afterward.
+ */
+export function useHistorySeed(args: HistorySeedArgs): boolean {
+	const { sessionId, transport, dispatchFeed } = args;
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		let cancelled = false;
+		setLoaded(false);
+		const seed = async () => {
+			try {
+				const rows = await transport.history({ sessionId });
+				if (cancelled) {
+					return;
+				}
+				dispatchFeed({
+					type: "events",
+					events: rows.map((row) => ({ id: row.seq, data: row.event })),
+				});
+			} catch {
+				// swallowed: the live SSE/poll paths still deliver going forward
+			} finally {
+				if (!cancelled) {
+					setLoaded(true);
+				}
+			}
+		};
+		seed();
+		return () => {
+			cancelled = true;
+		};
+	}, [sessionId, transport, dispatchFeed]);
+	return loaded;
 }
 
 export interface SseConnectionArgs {

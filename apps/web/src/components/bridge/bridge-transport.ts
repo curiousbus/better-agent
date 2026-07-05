@@ -16,8 +16,21 @@ export interface ConnectStreamArgs {
 	sessionId: string;
 }
 
+/** One persisted row from `orpc.bridge.history` — `seq` is the same relay id
+ * the live SSE/observe feed uses, so it can be fed through the identical
+ * `mergeEvents` dedupe path as a live frame (see use-bridge-connection-effects.ts). */
+export interface BridgeHistoryEvent {
+	event: unknown;
+	seq: number;
+}
+
 export interface BridgeTransport {
 	connectStream: (args: ConnectStreamArgs) => () => void;
+	history: (input: {
+		afterSeq?: number;
+		limit?: number;
+		sessionId: string;
+	}) => Promise<BridgeHistoryEvent[]>;
 	observe: (input: {
 		afterId: number;
 		sessionId: string;
@@ -33,6 +46,7 @@ export function createBridgeTransport(): BridgeTransport {
 				onOpen,
 				onError,
 			}),
+		history: (input) => client.bridge.history(input),
 		observe: (input) => client.bridge.observe(input),
 		sendInput: async (input) => {
 			await client.bridge.sendInput(input);

@@ -156,6 +156,7 @@ vi.mock("./bridge-transport", () => ({
 				// no cleanup needed for this fake
 			};
 		},
+		history: () => Promise.resolve([]),
 		observe: () => Promise.resolve([]),
 		sendInput: () => Promise.resolve(),
 	}),

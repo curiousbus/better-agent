@@ -8,6 +8,7 @@ import {
 } from "./terminal-connection";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import {
+	useHistorySeed,
 	useMaxSeenIdRef,
 	usePollFallback,
 	useResetOnSessionChange,
@@ -115,11 +116,15 @@ export function useBridgeTerminal(
 		initialConnectionState
 	);
 	useResetOnSessionChange(sessionId, dispatchFeed, dispatchConn);
+	// Persisted history loads first and gates the live connection below — see
+	// useHistorySeed's doc for why this ordering is a correctness requirement,
+	// not just a nice-to-have.
+	const historyLoaded = useHistorySeed({ sessionId, transport, dispatchFeed });
 	const maxSeenIdRef = useMaxSeenIdRef(feed.maxSeenId);
 	useSseConnection({
 		sessionId,
 		conn,
-		enabled: !ended,
+		enabled: !ended && historyLoaded,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,
@@ -128,7 +133,7 @@ export function useBridgeTerminal(
 	usePollFallback({
 		sessionId,
 		status: conn.status,
-		enabled: !ended,
+		enabled: !ended && historyLoaded,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,

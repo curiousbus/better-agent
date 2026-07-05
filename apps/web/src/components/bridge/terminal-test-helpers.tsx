@@ -1,4 +1,5 @@
-import { vi } from "vitest";
+import { waitFor } from "@testing-library/react";
+import { expect, vi } from "vitest";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import type { BridgeTransport, ConnectStreamArgs } from "./bridge-transport";
 
@@ -53,12 +54,17 @@ export const DENY_BUTTON_PATTERN = /Deny/;
 export const ALLOW_CHOSEN_BUTTON_PATTERN = /Allow.*chosen/;
 
 // A transport whose `connectStream` opens immediately and hands the caller
-// its handlers, so a test can drive events (or failures) by hand.
+// its handlers, so a test can drive events (or failures) by hand. `history`
+// defaults to an empty backlog — the terminal's history-seed effect always
+// runs on mount, and the live SSE/poll connection only opens once it
+// settles (see useHistorySeed), so most tests must wait past it via
+// `waitForConnect` before touching `current()`.
 export function makeControllableTransport() {
 	let latest: ConnectStreamArgs | null = null;
 	const connectCalls: ConnectStreamArgs[] = [];
 	const sendInput = vi.fn().mockResolvedValue(undefined);
 	const observe = vi.fn().mockResolvedValue([]);
+	const history = vi.fn().mockResolvedValue([]);
 	const transport: BridgeTransport = {
 		connectStream: (args) => {
 			latest = args;
@@ -67,6 +73,7 @@ export function makeControllableTransport() {
 				// unsubscribe: no-op for this fake
 			};
 		},
+		history,
 		observe,
 		sendInput,
 	};
@@ -74,7 +81,21 @@ export function makeControllableTransport() {
 		transport,
 		sendInput,
 		observe,
+		history,
 		connectCalls,
 		current: () => latest,
 	};
+}
+
+/** Waits for the history-seed effect to settle and the live SSE connection to
+ * open — the point at which `fake.current()` first becomes non-null. Every
+ * test that drives the fake stream by hand (`onOpen`/`onEvent`/`onError`)
+ * must await this first, since those calls no-op silently against a `null`
+ * connection. */
+export async function waitForConnect(
+	fake: ReturnType<typeof makeControllableTransport>
+): Promise<void> {
+	await waitFor(() => {
+		expect(fake.current()).not.toBeNull();
+	});
 }

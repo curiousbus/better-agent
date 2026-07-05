@@ -13,6 +13,7 @@ import {
 	makeControllableTransport,
 	SESSION,
 	statusRaw,
+	waitForConnect,
 } from "./terminal-test-helpers";
 
 // Not grouped under a `describe` — each of these already fully exercises a
@@ -24,6 +25,7 @@ it("renders a sequence of events in order, never dropping or duplicating on repl
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 
 	await act(() => {
 		fake.current()?.onOpen();
@@ -53,6 +55,7 @@ it("posts input via the transport and clears the box", async () => {
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -79,6 +82,7 @@ it("echoes the user's own line into the feed immediately, before the CLI replies
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -120,6 +124,7 @@ it("degrades to polling after MAX_SSE_FAILURES consecutive stream errors", async
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 
 	for (let i = 0; i < MAX_SSE_FAILURES; i++) {
 		await act(() => {
@@ -141,6 +146,7 @@ it("renders an approval event as a card with one button per option", async () =>
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});

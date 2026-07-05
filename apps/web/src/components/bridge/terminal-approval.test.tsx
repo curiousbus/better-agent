@@ -12,6 +12,7 @@ import {
 	makeControllableTransport,
 	OTHER_SESSION,
 	SESSION,
+	waitForConnect,
 } from "./terminal-test-helpers";
 
 vi.mock("sonner", () => ({
@@ -29,6 +30,7 @@ it("answers an approval via sendInput, disables its buttons, and shows the chose
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -66,6 +68,7 @@ it("renders a fresh approval card as disabled when its requestId was already ans
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -109,6 +112,7 @@ it("rolls back the answered mark and toasts when sendInput rejects, leaving butt
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -141,6 +145,7 @@ it("clears the answered map when switching to a different session", async () => 
 	const { container, rerender } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
 	);
+	await waitForConnect(fake);
 	await act(() => {
 		fake.current()?.onOpen();
 	});
@@ -156,7 +161,15 @@ it("clears the answered map when switching to a different session", async () => 
 		expect(fake.sendInput).toHaveBeenCalled();
 	});
 
+	// A session switch resets the feed AND reloads history for the new
+	// session before its own live connection opens — wait for a fresh
+	// `connectStream` call (not just a non-null `current()`, which would
+	// still be the OLD session's stale connection right after rerender).
+	const priorConnectCount = fake.connectCalls.length;
 	rerender(<Terminal session={OTHER_SESSION} transport={fake.transport} />);
+	await waitFor(() => {
+		expect(fake.connectCalls.length).toBeGreaterThan(priorConnectCount);
+	});
 	await act(() => {
 		fake.current()?.onOpen();
 	});
