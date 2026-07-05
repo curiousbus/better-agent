@@ -43,14 +43,10 @@ export function row(
 }
 
 // Production always wires generative UI (chat-view passes GENUI_CHAT_CONFIG),
-// which makes renderTree defined — a message with a non-null `structured` then
-// renders as a tree INSTEAD of its text. The harness must match, or structured-
-// field regressions (e.g. the done event's structured:null wiping the reply)
-// are invisible here while breaking prod.
+// attaching client data tools when the composer's genui toggle is on. The
+// harness mirrors that shape so these regression tests exercise the same
+// Conversation config prod does.
 const GENUI_TEST_CONFIG = {
-	handlers: {},
-	outputSchema: {},
-	renderers: {},
 	tools: [],
 };
 

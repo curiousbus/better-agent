@@ -18,7 +18,6 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
-import type { ReactNode } from "react";
 
 import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
@@ -56,20 +55,13 @@ function BlockView({
 
 function AssistantContent({
 	message,
-	renderTree,
-	hasTree,
 	streaming,
 	renderToolResult,
 }: {
 	message: ChatMessage;
-	renderTree?: (tree: unknown) => ReactNode;
-	hasTree: boolean;
 	streaming: boolean;
 	renderToolResult?: RenderToolResult;
 }) {
-	if (hasTree) {
-		return <>{renderTree?.(message.structured)}</>;
-	}
 	return (
 		<>
 			{message.blocks.map((block, index) => (
@@ -87,31 +79,24 @@ function AssistantContent({
 
 // Only the LIVE draft shimmers "Thinking…"; a refetched (or stopped/orphaned)
 // message stuck in `streaming` status must not shimmer forever.
-function isThinking(message: ChatMessage, hasTree: boolean): boolean {
+function isThinking(message: ChatMessage): boolean {
 	return (
 		message.live === true &&
 		message.status === "streaming" &&
-		message.blocks.length === 0 &&
-		!hasTree
+		message.blocks.length === 0
 	);
 }
 
 function AssistantBody({
 	message,
-	renderTree,
 	renderToolResult,
 }: {
 	message: ChatMessage;
-	renderTree?: (tree: unknown) => ReactNode;
 	renderToolResult?: RenderToolResult;
 }) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
-	// `!= null` on purpose: the server's done event carries structured:null on
-	// plain-text turns (JSON keeps null, unlike undefined). Treating null as "has
-	// a tree" replaced the whole reply with an empty render at completion.
-	const hasTree = message.structured != null && renderTree !== undefined;
-	const showThinking = isThinking(message, hasTree);
+	const showThinking = isThinking(message);
 	return (
 		<div className="flex flex-col gap-2">
 			{showThinking ? (
@@ -122,10 +107,8 @@ function AssistantBody({
 				</div>
 			) : null}
 			<AssistantContent
-				hasTree={hasTree}
 				message={message}
 				renderToolResult={renderToolResult}
-				renderTree={renderTree}
 				streaming={streaming}
 			/>
 			{message.status === "stopped" ? (
@@ -227,13 +210,11 @@ function UserRow({
 export function ChatRow({
 	message,
 	agentClient,
-	renderTree,
 	avatars,
 	renderToolResult,
 }: {
 	message: ChatMessage;
 	agentClient: AgentClient;
-	renderTree?: (tree: unknown) => ReactNode;
 	avatars?: ChatAvatars;
 	renderToolResult?: RenderToolResult;
 }) {
@@ -251,7 +232,6 @@ export function ChatRow({
 						<AssistantBody
 							message={message}
 							renderToolResult={renderToolResult}
-							renderTree={renderTree}
 						/>
 					</BubbleContent>
 				</Bubble>

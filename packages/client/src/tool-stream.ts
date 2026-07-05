@@ -9,7 +9,6 @@ interface StrippedTool {
 
 interface PromptInput {
 	attachmentIds?: string[];
-	outputSchema?: Record<string, unknown>;
 	sessionId: string;
 	text: string;
 	tools?: StrippedTool[];
@@ -49,7 +48,6 @@ export async function* streamPromptWithTools(
 			sessionId,
 			text: args.text,
 			tools: strip(options?.tools),
-			outputSchema: options?.outputSchema,
 			attachmentIds: options?.attachmentIds,
 		},
 		{ signal: options?.signal }

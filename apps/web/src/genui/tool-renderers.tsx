@@ -91,6 +91,7 @@ const TWEET_LIST_TOOLS = [
 	"x_user_replies",
 	"x_user_likes",
 	"x_tweet_thread",
+	"x_user_media",
 ] as const;
 
 const PROFILE_LIST_TOOLS = ["x_followers", "x_following"] as const;

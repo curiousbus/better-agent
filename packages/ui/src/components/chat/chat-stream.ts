@@ -80,36 +80,7 @@ function applyToolResult(
 	emit(state);
 }
 
-const STRUCTURED_OUTPUT_TOOL = "StructuredOutput";
-
-// Handle generative-UI events; returns true if the event was consumed here.
-// The UI tree streams via structured-delta — the StructuredOutput tool-call
-// itself is swallowed so it never shows as a tool block.
-function applyStructured(event: RunEvent, state: StreamState): boolean {
-	if (event.type === "structured-delta") {
-		state.assistant.structured = event.partial;
-		emit(state);
-		return true;
-	}
-	if (event.type === "done") {
-		// `!= null`: plain-text turns finish with structured:null (the server field
-		// survives JSON, unlike undefined). Storing that null flipped the message
-		// into empty-tree rendering — the whole reply vanished at completion.
-		if (event.structured != null) {
-			state.assistant.structured = event.structured;
-			emit(state);
-		}
-		return true;
-	}
-	return (
-		event.type === "tool-call" && event.toolName === STRUCTURED_OUTPUT_TOOL
-	);
-}
-
 function applyEvent(event: RunEvent, state: StreamState) {
-	if (applyStructured(event, state)) {
-		return;
-	}
 	if (event.type === "text-delta") {
 		pushDelta(state, "text", event.delta);
 	} else if (event.type === "reasoning-delta") {
@@ -136,10 +107,9 @@ function applyEvent(event: RunEvent, state: StreamState) {
 	}
 }
 
-/** When set, the turn requests generative UI: the agent gets the component
- * schema + data tools, and replies render as a UI tree. */
+/** When set, the turn attaches client-executed data tools (e.g. todo CRUD)
+ * alongside any server-side tools already configured for the agent. */
 export interface GenuiStreamConfig {
-	outputSchema: Record<string, unknown>;
 	tools: ClientToolDef[];
 }
 
@@ -168,7 +138,6 @@ export async function streamPrompt(args: StreamArgs) {
 			sessionId: args.sessionId,
 			signal: args.signal,
 			attachmentIds: args.attachmentIds,
-			outputSchema: args.genui?.outputSchema,
 			tools: args.genui?.tools,
 		})) {
 			// Stop applying events the moment the user aborts, so a stream that

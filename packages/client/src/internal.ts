@@ -80,11 +80,9 @@ async function runWithTools(
 	options: RunOptions & { tools: ClientToolDef[] }
 ): Promise<RunResult> {
 	const sessionId = options.sessionId ?? (await client.sessions.create({})).id;
-	let structured: unknown = null;
-	for await (const event of stream(text, { ...options, sessionId })) {
-		if (event.type === "done") {
-			structured = (event as { structured?: unknown }).structured ?? null;
-		}
+	for await (const _event of stream(text, { ...options, sessionId })) {
+		// Drain the stream: tool calls dispatch as a side effect (see
+		// streamPromptWithTools); the final message comes from history below.
 	}
 	const history = await client.sessions.listMessages(
 		{ sessionId },
@@ -96,7 +94,7 @@ async function runWithTools(
 	if (!lastAssistant) {
 		throw new Error("No assistant message found after tool-assisted run");
 	}
-	return { ...lastAssistant.message, structured } as RunResult;
+	return lastAssistant.message as RunResult;
 }
 
 async function* streamTurn(
@@ -137,7 +135,6 @@ export function createAgentClientFrom(client: Client): AgentClient {
 				{
 					sessionId,
 					text,
-					outputSchema: options?.outputSchema,
 					attachmentIds: options?.attachmentIds,
 				},
 				{ signal: options?.signal }
@@ -182,7 +179,6 @@ export function createUserSessionClientFrom(
 				{
 					sessionId,
 					text,
-					outputSchema: options?.outputSchema,
 					attachmentIds: options?.attachmentIds,
 				},
 				{ signal: options?.signal }

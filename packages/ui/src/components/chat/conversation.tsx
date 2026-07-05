@@ -1,8 +1,4 @@
 import {
-	GenerativeUI,
-	type NodeProps,
-} from "@better-agent/ui/components/genui/generative-ui";
-import {
 	MessageScroller,
 	MessageScrollerButton,
 	MessageScrollerContent,
@@ -10,12 +6,8 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import type {
-	AgentClient,
-	ClientToolDef,
-	UIAction,
-} from "@curiousbus/agent-client";
-import type { ComponentType, ReactNode } from "react";
+import type { AgentClient, ClientToolDef } from "@curiousbus/agent-client";
+import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ChatMessage } from "./chat-blocks";
@@ -24,12 +16,9 @@ import { type ChatAvatars, ChatRow, type RenderToolResult } from "./chat-row";
 import { RevealText } from "./reveal-text";
 import { useChat } from "./use-chat";
 
-/** Generative-UI wiring an app injects: its component renderers + schema/tools
- * for the agent, and local handlers for client-target actions. */
+/** Generative-UI wiring an app injects: client-executed data tools attached
+ * to the turn when the composer's genui toggle is on. */
 export interface GenerativeUIChatConfig {
-	handlers: Record<string, (payload: unknown) => void>;
-	outputSchema: Record<string, unknown>;
-	renderers: Record<string, ComponentType<NodeProps>>;
 	tools: ClientToolDef[];
 }
 
@@ -51,13 +40,11 @@ function EmptyMessages() {
 function ChatScroller({
 	messages,
 	agentClient,
-	renderTree,
 	avatars,
 	renderToolResult,
 }: {
 	messages: ChatMessage[];
 	agentClient: AgentClient;
-	renderTree?: (tree: unknown) => ReactNode;
 	avatars?: ChatAvatars;
 	renderToolResult?: RenderToolResult;
 }) {
@@ -83,7 +70,6 @@ function ChatScroller({
 										avatars={avatars}
 										message={message}
 										renderToolResult={renderToolResult}
-										renderTree={renderTree}
 									/>
 								</MessageScrollerItem>
 							))
@@ -120,40 +106,11 @@ function useInitialSend(
 	}, [initialText]);
 }
 
-// Build the assistant-tree renderer (and its action router) for a chat, or
-// undefined when the app didn't wire generative UI. target:"client" actions run
-// a local handler; target:"agent" actions send a follow-up turn that re-renders.
-function buildRenderTree(
-	generativeUI: GenerativeUIChatConfig | undefined,
-	send: (text: string) => void
-): ((tree: unknown) => ReactNode) | undefined {
-	const onAction = (action: UIAction) => {
-		if (action.target === "client") {
-			generativeUI?.handlers[action.intent]?.(action.payload);
-		} else {
-			send(
-				`[ui-event] intent=${action.intent} payload=${JSON.stringify(action.payload ?? null)}`
-			);
-		}
-	};
-	return generativeUI
-		? (tree: unknown) => (
-				<GenerativeUI
-					onAction={onAction}
-					renderers={generativeUI.renderers}
-					tree={tree}
-				/>
-			)
-		: undefined;
-}
-
 function genuiStreamConfig(
 	generativeUI: GenerativeUIChatConfig | undefined,
 	genuiOn: boolean
 ) {
-	return generativeUI && genuiOn
-		? { outputSchema: generativeUI.outputSchema, tools: generativeUI.tools }
-		: undefined;
+	return generativeUI && genuiOn ? { tools: generativeUI.tools } : undefined;
 }
 
 export function Conversation({
@@ -184,7 +141,6 @@ export function Conversation({
 		genuiStreamConfig(generativeUI, genuiOn)
 	);
 	useInitialSend(initialText, send);
-	const renderTree = buildRenderTree(generativeUI, send);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatScroller
@@ -192,7 +148,6 @@ export function Conversation({
 				avatars={avatars}
 				messages={messages}
 				renderToolResult={renderToolResult}
-				renderTree={renderTree}
 			/>
 			<ChatComposer
 				agentClient={agentClient}

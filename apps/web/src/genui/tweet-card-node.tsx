@@ -1,7 +1,4 @@
-import type { NodeProps } from "@better-agent/ui/components/genui/generative-ui";
-import type { UIAction } from "@curiousbus/agent-client";
 import {
-	BadgeCheck,
 	BarChart3,
 	Heart,
 	type LucideIcon,
@@ -9,14 +6,6 @@ import {
 	Repeat2,
 	X as XLogo,
 } from "lucide-react";
-
-type UINode = NodeProps["node"];
-
-const str = (v: unknown, fallback = ""): string =>
-	typeof v === "string" ? v : fallback;
-
-const num = (v: unknown): number | undefined =>
-	typeof v === "number" ? v : undefined;
 
 const KILO = 1000;
 const MEGA = 1_000_000;
@@ -95,25 +84,34 @@ export function AuthorAvatar({ name, url }: { name: string; url: string }) {
 	);
 }
 
-function TweetCardHeader({ node }: { node: UINode }) {
-	const authorName = str(node.props.authorName, "Someone");
-	const authorHandle = str(node.props.authorHandle);
-	const avatarUrl = str(node.props.authorAvatarUrl);
-	const postedAt = str(node.props.postedAt);
-	const verified = node.props.verified === true;
-	const relative = postedAt ? relativeTime(postedAt) : "";
+/** A tweet from the X MCP tools' `NormalizedTweet` shape (see
+ * apps/mcp/src/x/x-types.ts) — plain data, rendered directly (no agent-authored
+ * UI tree involved). */
+export interface TweetCardTweet {
+	authorScreenName: string;
+	fullText: string;
+	likeCount: number;
+	media: { sortOrder: number; url: string }[];
+	postedAt: string;
+	replyCount: number;
+	retweetCount: number;
+	tweetId: string;
+	viewCount: number;
+}
+
+function TweetCardHeader({ tweet }: { tweet: TweetCardTweet }) {
+	const relative = tweet.postedAt ? relativeTime(tweet.postedAt) : "";
 	return (
 		<div className="flex items-start gap-3">
-			<AuthorAvatar name={authorName} url={avatarUrl} />
+			<AuthorAvatar name={tweet.authorScreenName} url="" />
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-1">
-					<span className="truncate font-medium text-sm">{authorName}</span>
-					{verified ? (
-						<BadgeCheck className="size-4 shrink-0 text-sky-500" />
-					) : null}
+					<span className="truncate font-medium text-sm">
+						{tweet.authorScreenName}
+					</span>
 				</div>
 				<div className="truncate text-muted-foreground text-xs">
-					@{authorHandle}
+					@{tweet.authorScreenName}
 					{relative ? ` · ${relative}` : ""}
 				</div>
 			</div>
@@ -122,10 +120,8 @@ function TweetCardHeader({ node }: { node: UINode }) {
 	);
 }
 
-function TweetCardMedia({ urls }: { urls: unknown[] }) {
-	const images = urls
-		.filter((u): u is string => typeof u === "string")
-		.slice(0, MAX_MEDIA);
+function TweetCardMedia({ urls }: { urls: string[] }) {
+	const images = urls.slice(0, MAX_MEDIA);
 	if (images.length === 0) {
 		return null;
 	}
@@ -146,14 +142,15 @@ function TweetCardMedia({ urls }: { urls: unknown[] }) {
 	);
 }
 
-function TweetCardBody({ node }: { node: UINode }) {
-	const text = str(node.props.text);
-	const mediaUrls = Array.isArray(node.props.mediaUrls)
-		? node.props.mediaUrls
-		: [];
+function TweetCardBody({ tweet }: { tweet: TweetCardTweet }) {
+	const mediaUrls = [...tweet.media]
+		.sort((a, b) => a.sortOrder - b.sortOrder)
+		.map((m) => m.url);
 	return (
 		<div className="flex flex-col gap-2">
-			<p className="whitespace-pre-wrap break-words text-sm">{text}</p>
+			<p className="whitespace-pre-wrap break-words text-sm">
+				{tweet.fullText}
+			</p>
 			<TweetCardMedia urls={mediaUrls} />
 		</div>
 	);
@@ -177,33 +174,27 @@ function StatItem({
 	);
 }
 
-function TweetCardStats({ node }: { node: UINode }) {
-	const replyCount = num(node.props.replyCount);
-	const retweetCount = num(node.props.retweetCount);
-	const likeCount = num(node.props.likeCount);
-	const viewCount = num(node.props.viewCount);
+function TweetCardStats({ tweet }: { tweet: TweetCardTweet }) {
 	return (
 		<div className="flex items-center gap-4 text-muted-foreground text-xs">
-			<StatItem icon={MessageCircle} value={replyCount} />
-			<StatItem icon={Repeat2} value={retweetCount} />
-			<StatItem icon={Heart} value={likeCount} />
-			<StatItem icon={BarChart3} value={viewCount} />
+			<StatItem icon={MessageCircle} value={tweet.replyCount} />
+			<StatItem icon={Repeat2} value={tweet.retweetCount} />
+			<StatItem icon={Heart} value={tweet.likeCount} />
+			<StatItem icon={BarChart3} value={tweet.viewCount} />
 		</div>
 	);
 }
 
-export function TweetCardNode({ node }: NodeProps) {
-	const url = str(node.props.url);
+/** Render a real X tweet (from the tool-result registry) as a rich card. */
+export function TweetCardFromTweet({ tweet }: { tweet: TweetCardTweet }) {
+	const url = `https://x.com/${tweet.authorScreenName}/status/${tweet.tweetId}`;
 	const body = (
 		<div className="flex w-full max-w-md flex-col gap-3 rounded-xl border bg-card p-4">
-			<TweetCardHeader node={node} />
-			<TweetCardBody node={node} />
-			<TweetCardStats node={node} />
+			<TweetCardHeader tweet={tweet} />
+			<TweetCardBody tweet={tweet} />
+			<TweetCardStats tweet={tweet} />
 		</div>
 	);
-	if (!url) {
-		return body;
-	}
 	return (
 		<a
 			className="block w-full max-w-md no-underline"
@@ -213,59 +204,5 @@ export function TweetCardNode({ node }: NodeProps) {
 		>
 			{body}
 		</a>
-	);
-}
-
-/** A tweet from the X MCP tools' `NormalizedTweet` shape (see
- * apps/mcp/src/x/x-types.ts) — plain data, not an agent-authored UI tree. */
-export interface TweetCardTweet {
-	authorScreenName: string;
-	fullText: string;
-	likeCount: number;
-	media: { sortOrder: number; url: string }[];
-	postedAt: string;
-	replyCount: number;
-	retweetCount: number;
-	tweetId: string;
-	viewCount: number;
-}
-
-const NOOP_ACTION = (_action: UIAction): void => {
-	// Real X tweets don't emit genui actions; TweetCardNode never calls this.
-};
-
-const NOOP_RENDER_CHILDREN = (): null => null;
-
-function tweetToNode(tweet: TweetCardTweet): UINode {
-	const mediaUrls = [...tweet.media]
-		.sort((a, b) => a.sortOrder - b.sortOrder)
-		.map((m) => m.url);
-	return {
-		id: tweet.tweetId,
-		type: "TweetCard",
-		props: {
-			authorHandle: tweet.authorScreenName,
-			authorName: tweet.authorScreenName,
-			likeCount: tweet.likeCount,
-			mediaUrls,
-			postedAt: tweet.postedAt,
-			replyCount: tweet.replyCount,
-			retweetCount: tweet.retweetCount,
-			text: tweet.fullText,
-			url: `https://x.com/${tweet.authorScreenName}/status/${tweet.tweetId}`,
-			viewCount: tweet.viewCount,
-		},
-	};
-}
-
-/** Render a real X tweet (from the tool-result registry) via the same visual
- * card the agent's generative UI uses, by adapting it into a synthetic UINode. */
-export function TweetCardFromTweet({ tweet }: { tweet: TweetCardTweet }) {
-	return (
-		<TweetCardNode
-			node={tweetToNode(tweet)}
-			onAction={NOOP_ACTION}
-			renderChildren={NOOP_RENDER_CHILDREN}
-		/>
 	);
 }

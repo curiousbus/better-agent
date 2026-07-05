@@ -17,8 +17,8 @@ export type {
 	MessageUsage,
 } from "@better-agent/agent/session/types";
 
-/** Final assistant message returned by `run()`, plus any structured output. */
-export type RunResult = Message & { structured: unknown };
+/** Final assistant message returned by `run()`. */
+export type RunResult = Message;
 
 /** Full session history: each message paired with its ordered parts. */
 export type MessageHistory = MessageWithParts[];
@@ -41,8 +41,6 @@ export interface AgentClientConfig {
 export interface RunOptions {
 	/** Ids of attachments (from `uploadAttachment`) to send with this turn. */
 	attachmentIds?: string[];
-	/** JSON Schema for structured output; the server returns a `structured` field. */
-	outputSchema?: Record<string, unknown>;
 	/** Continue an existing session; omit to auto-create a one-shot session. */
 	sessionId?: string;
 	/** Abort signal: cancels an in-flight run/stream. */
