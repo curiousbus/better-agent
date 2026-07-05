@@ -12,7 +12,11 @@ const LAST4 = 4;
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 /** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
 const MAX_PUSH_BATCH = 50;
-/** Max serialized size (bytes) of a single pushed event before it's rejected. */
+/** Max serialized size (bytes) of a single pushed event before it's rejected.
+ * Mirrored in `apps/bridge-cli/src/truncate-event.ts`'s `MAX_EVENT_BYTES` —
+ * the CLI truncates event fields down to (comfortably) under this same cap
+ * before ever sending an event here, so real oversized batches shouldn't
+ * happen in practice. Keep the two values in sync. */
 const MAX_EVENT_BYTES = 32_768;
 /** Max size (characters) of sendInput's `data` before it's rejected. */
 const MAX_INPUT_CHARS = 8192;

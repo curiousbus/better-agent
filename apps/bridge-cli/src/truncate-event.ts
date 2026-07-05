@@ -8,6 +8,7 @@
 
 import {
 	type ApprovalEvent,
+	type ApprovalOption,
 	type ErrorEvent,
 	type FileEvent,
 	isRecord,
@@ -37,8 +38,29 @@ export const MAX_EVENT_TEXT_CHARS = 16_000;
 const MAX_EVENT_BYTES = 32_768;
 
 /** `status` value an oversized event degrades to once truncating its own
- * fields still isn't enough — see `truncateEvent`. */
+ * fields still isn't enough — see `truncateEvent`. Never applied to
+ * `ApprovalEvent`s: see `MAX_APPROVAL_FIELD_CHARS`/`MAX_APPROVAL_OPTIONS`. */
 const EVENT_TRUNCATED_STATUS = "event_truncated";
+
+/** Max length (characters) of an `ApprovalEvent`'s `title`/`detail`/each
+ * option's `label`. Deliberately far more aggressive than
+ * `MAX_EVENT_TEXT_CHARS`: unlike a chatty text field, an approval also carries
+ * a structured `options[]` array, so every text field on it needs a tight,
+ * combinable cap — sized so that even `MAX_APPROVAL_OPTIONS` options, each
+ * with a title/detail/label at this length, still fit well under
+ * `MAX_EVENT_BYTES` in the worst case (every character a 4-byte-UTF-8 astral
+ * symbol). This is what lets `truncateApprovalEvent` guarantee an approval
+ * never has to degrade wholesale — see `truncateEvent`. */
+export const MAX_APPROVAL_FIELD_CHARS = 1000;
+
+/** Max number of `options[]` kept on an `ApprovalEvent` that's still over
+ * `MAX_EVENT_BYTES` after every field is truncated to
+ * `MAX_APPROVAL_FIELD_CHARS` (a pathologically long options list). Dropping
+ * the tail of the list is safer than losing the whole approval request —
+ * `requestId` and the rest of the fields survive, so the answer flow (see
+ * `AgentHandle.answerApproval`) stays alive instead of hanging forever
+ * waiting on a request the user never saw. */
+export const MAX_APPROVAL_OPTIONS = 8;
 
 const NORMALIZED_EVENT_KINDS: ReadonlySet<NormalizedEvent["kind"]> = new Set([
 	"message",
@@ -62,16 +84,33 @@ function isNormalizedEvent(value: unknown): value is NormalizedEvent {
 	);
 }
 
+/** Truncates `value` to `maxChars`, appending a marker noting how many
+ * characters were dropped. Returns `value` unchanged if it's already short
+ * enough. Shared by `truncateString` (the `MAX_EVENT_TEXT_CHARS` cap used for
+ * most fields) and `truncateApprovalField` (the tighter
+ * `MAX_APPROVAL_FIELD_CHARS` cap approval fields need). */
+function truncateStringTo(value: string, maxChars: number): string {
+	if (value.length <= maxChars) {
+		return value;
+	}
+	const droppedChars = value.length - maxChars;
+	const head = value.slice(0, maxChars);
+	return `${head}… [+${droppedChars} chars truncated]`;
+}
+
 /** Truncates `value` to `MAX_EVENT_TEXT_CHARS`, appending a marker noting
  * how many characters were dropped. Returns `value` unchanged if it's
  * already short enough. */
 function truncateString(value: string): string {
-	if (value.length <= MAX_EVENT_TEXT_CHARS) {
-		return value;
-	}
-	const droppedChars = value.length - MAX_EVENT_TEXT_CHARS;
-	const head = value.slice(0, MAX_EVENT_TEXT_CHARS);
-	return `${head}… [+${droppedChars} chars truncated]`;
+	return truncateStringTo(value, MAX_EVENT_TEXT_CHARS);
+}
+
+/** Truncates an `ApprovalEvent` text field (`title`/`detail`/an option's
+ * `label`) to the tighter `MAX_APPROVAL_FIELD_CHARS` cap — see that const for
+ * why approvals need a more aggressive per-field limit than
+ * `truncateString`'s. */
+function truncateApprovalField(value: string): string {
+	return truncateStringTo(value, MAX_APPROVAL_FIELD_CHARS);
 }
 
 /** Truncates a text-bearing field typed `unknown` (a tool's `input`/`output`,
@@ -104,11 +143,12 @@ function truncateToolEvent(event: ToolEvent): ToolEvent {
 }
 
 function truncateFileEvent(event: FileEvent): FileEvent {
-	if (event.diff === undefined) {
-		return event;
-	}
-	const diff = truncateString(event.diff);
-	return diff === event.diff ? event : { ...event, diff };
+	const diff =
+		event.diff === undefined ? event.diff : truncateString(event.diff);
+	const path = truncateString(event.path);
+	return diff === event.diff && path === event.path
+		? event
+		: { ...event, diff, path };
 }
 
 function truncateStatusEvent(event: StatusEvent): StatusEvent {
@@ -124,13 +164,45 @@ function truncateErrorEvent(event: ErrorEvent): ErrorEvent {
 		: { ...event, message, detail };
 }
 
+function truncateApprovalOption(option: ApprovalOption): ApprovalOption {
+	const label = truncateApprovalField(option.label);
+	return label === option.label ? option : { ...option, label };
+}
+
+/** Truncates every option's `label`. Returns `options` unchanged (same array
+ * identity) if none of them needed it. */
+function truncateApprovalOptions(options: ApprovalOption[]): ApprovalOption[] {
+	const truncated = options.map(truncateApprovalOption);
+	const anyChanged = truncated.some(
+		(option, index) => option !== options[index]
+	);
+	return anyChanged ? truncated : options;
+}
+
 function truncateApprovalEvent(event: ApprovalEvent): ApprovalEvent {
-	const title = truncateString(event.title);
+	const title = truncateApprovalField(event.title);
 	const detail =
-		event.detail === undefined ? event.detail : truncateString(event.detail);
-	return title === event.title && detail === event.detail
+		event.detail === undefined
+			? event.detail
+			: truncateApprovalField(event.detail);
+	const options = truncateApprovalOptions(event.options);
+	return title === event.title &&
+		detail === event.detail &&
+		options === event.options
 		? event
-		: { ...event, title, detail };
+		: { ...event, detail, options, title };
+}
+
+/** Caps a still-oversized `ApprovalEvent`'s `options[]` at
+ * `MAX_APPROVAL_OPTIONS`, dropping the tail — see that const. Only reached
+ * for a pathologically long options list: `MAX_APPROVAL_FIELD_CHARS` already
+ * guarantees `MAX_APPROVAL_OPTIONS` options fit under `MAX_EVENT_BYTES`, so
+ * every other field-level truncation is enough on its own. */
+function capApprovalOptionsEvent(event: ApprovalEvent): ApprovalEvent {
+	if (byteSizeOf(event) <= MAX_EVENT_BYTES) {
+		return event;
+	}
+	return { ...event, options: event.options.slice(0, MAX_APPROVAL_OPTIONS) };
 }
 
 /** Dispatches to the per-kind truncation function above. Kept as a plain
@@ -175,12 +247,20 @@ function degradeToTruncatedStatus(event: NormalizedEvent): NormalizedEvent {
  * wired into (`relay-client.ts`) is generic over its event type. A
  * normalized event with every field already short is returned as the exact
  * same object (no defensive copying) so short events pass through untouched.
+ *
+ * `ApprovalEvent`s never degrade wholesale (see `degradeToTruncatedStatus`):
+ * losing `requestId`/`options` would leave the agent's approval flow hanging
+ * forever with no way for the user to answer it, so an oversized approval is
+ * shrunk instead via `capApprovalOptionsEvent`.
  */
 export function truncateEvent(value: unknown): unknown {
 	if (!isNormalizedEvent(value)) {
 		return value;
 	}
 	const truncated = truncateEventFields(value);
+	if (truncated.kind === "approval") {
+		return capApprovalOptionsEvent(truncated);
+	}
 	return byteSizeOf(truncated) <= MAX_EVENT_BYTES
 		? truncated
 		: degradeToTruncatedStatus(truncated);

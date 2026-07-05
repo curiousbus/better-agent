@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { MessageEvent, OutputEvent, ToolEvent } from "./normalize/types";
+import type {
+	ApprovalEvent,
+	ApprovalOption,
+	FileEvent,
+	MessageEvent,
+	OutputEvent,
+	ToolEvent,
+} from "./normalize/types";
 import {
+	MAX_APPROVAL_OPTIONS,
 	MAX_EVENT_TEXT_CHARS,
 	truncateEvent,
 	truncateEvents,
@@ -10,6 +18,8 @@ const MAX_EVENT_BYTES = 32_768;
 const OVERFLOW_CHARS = 500;
 const EMOJI_REPEAT_COUNT = 9000; // 2 UTF-16 units each → 18_000 units, over the cap
 const NON_EVENT_NUMBER = 42;
+const HUGE_APPROVAL_TEXT_CHARS = 50_000;
+const PATHOLOGICAL_OPTION_COUNT = 5000;
 
 function byteSizeOf(value: unknown): number {
 	return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
@@ -83,6 +93,67 @@ function degradesAnEventStillOverTheByteCapAfterFieldTruncation(): void {
 	});
 }
 
+/** Approvals must never degrade wholesale (see `degradeToTruncatedStatus`):
+ * losing `requestId`/`options` would leave the agent's approval flow hanging
+ * forever with no way for the user to answer it. A huge title alongside huge
+ * option labels must still come back as a structurally valid approval. */
+function keepsAHugeApprovalAliveAsAnApproval(): void {
+	const options: ApprovalOption[] = [
+		{ id: "opt-1", label: "y".repeat(HUGE_APPROVAL_TEXT_CHARS) },
+		{ id: "opt-2", label: "z".repeat(HUGE_APPROVAL_TEXT_CHARS) },
+	];
+	const event: ApprovalEvent = {
+		detail: "w".repeat(HUGE_APPROVAL_TEXT_CHARS),
+		kind: "approval",
+		options,
+		requestId: "req-1",
+		title: "x".repeat(HUGE_APPROVAL_TEXT_CHARS),
+	};
+
+	const result = truncateEvent(event) as ApprovalEvent;
+
+	expect(result.kind).toBe("approval");
+	expect(result.requestId).toBe("req-1");
+	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
+}
+
+/** A pathologically long `options[]` array (each label already short) can
+ * still blow past the byte cap purely on count — the field-level truncation
+ * in `truncateApprovalEvent` can't help there, so the array itself must be
+ * capped at `MAX_APPROVAL_OPTIONS` while keeping `requestId`/`kind` intact. */
+function capsAPathologicallyLongApprovalOptionsList(): void {
+	const options: ApprovalOption[] = Array.from(
+		{ length: PATHOLOGICAL_OPTION_COUNT },
+		(_, index) => ({ id: `opt-${index}`, label: `option ${index}` })
+	);
+	const event: ApprovalEvent = {
+		kind: "approval",
+		options,
+		requestId: "req-2",
+		title: "pick one",
+	};
+
+	const result = truncateEvent(event) as ApprovalEvent;
+
+	expect(result.kind).toBe("approval");
+	expect(result.requestId).toBe("req-2");
+	expect(result.options.length).toBeLessThanOrEqual(MAX_APPROVAL_OPTIONS);
+	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
+}
+
+/** A file event's `path` is just as capable of overflowing as its `diff` —
+ * it needs the same truncation treatment. */
+function truncatesAFileEventsOverLongPathWithNoDiff(): void {
+	const path = "/".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+	const event: FileEvent = { change: "created", kind: "file", path };
+
+	const result = truncateEvent(event) as FileEvent;
+
+	expect(result.kind).toBe("file");
+	expect(result.path.length).toBeLessThan(path.length);
+	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
+}
+
 function leavesAShortEventUntouched(): void {
 	const event: MessageEvent = {
 		kind: "message",
@@ -122,6 +193,21 @@ describe("truncateEvent", () => {
 	it(
 		"leaves a short event untouched (same object identity)",
 		leavesAShortEventUntouched
+	);
+
+	it(
+		"keeps a huge approval (title + option labels) alive as an approval instead of degrading it",
+		keepsAHugeApprovalAliveAsAnApproval
+	);
+
+	it(
+		"caps a pathologically long approval options list instead of degrading the whole event",
+		capsAPathologicallyLongApprovalOptionsList
+	);
+
+	it(
+		"truncates a file event's over-long path when there's no diff",
+		truncatesAFileEventsOverLongPathWithNoDiff
 	);
 
 	it(
