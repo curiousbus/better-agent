@@ -4,6 +4,13 @@ import type { NormalizedEvent } from "../normalize";
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
 export type AgentKind = "claude-code" | "opencode" | "codex";
 
+/** `status` value pushed on `events` right before it's closed, whenever the
+ * underlying process exits on its own — a crash, or the agent simply
+ * finishing its work — so the web UI (and CLI stdout) sees an explicit "the
+ * process is gone" marker instead of the feed just going quiet. Shared by
+ * all three adapters' `onExit`/`rpc.onExit` wiring. */
+export const AGENT_EXITED_STATUS = "agent_exited";
+
 /** A running agent process, already normalizing its own output. */
 export interface AgentHandle {
 	/**

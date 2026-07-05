@@ -47,15 +47,19 @@ function createFakeRpc(): {
 }
 
 describe("codexAdapter", () => {
-	it("closes `events` once the underlying process exits on its own", async () => {
+	it("pushes an agent_exited status, then closes `events`, once the process exits on its own", async () => {
 		const { rpc, triggerExit } = createFakeRpc();
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
 
 		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
 
 		triggerExit({ code: 1, signal: null });
 
-		const result = await handle.events[Symbol.asyncIterator]().next();
+		const { value: statusEvent } = await iterator.next();
+		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
+
+		const result = await iterator.next();
 		expect(result.done).toBe(true);
 	});
 });

@@ -47,22 +47,29 @@ function createFakeProcessIo(): {
 }
 
 describe("claudeCodeAdapter", () => {
-	it("closes `events` once the underlying process exits on its own", async () => {
+	it("pushes an agent_exited status, then closes `events`, once the process exits on its own", async () => {
 		const { io, triggerExit } = createFakeProcessIo();
 		vi.mocked(spawnProcessIo).mockResolvedValue(io);
 
 		const handle = await claudeCodeAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
 
-		// Nothing has happened yet: the agent is still "running".
+		// Nothing has happened yet: the agent is still "running". Held onto
+		// (rather than discarded) since the queue resolves this same call once
+		// the process exits below — a fresh `iterator.next()` call afterwards
+		// would instead see whatever's pushed *after* this one is resolved.
+		const next = iterator.next();
 		const pending = Promise.race([
-			iterator.next().then(() => "settled"),
+			next.then(() => "settled"),
 			Promise.resolve().then(() => "still-pending"),
 		]);
 		expect(await pending).toBe("still-pending");
 
 		// The process crashes (or simply exits) without anyone calling stop().
 		triggerExit({ code: 1, signal: null });
+
+		const { value: statusEvent } = await next;
+		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);

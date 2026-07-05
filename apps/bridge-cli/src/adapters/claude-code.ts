@@ -8,7 +8,7 @@ import type { NormalizedEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { spawnProcessIo } from "./process-io";
-import type { Adapter, AgentHandle } from "./types";
+import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
 
 const CLAUDE_ARGS = [
 	"-p",
@@ -63,6 +63,7 @@ export const claudeCodeAdapter: Adapter = {
 		const events = createAsyncQueue<NormalizedEvent>();
 		const approvals = createApprovalRegistry(events);
 		io.onExit(() => {
+			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
 			events.close();
 			approvals.clear();
 		});
