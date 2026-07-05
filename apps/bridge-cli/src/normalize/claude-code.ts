@@ -4,7 +4,13 @@
 // stream_event). Confirm against the installed `claude` version if its
 // stream-json output ever changes shape.
 
-import { asString, isRecord, NO_EVENTS, type NormalizedEvent } from "./types";
+import {
+	type ApprovalEvent,
+	asString,
+	isRecord,
+	NO_EVENTS,
+	type NormalizedEvent,
+} from "./types";
 
 function normalizeTextBlock(
 	role: "user" | "assistant",
@@ -155,5 +161,75 @@ export function buildClaudeInputFrame(text: string): string {
 	return JSON.stringify({
 		type: "user",
 		message: { role: "user", content: [{ type: "text", text }] },
+	});
+}
+
+// --- Approval requests ------------------------------------------------------
+//
+// ASSUMPTION (unverified — no documented spec for this direction; shape
+// reverse-engineered from third-party Claude Agent SDK write-ups describing
+// the `--permission-prompt-tool stdio` control protocol, e.g.
+// https://github.com/Roasbeef/claude-agent-sdk-go/blob/main/docs/cli-protocol.md):
+// the CLI asks permission to use a tool via
+// `{"type":"control_request","request_id":"...","request":{"subtype":
+// "can_use_tool","tool_name":"...","input":{...}}}` on stdout, and expects a
+// `{"type":"control_response","request_id":"...","response":{"subtype":
+// "success","response":{"behavior":"allow"|"deny"}}}` reply on stdin.
+// Reverify both frame shapes against the installed `claude` version before
+// relying on this — some sources describe `request_id`/`response` nested
+// one level deeper (under `request`/`response`), which is not what's
+// implemented here.
+
+const CAN_USE_TOOL_SUBTYPE = "can_use_tool";
+
+/** The only two behaviors `answerApproval` can currently produce for
+ * claude-code; option ids are the literal `behavior` values so no mapping
+ * step is needed when building the reply frame. */
+const CLAUDE_APPROVAL_OPTIONS = [
+	{ id: "allow", label: "Allow" },
+	{ id: "deny", label: "Deny" },
+];
+
+/**
+ * Maps one parsed line of `claude`'s stdout to an `ApprovalEvent` if it's a
+ * `can_use_tool` control request, or `[]` otherwise (an ordinary stream-json
+ * envelope, unparseable JSON, or a control request of some other subtype).
+ */
+export function normalizeClaudeControlRequest(raw: unknown): ApprovalEvent[] {
+	if (!isRecord(raw) || raw.type !== "control_request") {
+		return [];
+	}
+	const requestId = asString(raw.request_id);
+	const request = raw.request;
+	if (
+		requestId === undefined ||
+		!isRecord(request) ||
+		request.subtype !== CAN_USE_TOOL_SUBTYPE
+	) {
+		return [];
+	}
+	const toolName = asString(request.tool_name) ?? "a tool";
+	return [
+		{
+			detail:
+				request.input === undefined ? undefined : JSON.stringify(request.input),
+			kind: "approval",
+			options: CLAUDE_APPROVAL_OPTIONS,
+			requestId,
+			title: `Use ${toolName}?`,
+		},
+	];
+}
+
+/** Builds the `control_response` stdin frame answering a `can_use_tool`
+ * request (see the ASSUMPTION above). */
+export function buildClaudeControlResponse(
+	requestId: string,
+	behavior: string
+): string {
+	return JSON.stringify({
+		type: "control_response",
+		request_id: requestId,
+		response: { subtype: "success", response: { behavior } },
 	});
 }

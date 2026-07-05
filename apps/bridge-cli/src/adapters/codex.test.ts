@@ -6,18 +6,25 @@ import type { ProcessExitInfo } from "./process-io";
 
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
 
-/** A fake `JsonRpcIo` whose exit can be triggered on demand by the test,
- * standing in for the real `codex app-server` process codex.ts spawns. */
+type RequestHandler = (id: number, method: string, params: unknown) => void;
+
+/** A fake `JsonRpcIo` whose exit (and server-initiated requests) can be
+ * triggered on demand by the test, standing in for the real `codex
+ * app-server` process codex.ts spawns. */
 function createFakeRpc(): {
 	rpc: JsonRpcIo;
 	triggerExit(info: ProcessExitInfo): void;
+	triggerRequest(id: number, method: string, params: unknown): void;
 } {
 	const exitHandlers: Array<(info: ProcessExitInfo) => void> = [];
+	const requestHandlers: RequestHandler[] = [];
 	return {
 		rpc: {
 			notify: vi.fn(),
 			onExit: (handler) => exitHandlers.push(handler),
 			onNotification: vi.fn(),
+			onRequest: (handler) => requestHandlers.push(handler),
+			respond: vi.fn(),
 			request: (method: string) => {
 				if (method === "thread/start") {
 					return Promise.resolve({ thread: { id: "thread_1" } });
@@ -29,6 +36,11 @@ function createFakeRpc(): {
 		triggerExit(info: ProcessExitInfo): void {
 			for (const handler of exitHandlers) {
 				handler(info);
+			}
+		},
+		triggerRequest(id: number, method: string, params: unknown): void {
+			for (const handler of requestHandlers) {
+				handler(id, method, params);
 			}
 		},
 	};
@@ -45,5 +57,61 @@ describe("codexAdapter", () => {
 
 		const result = await handle.events[Symbol.asyncIterator]().next();
 		expect(result.done).toBe(true);
+	});
+});
+
+// An arbitrary RPC request id, distinct from 0/1 so it's obviously not being
+// confused with an array index or a boolean-ish flag.
+const APPROVAL_REQUEST_ID = 7;
+
+describe("codexAdapter - approvals", () => {
+	it("surfaces a commandExecution approval request and replies via answerApproval", async () => {
+		const { rpc, triggerRequest } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerRequest(
+			APPROVAL_REQUEST_ID,
+			"item/commandExecution/requestApproval",
+			{
+				itemId: "item_1",
+				command: ["rm", "-rf", "node_modules"],
+			}
+		);
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			detail: "rm -rf node_modules",
+			kind: "approval",
+			options: [
+				{ id: "accept", label: "Allow" },
+				{ id: "decline", label: "Deny" },
+			],
+			requestId: String(APPROVAL_REQUEST_ID),
+			title: "Run command?",
+		});
+
+		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
+		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
+			decision: "accept",
+		});
+	});
+
+	it("emits a status warning instead of replying for an unknown requestId", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await codexAdapter.start("/tmp/project");
+
+		handle.answerApproval("does-not-exist", "accept");
+
+		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
+		expect(event).toEqual({
+			detail: { requestId: "does-not-exist" },
+			kind: "status",
+			status: "approval_unknown",
+		});
+		expect(rpc.respond).not.toHaveBeenCalled();
 	});
 });

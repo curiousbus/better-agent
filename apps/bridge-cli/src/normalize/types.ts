@@ -1,6 +1,6 @@
 // The normalized event model every adapter maps its agent's raw NDJSON onto.
 // `kind` discriminates the payload shape; downstream consumers (relay-client,
-// the server, the web UI) only ever need to understand these six shapes,
+// the server, the web UI) only ever need to understand these seven shapes,
 // never any agent-specific protocol.
 
 /** A single chat turn from either the user or the assistant. */
@@ -50,13 +50,34 @@ export interface ErrorEvent {
 	message: string;
 }
 
+/** One option the user can pick to answer an `ApprovalEvent`. */
+export interface ApprovalOption {
+	id: string;
+	label: string;
+}
+
+/**
+ * A server-initiated request for the user to approve or deny an action
+ * (run a command, apply a patch, use a tool) before the agent's turn can
+ * proceed. `requestId` round-trips through `AgentHandle.answerApproval` —
+ * see `apps/bridge-cli/src/adapters/types.ts`.
+ */
+export interface ApprovalEvent {
+	detail?: string;
+	kind: "approval";
+	options: ApprovalOption[];
+	requestId: string;
+	title: string;
+}
+
 export type NormalizedEvent =
 	| MessageEvent
 	| ToolEvent
 	| FileEvent
 	| OutputEvent
 	| StatusEvent
-	| ErrorEvent;
+	| ErrorEvent
+	| ApprovalEvent;
 
 export const NO_EVENTS: NormalizedEvent[] = [];
 

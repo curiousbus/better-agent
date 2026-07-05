@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { connectJsonRpc } from "./jsonrpc-io";
 
 // See process-io.test.ts: spawning this is exactly the ENOENT path, and is
@@ -14,6 +14,21 @@ const ECHO_ONCE_SCRIPT = [
 	'rl.once("line", (line) => {',
 	"  const msg = JSON.parse(line);",
 	'  process.stdout.write(JSON.stringify({ id: msg.id, result: { echoed: msg.params } }) + "\\n");',
+	"  process.exit(0);",
+	"});",
+].join("\n");
+
+// A tiny stdio JSON-RPC "server" that immediately sends a server-initiated
+// *request* (both `id` and `method`), then echoes back whatever `result` it's
+// answered with via `respond()`, then exits — standing in for a real codex/
+// opencode approval request.
+const REQUEST_THEN_ECHO_SCRIPT = [
+	'const readline = require("node:readline");',
+	"const rl = readline.createInterface({ input: process.stdin });",
+	'process.stdout.write(JSON.stringify({ id: 1, method: "need_approval", params: { foo: "bar" } }) + "\\n");',
+	'rl.once("line", (line) => {',
+	"  const msg = JSON.parse(line);",
+	'  process.stdout.write(JSON.stringify({ type: "received", result: msg.result }) + "\\n");',
 	"  process.exit(0);",
 	"});",
 ].join("\n");
@@ -60,5 +75,35 @@ describe("connectJsonRpc", () => {
 		await expect(rpc.request("ping", {})).rejects.toThrow(
 			"agent process exited before responding"
 		);
+	});
+});
+
+describe("connectJsonRpc - server-initiated requests", () => {
+	it("surfaces a server-initiated request via onRequest, distinct from a notification", async () => {
+		const rpc = await connectJsonRpc(
+			process.execPath,
+			["-e", REQUEST_THEN_ECHO_SCRIPT],
+			process.cwd()
+		);
+		const notified = vi.fn();
+		rpc.onNotification(notified);
+		const received = new Promise<{
+			id: number;
+			method: string;
+			params: unknown;
+		}>((resolve) => {
+			rpc.onRequest((id, method, params) => resolve({ id, method, params }));
+		});
+
+		const request = await received;
+		expect(request).toEqual({
+			id: 1,
+			method: "need_approval",
+			params: { foo: "bar" },
+		});
+		expect(notified).not.toHaveBeenCalled();
+
+		rpc.respond(request.id, { decision: "accept" });
+		await new Promise((resolve) => rpc.onExit(resolve));
 	});
 });

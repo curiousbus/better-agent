@@ -1,24 +1,37 @@
 // Shared newline-delimited JSON-RPC-over-stdio plumbing for the opencode
 // (ACP) and codex (app-server) adapters: both speak request/response +
-// server-to-client notifications down the same pipe. `connectJsonRpc` itself
-// is exercised in jsonrpc-io.test.ts against real short-lived processes (see
-// process-io.ts for why that's safe in CI); the "codex"/"opencode" binaries
-// it's actually invoked with in production are not.
+// server-to-client notifications *and requests* down the same pipe.
+// `connectJsonRpc` itself is exercised in jsonrpc-io.test.ts against real
+// short-lived processes (see process-io.ts for why that's safe in CI); the
+// "codex"/"opencode" binaries it's actually invoked with in production are
+// not.
 //
-// Known gap: neither adapter answers server-initiated requests (e.g. codex's
-// `item/commandExecution/requestApproval`) — those arrive with a `method` and
-// an `id` and are surfaced as ordinary notifications instead of being replied
-// to, which will stall a turn that needs approval. Wiring approvals through
-// to the web UI is out of scope for this task; tracked as a follow-up.
+// Three shapes of inbound line, distinguished by which of `id`/`method` are
+// present: a *response* to one of our own `request()` calls (`id` +
+// `result`/`error`), a *notification* (`method`, no `id`), or a
+// *server-initiated request* (both `id` and `method`) — e.g. codex's
+// approval requests or opencode's `session/request_permission`. `onRequest`
+// surfaces the latter; `respond` answers it.
 
 import { isRecord } from "../normalize/types";
-import { type ProcessExitInfo, spawnProcessIo } from "./process-io";
+import {
+	type ProcessExitInfo,
+	type ProcessIo,
+	spawnProcessIo,
+} from "./process-io";
 
 export interface JsonRpcIo {
 	notify(method: string, params: unknown): void;
 	onExit(handler: (info: ProcessExitInfo) => void): void;
 	onNotification(handler: (method: string, params: unknown) => void): void;
+	/** Registers a handler for server-initiated requests (inbound lines with
+	 * both an `id` and a `method`). Reply with `respond(id, result)`. */
+	onRequest(
+		handler: (id: number, method: string, params: unknown) => void
+	): void;
 	request(method: string, params: unknown): Promise<unknown>;
+	/** Answers a server-initiated request surfaced via `onRequest`. */
+	respond(id: number, result: unknown): void;
 	stop(): void;
 }
 
@@ -26,6 +39,9 @@ interface PendingRequest {
 	reject(reason: unknown): void;
 	resolve(value: unknown): void;
 }
+
+type NotificationHandler = (method: string, params: unknown) => void;
+type RequestHandler = (id: number, method: string, params: unknown) => void;
 
 /** Message used both to settle in-flight requests when the process exits and
  * to reject any `request()` call made afterwards — in both cases the agent
@@ -66,11 +82,14 @@ function settlePendingResponse(
 	}
 }
 
-/** Dispatches a single parsed line to either a pending request or the notification handlers. */
+/** Dispatches a single parsed line to a pending request, a notification
+ * handler, or — for an inbound message carrying both an `id` and a
+ * `method` — a request handler. */
 function handleLine(
 	line: string,
 	pending: Map<number, PendingRequest>,
-	handlers: Array<(method: string, params: unknown) => void>
+	notificationHandlers: NotificationHandler[],
+	requestHandlers: RequestHandler[]
 ): void {
 	const parsed = tryParseJson(line);
 	if (!isRecord(parsed)) {
@@ -83,11 +102,72 @@ function handleLine(
 		settlePendingResponse(parsed, pending);
 		return;
 	}
-	if (typeof parsed.method === "string") {
-		for (const handler of handlers) {
-			handler(parsed.method, parsed.params);
-		}
+	if (typeof parsed.method !== "string") {
+		return;
 	}
+	if (typeof parsed.id === "number") {
+		for (const handler of requestHandlers) {
+			handler(parsed.id, parsed.method, parsed.params);
+		}
+		return;
+	}
+	for (const handler of notificationHandlers) {
+		handler(parsed.method, parsed.params);
+	}
+}
+
+interface JsonRpcState {
+	exited: boolean;
+	nextId: number;
+	notificationHandlers: NotificationHandler[];
+	pending: Map<number, PendingRequest>;
+	requestHandlers: RequestHandler[];
+}
+
+function createJsonRpcState(): JsonRpcState {
+	return {
+		exited: false,
+		nextId: 1,
+		notificationHandlers: [],
+		pending: new Map(),
+		requestHandlers: [],
+	};
+}
+
+/** Builds the public `JsonRpcIo` surface over an already-spawned process and
+ * its shared mutable state. Split out of `connectJsonRpc` purely to keep
+ * that function short. */
+function buildJsonRpcIo(io: ProcessIo, state: JsonRpcState): JsonRpcIo {
+	return {
+		request(method: string, params: unknown): Promise<unknown> {
+			if (state.exited) {
+				return Promise.reject(new Error(EXIT_ERROR_MESSAGE));
+			}
+			const id = state.nextId++;
+			return new Promise((resolve, reject) => {
+				state.pending.set(id, { resolve, reject });
+				io.writeLine(JSON.stringify({ id, method, params }));
+			});
+		},
+		notify(method: string, params: unknown): void {
+			io.writeLine(JSON.stringify({ method, params }));
+		},
+		respond(id: number, result: unknown): void {
+			io.writeLine(JSON.stringify({ id, result }));
+		},
+		onExit(handler: (info: ProcessExitInfo) => void): void {
+			io.onExit(handler);
+		},
+		onNotification(handler: NotificationHandler): void {
+			state.notificationHandlers.push(handler);
+		},
+		onRequest(handler: RequestHandler): void {
+			state.requestHandlers.push(handler);
+		},
+		stop(): void {
+			io.stop();
+		},
+	};
 }
 
 export async function connectJsonRpc(
@@ -96,14 +176,16 @@ export async function connectJsonRpc(
 	cwd: string
 ): Promise<JsonRpcIo> {
 	const io = await spawnProcessIo(command, args, cwd);
-	const pending = new Map<number, PendingRequest>();
-	const handlers: Array<(method: string, params: unknown) => void> = [];
-	let nextId = 1;
-	let exited = false;
+	const state = createJsonRpcState();
 
 	(async () => {
 		for await (const line of io.lines) {
-			handleLine(line, pending, handlers);
+			handleLine(
+				line,
+				state.pending,
+				state.notificationHandlers,
+				state.requestHandlers
+			);
 		}
 	})();
 
@@ -111,32 +193,9 @@ export async function connectJsonRpc(
 	// now instead of leaving `request()` callers awaiting forever, and reject
 	// any request made after this point immediately.
 	io.onExit(() => {
-		exited = true;
-		rejectAllPending(pending);
+		state.exited = true;
+		rejectAllPending(state.pending);
 	});
 
-	return {
-		request(method: string, params: unknown): Promise<unknown> {
-			if (exited) {
-				return Promise.reject(new Error(EXIT_ERROR_MESSAGE));
-			}
-			const id = nextId++;
-			return new Promise((resolve, reject) => {
-				pending.set(id, { resolve, reject });
-				io.writeLine(JSON.stringify({ id, method, params }));
-			});
-		},
-		notify(method: string, params: unknown): void {
-			io.writeLine(JSON.stringify({ method, params }));
-		},
-		onExit(handler: (info: ProcessExitInfo) => void): void {
-			io.onExit(handler);
-		},
-		onNotification(handler: (method: string, params: unknown) => void): void {
-			handlers.push(handler);
-		},
-		stop(): void {
-			io.stop();
-		},
-	};
+	return buildJsonRpcIo(io, state);
 }

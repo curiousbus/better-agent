@@ -4,13 +4,13 @@
 // `forwardEvents`, an injected `sleep`) so they're fully testable without a
 // real network or a real timer — see relay-client.test.ts.
 
+import {
+	type AfterIdRef,
+	type CommandSink,
+	dispatchCommands,
+	type RelayEvent,
+} from "./commands";
 import { createPushQueue, type PushQueue } from "./push-queue";
-
-/** One relayed command/event; mirrors `RelayEvent` from `@better-agent/agent/ports`. */
-export interface RelayEvent {
-	data: unknown;
-	id: number;
-}
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
 export interface RelayTransport {
@@ -142,28 +142,6 @@ export async function forwardEvents<T>(
 	await queue.close();
 }
 
-/** Extracts the text of a relayed command. `sendInput`'s `data` is `unknown`
- * on the wire, so this accepts either a bare string or `{ text: string }`. */
-export function parseCommandText(data: unknown): string | null {
-	if (typeof data === "string") {
-		return data;
-	}
-	if (
-		data !== null &&
-		typeof data === "object" &&
-		"text" in data &&
-		typeof (data as { text: unknown }).text === "string"
-	) {
-		return (data as { text: string }).text;
-	}
-	return null;
-}
-
-/** Mutable so pollLoop can resume from the last seen id after a reconnect. */
-export interface AfterIdRef {
-	current: number;
-}
-
 export interface PollLoopOptions {
 	maxIntervalMs?: number;
 	minIntervalMs?: number;
@@ -172,33 +150,19 @@ export interface PollLoopOptions {
 	sleep?: Sleep;
 }
 
-function dispatchCommands(
-	commands: RelayEvent[],
-	send: (text: string) => void,
-	afterIdRef: AfterIdRef
-): boolean {
-	for (const command of commands) {
-		const text = parseCommandText(command.data);
-		if (text !== null) {
-			send(text);
-		}
-		afterIdRef.current = command.id;
-	}
-	return commands.length > 0;
-}
-
 /**
- * Polls `pollCommands(afterId)` in a loop, dispatching each command's text to
- * `send`. The interval speeds back up to `minIntervalMs` right after an
- * active poll and backs off toward `maxIntervalMs` while idle. A transient
- * transport error is swallowed (reported via `onError`) and retried at
- * `maxIntervalMs` — `afterIdRef` is left untouched, so the next successful
- * poll resumes exactly where the last one left off.
+ * Polls `pollCommands(afterId)` in a loop, dispatching each command to
+ * `sink` — a text command calls `sink.send`, an approval command calls
+ * `sink.answerApproval`. The interval speeds back up to `minIntervalMs`
+ * right after an active poll and backs off toward `maxIntervalMs` while
+ * idle. A transient transport error is swallowed (reported via `onError`)
+ * and retried at `maxIntervalMs` — `afterIdRef` is left untouched, so the
+ * next successful poll resumes exactly where the last one left off.
  */
 export async function pollLoop(
 	transport: RelayTransport,
 	sessionId: string,
-	send: (text: string) => void,
+	sink: CommandSink,
 	afterIdRef: AfterIdRef,
 	options: PollLoopOptions
 ): Promise<void> {
@@ -213,7 +177,7 @@ export async function pollLoop(
 				sessionId,
 				afterId: afterIdRef.current,
 			});
-			const wasActive = dispatchCommands(commands, send, afterIdRef);
+			const wasActive = dispatchCommands(commands, sink, afterIdRef);
 			interval = wasActive
 				? minIntervalMs
 				: Math.min(interval * BACKOFF_FACTOR, maxIntervalMs);
@@ -231,9 +195,8 @@ export async function pollLoop(
 export interface RunBridgeSessionOptions {
 	agentKind: string;
 	forwardOptions?: ForwardEventsOptions;
-	handle: {
+	handle: CommandSink & {
 		events: AsyncIterable<unknown>;
-		send(text: string): void;
 		stop(): void;
 	};
 	label?: string;
@@ -274,16 +237,10 @@ export async function runBridgeSession(
 					(batch) => options.transport.pushEvents({ sessionId, events: batch }),
 					{ ...options.forwardOptions, signal: options.signal }
 				).finally(stopPolling),
-				pollLoop(
-					options.transport,
-					sessionId,
-					options.handle.send,
-					afterIdRef,
-					{
-						...options.pollOptions,
-						signal: pollController.signal,
-					}
-				),
+				pollLoop(options.transport, sessionId, options.handle, afterIdRef, {
+					...options.pollOptions,
+					signal: pollController.signal,
+				}),
 			]);
 		} finally {
 			options.signal.removeEventListener("abort", stopPolling);
