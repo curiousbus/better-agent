@@ -24,8 +24,28 @@ export interface AgentHandle {
 	answerApproval(requestId: string, optionId: string): void;
 	/** Normalized events, in emission order. Completes when the agent exits. */
 	events: AsyncIterable<NormalizedEvent>;
+	/**
+	 * Cancels the in-flight turn but keeps the session alive — distinct from
+	 * `stop`, which ends the session outright. Optional: only adapters backed
+	 * by a control protocol that supports mid-turn cancellation (currently
+	 * claude-code, via the SDK's `query.interrupt()`) implement it; the CLI's
+	 * `CommandSink` routing (see `apps/bridge-cli/src/commands.ts`) treats a
+	 * missing `interrupt` as a no-op rather than an error.
+	 */
+	interrupt?(): void;
 	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
 	send(text: string): void;
+	/**
+	 * Switches the model used for subsequent turns. Optional — see `interrupt`
+	 * for why not every adapter implements the control methods.
+	 */
+	setModel?(model: string): void;
+	/**
+	 * Switches the session's permission mode (e.g. "default", "plan",
+	 * "acceptEdits"). Optional — see `interrupt` for why not every adapter
+	 * implements the control methods.
+	 */
+	setPermissionMode?(mode: string): void;
 	/** Terminates the agent process and releases its resources. */
 	stop(): void;
 }

@@ -34,7 +34,38 @@ export interface ControlStopCommand {
 	type: "control";
 }
 
-export type ParsedCommand = ApprovalCommand | ControlStopCommand | TextCommand;
+/** The Local Agent detail page's Stop/Interrupt button — cancels the
+ * in-flight turn but, unlike `ControlStopCommand`, leaves the session (and
+ * the underlying agent process) alive so the user can keep chatting. Routed
+ * to `CommandSink.interrupt`. */
+export interface ControlInterruptCommand {
+	action: "interrupt";
+	type: "control";
+}
+
+/** The Local Agent detail page's model picker. Routed to
+ * `CommandSink.setModel`. */
+export interface ControlSetModelCommand {
+	action: "setModel";
+	model: string;
+	type: "control";
+}
+
+/** The Local Agent detail page's permission-mode dropdown. Routed to
+ * `CommandSink.setPermissionMode`. */
+export interface ControlSetPermissionModeCommand {
+	action: "setPermissionMode";
+	mode: string;
+	type: "control";
+}
+
+export type ControlCommand =
+	| ControlInterruptCommand
+	| ControlSetModelCommand
+	| ControlSetPermissionModeCommand
+	| ControlStopCommand;
+
+export type ParsedCommand = ApprovalCommand | ControlCommand | TextCommand;
 
 function isApprovalCommand(data: unknown): data is ApprovalCommand {
 	return (
@@ -45,8 +76,26 @@ function isApprovalCommand(data: unknown): data is ApprovalCommand {
 	);
 }
 
-function isControlStopCommand(data: unknown): data is ControlStopCommand {
-	return isRecord(data) && data.type === "control" && data.action === "stop";
+/** Parses a `{ type: "control", ... }` record's `action` (and any
+ * action-specific payload) into a `ControlCommand`, or `null` for an
+ * unrecognized action or a malformed payload (e.g. `setModel` missing its
+ * `model` string). */
+function parseControlCommand(
+	data: Record<string, unknown>
+): ControlCommand | null {
+	if (data.action === "stop") {
+		return { action: "stop", type: "control" };
+	}
+	if (data.action === "interrupt") {
+		return { action: "interrupt", type: "control" };
+	}
+	if (data.action === "setModel" && typeof data.model === "string") {
+		return { action: "setModel", model: data.model, type: "control" };
+	}
+	if (data.action === "setPermissionMode" && typeof data.mode === "string") {
+		return { action: "setPermissionMode", mode: data.mode, type: "control" };
+	}
+	return null;
 }
 
 /**
@@ -54,8 +103,9 @@ function isControlStopCommand(data: unknown): data is ControlStopCommand {
  * send, an approval answer, or a control command. Accepts a bare string or
  * `{ text }` (a plain-text command), `{ type: "approval", requestId,
  * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
- * "control", action: "stop" }` (the web UI's "End session" action); anything
- * else is `null` and left undispatched.
+ * "control", action: "stop" | "interrupt" | "setModel" |
+ * "setPermissionMode", ... }` (the web UI's session controls); anything else
+ * is `null` and left undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -64,8 +114,8 @@ export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (isApprovalCommand(data)) {
 		return data;
 	}
-	if (isControlStopCommand(data)) {
-		return data;
+	if (isRecord(data) && data.type === "control") {
+		return parseControlCommand(data);
 	}
 	if (isRecord(data) && typeof data.text === "string") {
 		return { text: data.text, type: "text" };
@@ -80,10 +130,25 @@ export interface AfterIdRef {
 
 /** The subset of `AgentHandle` `pollLoop` needs to dispatch a command — a
  * text send, an answer to a pending approval, or (optionally — most fakes in
- * tests only exercise send/answerApproval) a request to stop the agent. */
+ * tests only exercise send/answerApproval) a request to stop the agent, or
+ * one of the Local Agent detail page's session controls. All four control
+ * methods are optional: not every adapter supports them (see
+ * `AgentHandle` in `apps/bridge-cli/src/adapters/types.ts`), and a command
+ * routed to one an adapter doesn't implement is silently a no-op rather than
+ * a crash. */
 export interface CommandSink {
 	answerApproval(requestId: string, optionId: string): void;
+	/** Cancels the in-flight turn but leaves the session alive. Called for a
+	 * `control: interrupt` command — the detail page's Stop/Interrupt
+	 * button. */
+	interrupt?(): void;
 	send(text: string): void;
+	/** Changes the model used for subsequent turns. Called for a
+	 * `control: setModel` command. */
+	setModel?(model: string): void;
+	/** Changes the session's permission mode. Called for a
+	 * `control: setPermissionMode` command. */
+	setPermissionMode?(mode: string): void;
 	/** Stops the agent process. Called for a `control: stop` command; see
 	 * `AgentHandle.stop` in `apps/bridge-cli/src/adapters/types.ts`, which the
 	 * real sink (the running session's `handle`) always implements. */
@@ -101,9 +166,28 @@ export interface DispatchResult {
 	wasActive: boolean;
 }
 
+/** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
+ * method. Split out of `dispatchCommands` purely to keep that loop's body
+ * short. */
+function dispatchControlCommand(
+	command: ControlCommand,
+	sink: CommandSink
+): void {
+	if (command.action === "stop") {
+		sink.stop?.();
+	} else if (command.action === "interrupt") {
+		sink.interrupt?.();
+	} else if (command.action === "setModel") {
+		sink.setModel?.(command.model);
+	} else if (command.action === "setPermissionMode") {
+		sink.setPermissionMode?.(command.mode);
+	}
+}
+
 /** Parses and dispatches each command to `sink` — a text command calls
  * `sink.send`, an approval command calls `sink.answerApproval`, a control
- * command calls `sink.stop` — advancing `afterIdRef` past every command seen,
+ * command calls the matching `sink.stop`/`interrupt`/`setModel`/
+ * `setPermissionMode` — advancing `afterIdRef` past every command seen,
  * whether or not it was dispatched. */
 export function dispatchCommands(
 	commands: RelayEvent[],
@@ -118,8 +202,8 @@ export function dispatchCommands(
 		} else if (parsed?.type === "approval") {
 			sink.answerApproval(parsed.requestId, parsed.optionId);
 		} else if (parsed?.type === "control") {
-			sink.stop?.();
-			stopRequested = true;
+			dispatchControlCommand(parsed, sink);
+			stopRequested = stopRequested || parsed.action === "stop";
 		}
 		afterIdRef.current = command.id;
 	}

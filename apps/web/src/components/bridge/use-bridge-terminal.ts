@@ -9,6 +9,8 @@ import {
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import {
+	type ConnectionAction,
+	type ConnectionState,
 	connectionReducer,
 	initialConnectionState,
 } from "./terminal-connection";
@@ -22,6 +24,7 @@ import {
 } from "./use-bridge-connection-effects";
 import {
 	type FeedAction,
+	type FeedState,
 	feedReducer,
 	initialFeedState,
 } from "./use-bridge-feed";
@@ -31,12 +34,23 @@ export interface UseBridgeTerminalResult {
 	answered: Record<string, string>;
 	canSend: boolean;
 	events: StreamEvent[];
+	/** Cancels the in-flight turn without ending the session — the detail
+	 * page's Stop/Interrupt button. Routed as `{ type: "control", action:
+	 * "interrupt" }`; see `apps/bridge-cli/src/commands.ts`. */
+	interrupt: () => Promise<void>;
 	sendInput: (text: string) => Promise<void>;
 	sending: boolean;
 	/** The latest `session_ready` detail (model/cwd/capabilities/mcp), or
 	 * `null` before the CLI's session has initialized — see
 	 * bridge-session-status.ts. */
 	sessionReady: SessionReadyDetail | null;
+	/** Switches the model used for subsequent turns — the detail page's model
+	 * picker. Routed as `{ type: "control", action: "setModel", model }`. */
+	setModel: (model: string) => Promise<void>;
+	/** Switches the session's permission mode — the detail page's mode
+	 * dropdown. Routed as `{ type: "control", action: "setPermissionMode",
+	 * mode }`. */
+	setPermissionMode: (mode: string) => Promise<void>;
 	status: TerminalConnectionStatus;
 	/** The latest `turn_usage` detail (cost/tokens/turns), or `null` before
 	 * any turn has completed. */
@@ -123,6 +137,95 @@ function makeAnswerApproval(
 	};
 }
 
+const CONTROL_SEND_FAILURE_MESSAGE = "Couldn't send that — try again.";
+
+/** One send for the detail page's session controls (interrupt/setModel/
+ * setPermissionMode): relays `{ type: "control", action, ...extra }` over the
+ * same `sendRaw` path `makeAnswerApproval` uses — an object, never a
+ * stringified one, for the same reason approvals must go over as objects
+ * (see that function's doc). Unlike a chat send, there's no feed echo and no
+ * optimistic local state to roll back; a failure just toasts. */
+function sendControlCommand(
+	sendRaw: (data: unknown) => Promise<void>,
+	action: string,
+	extra?: Record<string, unknown>
+): Promise<void> {
+	return sendRaw({ type: "control", action, ...extra }).catch((error) => {
+		const message =
+			error instanceof Error ? error.message : CONTROL_SEND_FAILURE_MESSAGE;
+		toast.error(message);
+	});
+}
+
+interface SessionControls {
+	interrupt: () => Promise<void>;
+	setModel: (model: string) => Promise<void>;
+	setPermissionMode: (mode: string) => Promise<void>;
+}
+
+/** Builds the detail page's session-control callbacks (Interrupt/model
+ * picker/permission-mode dropdown) atop `sendControlCommand`. Split out
+ * purely to keep `useBridgeTerminal` itself under the repo's
+ * max-lines-per-function gate. */
+function useSessionControls(
+	sendRaw: (data: unknown) => Promise<void>
+): SessionControls {
+	return {
+		interrupt: () => sendControlCommand(sendRaw, "interrupt"),
+		setModel: (model: string) =>
+			sendControlCommand(sendRaw, "setModel", { model }),
+		setPermissionMode: (mode: string) =>
+			sendControlCommand(sendRaw, "setPermissionMode", { mode }),
+	};
+}
+
+interface LiveConnectionArgs {
+	conn: ConnectionState;
+	dispatchConn: Dispatch<ConnectionAction>;
+	dispatchFeed: Dispatch<FeedAction>;
+	ended: boolean;
+	feed: FeedState;
+	sessionId: string;
+	transport: BridgeTransport;
+}
+
+/** Wires up the SSE-first/poll-fallback connection pipeline: history seed
+ * gates the live SSE connection, which itself degrades to the poll fallback
+ * (see use-bridge-connection-effects.ts for why each ordering matters). Split
+ * out purely to keep `useBridgeTerminal` itself under the repo's
+ * max-lines-per-function gate. */
+function useLiveConnection({
+	conn,
+	dispatchConn,
+	dispatchFeed,
+	ended,
+	feed,
+	sessionId,
+	transport,
+}: LiveConnectionArgs): void {
+	const historyLoaded = useHistorySeed({ sessionId, transport, dispatchFeed });
+	const maxSeenIdRef = useMaxSeenIdRef(feed.maxSeenId);
+	const enabled = !ended && historyLoaded;
+	useSseConnection({
+		sessionId,
+		conn,
+		enabled,
+		maxSeenIdRef,
+		transport,
+		dispatchFeed,
+		dispatchConn,
+	});
+	usePollFallback({
+		sessionId,
+		status: conn.status,
+		enabled,
+		maxSeenIdRef,
+		transport,
+		dispatchFeed,
+		dispatchConn,
+	});
+}
+
 /**
  * Drives a bridge session's terminal feed: SSE-first with poll-fallback
  * degrade (see use-bridge-connection-effects.ts), deduped/ordered by id (see
@@ -148,28 +251,14 @@ export function useBridgeTerminal(
 		initialConnectionState
 	);
 	useResetOnSessionChange(sessionId, dispatchFeed, dispatchConn);
-	// Persisted history loads first and gates the live connection below — see
-	// useHistorySeed's doc for why this ordering is a correctness requirement,
-	// not just a nice-to-have.
-	const historyLoaded = useHistorySeed({ sessionId, transport, dispatchFeed });
-	const maxSeenIdRef = useMaxSeenIdRef(feed.maxSeenId);
-	useSseConnection({
-		sessionId,
+	useLiveConnection({
 		conn,
-		enabled: !ended && historyLoaded,
-		maxSeenIdRef,
-		transport,
-		dispatchFeed,
 		dispatchConn,
-	});
-	usePollFallback({
+		dispatchFeed,
+		ended,
+		feed,
 		sessionId,
-		status: conn.status,
-		enabled: !ended && historyLoaded,
-		maxSeenIdRef,
 		transport,
-		dispatchFeed,
-		dispatchConn,
 	});
 	const { sending, sendInput, sendRaw } = useSendInput(
 		sessionId,
@@ -178,6 +267,8 @@ export function useBridgeTerminal(
 	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
 	const { sessionReady, turnUsage } = useLatestSessionStatus(feed.events);
+	const { interrupt, setModel, setPermissionMode } =
+		useSessionControls(sendRaw);
 
 	return {
 		events: feed.events,
@@ -192,6 +283,9 @@ export function useBridgeTerminal(
 		sendInput,
 		answered: feed.answered,
 		answerApproval,
+		interrupt,
+		setModel,
+		setPermissionMode,
 		sessionReady,
 		turnUsage,
 	};

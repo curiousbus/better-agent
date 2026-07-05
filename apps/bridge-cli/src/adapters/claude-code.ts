@@ -1,5 +1,6 @@
 import {
 	type CanUseTool,
+	type PermissionMode,
 	type PermissionResult,
 	query,
 	type SDKUserMessage,
@@ -22,6 +23,22 @@ const APPROVAL_OPTIONS: ApprovalOption[] = [
 	{ id: "allow", label: "Allow" },
 	{ id: "deny", label: "Deny" },
 ];
+
+/** The SDK's full `PermissionMode` enum — narrows a wire string (from the
+ * web's `control: setPermissionMode` command) before handing it to
+ * `session.setPermissionMode`, instead of an unchecked type assertion. */
+const PERMISSION_MODES = new Set<string>([
+	"default",
+	"acceptEdits",
+	"bypassPermissions",
+	"plan",
+	"dontAsk",
+	"auto",
+]);
+
+function isPermissionMode(value: string): value is PermissionMode {
+	return PERMISSION_MODES.has(value);
+}
 
 function safeJson(value: unknown): string {
 	try {
@@ -119,8 +136,21 @@ export const claudeCodeAdapter: Adapter = {
 			answerApproval(requestId: string, optionId: string): void {
 				approvals.get(requestId)?.(optionId === "allow");
 			},
+			// Cancels the in-flight turn only — unlike `stop`, the input/events
+			// queues stay open so the user can keep chatting in the same session.
+			interrupt(): void {
+				session.interrupt().catch(() => undefined);
+			},
 			send(text: string): void {
 				input.push(userTurn(text));
+			},
+			setModel(model: string): void {
+				session.setModel(model).catch(() => undefined);
+			},
+			setPermissionMode(mode: string): void {
+				if (isPermissionMode(mode)) {
+					session.setPermissionMode(mode).catch(() => undefined);
+				}
 			},
 			stop(): void {
 				input.close();

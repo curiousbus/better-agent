@@ -49,6 +49,51 @@ describe("parseCommandText", () => {
 	});
 });
 
+// The Local Agent detail page's session controls (Phase 5): Interrupt/model
+// picker/permission-mode dropdown, each relayed as its own `control` action.
+// Split out of the `describe("parseCommandText", ...)` block above to stay
+// under this repo's max-lines-per-function gate.
+describe("parseCommandText control commands", () => {
+	it("accepts a control:interrupt command", () => {
+		expect(parseCommandText({ type: "control", action: "interrupt" })).toEqual({
+			type: "control",
+			action: "interrupt",
+		});
+	});
+
+	it("accepts a control:setModel command", () => {
+		expect(
+			parseCommandText({
+				type: "control",
+				action: "setModel",
+				model: "opus",
+			})
+		).toEqual({ type: "control", action: "setModel", model: "opus" });
+	});
+
+	it("rejects a control:setModel command missing its model", () => {
+		expect(
+			parseCommandText({ type: "control", action: "setModel" })
+		).toBeNull();
+	});
+
+	it("accepts a control:setPermissionMode command", () => {
+		expect(
+			parseCommandText({
+				type: "control",
+				action: "setPermissionMode",
+				mode: "plan",
+			})
+		).toEqual({ type: "control", action: "setPermissionMode", mode: "plan" });
+	});
+
+	it("rejects a control:setPermissionMode command missing its mode", () => {
+		expect(
+			parseCommandText({ type: "control", action: "setPermissionMode" })
+		).toBeNull();
+	});
+});
+
 // Cross-boundary regression: apps/web/src/components/bridge/
 // use-bridge-terminal.ts's `makeAnswerApproval` sends its decision as
 // `transport.sendInput({ sessionId, data: { type: "approval", requestId,
@@ -87,11 +132,26 @@ describe("parseCommandText web/CLI approval boundary", () => {
 	});
 });
 
-describe("dispatchCommands", () => {
-	function fakeSink(): CommandSink & { stop: Mock<() => void> } {
-		return { answerApproval: vi.fn(), send: vi.fn(), stop: vi.fn() };
-	}
+/** Shared by both `dispatchCommands` describe blocks below (split apart to
+ * stay under this repo's max-lines-per-function gate) so each still exercises
+ * the exact same sink shape. */
+function fakeSink(): CommandSink & {
+	interrupt: Mock<() => void>;
+	setModel: Mock<(model: string) => void>;
+	setPermissionMode: Mock<(mode: string) => void>;
+	stop: Mock<() => void>;
+} {
+	return {
+		answerApproval: vi.fn(),
+		interrupt: vi.fn(),
+		send: vi.fn(),
+		setModel: vi.fn(),
+		setPermissionMode: vi.fn(),
+		stop: vi.fn(),
+	};
+}
 
+describe("dispatchCommands", () => {
 	it("calls sink.stop and reports stopRequested for a control:stop command", () => {
 		const sink = fakeSink();
 		const afterIdRef = { current: 0 };
@@ -125,5 +185,56 @@ describe("dispatchCommands", () => {
 			wasActive: false,
 			stopRequested: false,
 		});
+	});
+});
+
+// The Local Agent detail page's session controls (Phase 5) routed through
+// dispatchCommands. Split out of the `describe("dispatchCommands", ...)`
+// block above to stay under this repo's max-lines-per-function gate.
+describe("dispatchCommands control commands", () => {
+	it("calls sink.interrupt (without setting stopRequested) for a control:interrupt command", () => {
+		const sink = fakeSink();
+		const afterIdRef = { current: 0 };
+
+		const result = dispatchCommands(
+			[{ id: 1, data: { type: "control", action: "interrupt" } }],
+			sink,
+			afterIdRef
+		);
+
+		expect(sink.interrupt).toHaveBeenCalledTimes(1);
+		expect(sink.stop).not.toHaveBeenCalled();
+		expect(result).toEqual({ wasActive: true, stopRequested: false });
+	});
+
+	it("calls sink.setModel with the requested model for a control:setModel command", () => {
+		const sink = fakeSink();
+		const afterIdRef = { current: 0 };
+
+		dispatchCommands(
+			[{ id: 1, data: { type: "control", action: "setModel", model: "opus" } }],
+			sink,
+			afterIdRef
+		);
+
+		expect(sink.setModel).toHaveBeenCalledExactlyOnceWith("opus");
+	});
+
+	it("calls sink.setPermissionMode with the requested mode for a control:setPermissionMode command", () => {
+		const sink = fakeSink();
+		const afterIdRef = { current: 0 };
+
+		dispatchCommands(
+			[
+				{
+					id: 1,
+					data: { type: "control", action: "setPermissionMode", mode: "plan" },
+				},
+			],
+			sink,
+			afterIdRef
+		);
+
+		expect(sink.setPermissionMode).toHaveBeenCalledExactlyOnceWith("plan");
 	});
 });

@@ -15,6 +15,8 @@ interface QueryHarness {
 	endOutput(): void;
 	interrupt: ReturnType<typeof vi.fn>;
 	prompt: AsyncIterable<SDKUserMessage>;
+	setModel: ReturnType<typeof vi.fn>;
+	setPermissionMode: ReturnType<typeof vi.fn>;
 	/** Feed an SDK message to the query's output stream. */
 	yieldMessage(message: unknown): void;
 }
@@ -24,6 +26,8 @@ interface QueryHarness {
 function mockQuery(): { harness: QueryHarness } {
 	const output = createAsyncQueue<unknown>();
 	const interrupt = vi.fn(() => Promise.resolve());
+	const setModel = vi.fn(() => Promise.resolve());
+	const setPermissionMode = vi.fn(() => Promise.resolve());
 	const harness = {} as QueryHarness;
 	vi.mocked(query).mockImplementation((params) => {
 		harness.prompt = params.prompt as AsyncIterable<SDKUserMessage>;
@@ -31,12 +35,17 @@ function mockQuery(): { harness: QueryHarness } {
 		harness.yieldMessage = (message: unknown) => output.push(message);
 		harness.endOutput = () => output.close();
 		harness.interrupt = interrupt;
+		harness.setModel = setModel;
+		harness.setPermissionMode = setPermissionMode;
 		const iterable = {
 			[Symbol.asyncIterator]: () => output[Symbol.asyncIterator](),
 			interrupt,
+			setModel,
+			setPermissionMode,
 		};
-		// The adapter only touches the async-iterable + interrupt; the rest of the
-		// real Query surface is irrelevant to these tests.
+		// The adapter only touches the async-iterable + interrupt/setModel/
+		// setPermissionMode; the rest of the real Query surface is irrelevant to
+		// these tests.
 		return iterable as unknown as ReturnType<typeof query>;
 	});
 	return { harness };
@@ -154,4 +163,41 @@ it("stop() interrupts the session and closes the events stream", async () => {
 	handle.stop();
 	expect(harness.interrupt).toHaveBeenCalledTimes(1);
 	expect((await iterator.next()).done).toBe(true);
+});
+
+it("interrupt() calls session.interrupt() but leaves the events stream open", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.interrupt?.();
+	expect(harness.interrupt).toHaveBeenCalledTimes(1);
+	handle.send("still here?");
+	const { value } = await harness.prompt[Symbol.asyncIterator]().next();
+	expect(value).toMatchObject({
+		message: { content: "still here?" },
+	});
+});
+
+it("setModel() calls session.setModel() with the requested model", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.setModel?.("opus");
+	expect(harness.setModel).toHaveBeenCalledExactlyOnceWith("opus");
+});
+
+it("setPermissionMode() calls session.setPermissionMode() for a recognized mode", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.setPermissionMode?.("plan");
+	expect(harness.setPermissionMode).toHaveBeenCalledExactlyOnceWith("plan");
+});
+
+it("setPermissionMode() ignores an unrecognized mode instead of forwarding it", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.setPermissionMode?.("not-a-real-mode");
+	expect(harness.setPermissionMode).not.toHaveBeenCalled();
 });

@@ -11,10 +11,13 @@ import { useMemo } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { BridgeChatRow } from "./bridge-chat-row";
+import type { SessionReadyDetail } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
 import { SessionStatusHeader } from "./session-status-header";
 import { TerminalComposer } from "./terminal-composer";
+import { TerminalControls } from "./terminal-controls";
+import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
 import { TurnUsageChip } from "./turn-usage-chip";
 import { useBridgeTerminal } from "./use-bridge-terminal";
@@ -84,6 +87,50 @@ export interface TerminalProps {
 	userAvatarUrl?: string;
 }
 
+interface TerminalHeaderProps {
+	canSend: boolean;
+	interrupt: () => void;
+	label: string;
+	sessionReady: SessionReadyDetail | null;
+	setModel: (model: string) => void;
+	setPermissionMode: (mode: string) => void;
+	status: TerminalConnectionStatus;
+}
+
+/** The session title/connection-status row, the capability summary, and the
+ * claude session controls (Interrupt/model/permission mode) — split out of
+ * `Terminal` purely to keep that component under the repo's
+ * max-lines-per-function gate. */
+function TerminalHeader({
+	canSend,
+	interrupt,
+	label,
+	sessionReady,
+	setModel,
+	setPermissionMode,
+	status,
+}: TerminalHeaderProps) {
+	return (
+		<div className="flex shrink-0 flex-col gap-1.5 border-b px-3 py-2">
+			<div className="flex items-center justify-between gap-2">
+				<span className="truncate font-medium text-sm">{label}</span>
+				<TerminalStatus status={status} />
+			</div>
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<SessionStatusHeader detail={sessionReady} />
+				<TerminalControls
+					disabled={!canSend}
+					model={sessionReady?.model}
+					onInterrupt={interrupt}
+					onSetModel={setModel}
+					onSetPermissionMode={setPermissionMode}
+					permissionMode={sessionReady?.permissionMode}
+				/>
+			</div>
+		</div>
+	);
+}
+
 /**
  * Live view of one bridge session: header shows connection status, body is
  * the auto-scrolling, ordered/deduped normalized-event feed, footer is the
@@ -102,6 +149,9 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 		answerApproval,
 		sessionReady,
 		turnUsage,
+		interrupt,
+		setModel,
+		setPermissionMode,
 	} = useBridgeTerminal(session.id, transport, session.status === "ended");
 	const turns = useMemo(() => foldEventsToTurns(events), [events]);
 	const avatars: ChatAvatars = {
@@ -111,15 +161,15 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">
-			<div className="flex shrink-0 flex-col gap-1.5 border-b px-3 py-2">
-				<div className="flex items-center justify-between gap-2">
-					<span className="truncate font-medium text-sm">
-						{session.label ?? session.agentKind}
-					</span>
-					<TerminalStatus status={status} />
-				</div>
-				<SessionStatusHeader detail={sessionReady} />
-			</div>
+			<TerminalHeader
+				canSend={canSend}
+				interrupt={interrupt}
+				label={session.label ?? session.agentKind}
+				sessionReady={sessionReady}
+				setModel={setModel}
+				setPermissionMode={setPermissionMode}
+				status={status}
+			/>
 			<TerminalFeed
 				answerApproval={answerApproval}
 				answered={answered}
