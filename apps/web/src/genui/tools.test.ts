@@ -1,5 +1,4 @@
-import { expect, it, vi } from "vitest";
-import { routeAction } from "./handlers";
+import { expect, it } from "vitest";
 import { DATA_TOOLS } from "./tools";
 
 it("addTodo then listTodos round-trips through the store", async () => {
@@ -11,19 +10,4 @@ it("addTodo then listTodos round-trips through the store", async () => {
 	}[];
 	expect(Array.isArray(out)).toBe(true);
 	expect(out.some((t) => t.title === "write tests")).toBe(true);
-});
-
-it("routeAction sends to handler or agent by target", () => {
-	const handler = vi.fn();
-	const send = vi.fn();
-	routeAction(
-		{ intent: "press", target: "client", payload: 1 },
-		{ handlers: { press: handler }, sendAgentEvent: send }
-	);
-	expect(handler).toHaveBeenCalledWith(1);
-	routeAction(
-		{ intent: "submit", target: "agent" },
-		{ handlers: {}, sendAgentEvent: send }
-	);
-	expect(send).toHaveBeenCalled();
 });

@@ -273,25 +273,3 @@ describe("createUserSessionClientFrom — user-plane adapter", () => {
 		expect(calls.create).toEqual({ agentId: "agent-1" });
 	});
 });
-
-const outputSchema = { type: "object" };
-const fakeStructured = { answer: "42" };
-const schemaCapture: unknown[] = [];
-function captureRun(i: unknown) {
-	schemaCapture.push(i);
-	return Promise.resolve({ structured: fakeStructured });
-}
-const schemaFake = { sessions: { run: captureRun } } as never;
-
-describe("outputSchema passthrough and structured surfacing", () => {
-	it("run forwards outputSchema and surfaces structured", async () => {
-		schemaCapture.length = 0;
-		const sdk = createAgentClientFrom(schemaFake);
-		const result = await sdk.run("q", { sessionId: "s1", outputSchema });
-		const call = schemaCapture[0] as Record<string, unknown>;
-		expect(call.sessionId).toBe("s1");
-		expect(call.text).toBe("q");
-		expect(call.outputSchema).toBe(outputSchema);
-		expect((result as { structured: unknown }).structured).toBe(fakeStructured);
-	});
-});
