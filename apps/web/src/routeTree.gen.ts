@@ -16,9 +16,11 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LocalAgentsIndexRouteImport } from './routes/local-agents.index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
 import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
+import { Route as LocalAgentsSessionIdRouteImport } from './routes/local-agents.$sessionId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
@@ -58,6 +60,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocalAgentsIndexRoute = LocalAgentsIndexRouteImport.update({
+  id: '/local-agents/',
+  path: '/local-agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IntegrationsIndexRoute = IntegrationsIndexRouteImport.update({
   id: '/integrations/',
   path: '/integrations/',
@@ -71,6 +78,11 @@ const BridgeIndexRoute = BridgeIndexRouteImport.update({
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalAgentsSessionIdRoute = LocalAgentsSessionIdRouteImport.update({
+  id: '/local-agents/$sessionId',
+  path: '/local-agents/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntegrationsAccountIdRoute = IntegrationsAccountIdRouteImport.update({
@@ -99,9 +111,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
+  '/local-agents/$sessionId': typeof LocalAgentsSessionIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
+  '/local-agents/': typeof LocalAgentsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -114,9 +128,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
+  '/local-agents/$sessionId': typeof LocalAgentsSessionIdRoute
   '/agents': typeof AgentsIndexRoute
   '/bridge': typeof BridgeIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
+  '/local-agents': typeof LocalAgentsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
 export interface FileRoutesById {
@@ -130,9 +146,11 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
+  '/local-agents/$sessionId': typeof LocalAgentsSessionIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
+  '/local-agents/': typeof LocalAgentsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
 }
 export interface FileRouteTypes {
@@ -147,9 +165,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/integrations/$accountId'
+    | '/local-agents/$sessionId'
     | '/agents/'
     | '/bridge/'
     | '/integrations/'
+    | '/local-agents/'
     | '/auth/google/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -162,9 +182,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/integrations/$accountId'
+    | '/local-agents/$sessionId'
     | '/agents'
     | '/bridge'
     | '/integrations'
+    | '/local-agents'
     | '/auth/google/callback'
   id:
     | '__root__'
@@ -177,9 +199,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/integrations/$accountId'
+    | '/local-agents/$sessionId'
     | '/agents/'
     | '/bridge/'
     | '/integrations/'
+    | '/local-agents/'
     | '/auth/google/callback'
   fileRoutesById: FileRoutesById
 }
@@ -193,9 +217,11 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
+  LocalAgentsSessionIdRoute: typeof LocalAgentsSessionIdRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   BridgeIndexRoute: typeof BridgeIndexRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
+  LocalAgentsIndexRoute: typeof LocalAgentsIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
 }
 
@@ -250,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/local-agents/': {
+      id: '/local-agents/'
+      path: '/local-agents'
+      fullPath: '/local-agents/'
+      preLoaderRoute: typeof LocalAgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations/': {
       id: '/integrations/'
       path: '/integrations'
@@ -269,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/local-agents/$sessionId': {
+      id: '/local-agents/$sessionId'
+      path: '/local-agents/$sessionId'
+      fullPath: '/local-agents/$sessionId'
+      preLoaderRoute: typeof LocalAgentsSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/integrations/$accountId': {
@@ -305,9 +345,11 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   AuthVerifyRoute: AuthVerifyRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
+  LocalAgentsSessionIdRoute: LocalAgentsSessionIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   BridgeIndexRoute: BridgeIndexRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
+  LocalAgentsIndexRoute: LocalAgentsIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
 }
 export const routeTree = rootRouteImport
