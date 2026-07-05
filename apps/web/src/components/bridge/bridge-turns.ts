@@ -161,7 +161,11 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 			foldMessage(state, id, event);
 			return;
 		case "output":
-			appendText(openAssistant(state, id).blocks, "text", event.text);
+			appendText(
+				openAssistant(state, id).blocks,
+				event.reasoning ? "reasoning" : "text",
+				event.text
+			);
 			return;
 		case "tool":
 			foldTool(state, id, event);

@@ -49,19 +49,55 @@ async function nextEvent(
 	return done ? undefined : value;
 }
 
-it("normalizes an assistant message from the SDK into a reply event", async () => {
+it("streams the reply as output once and drops the duplicate final text block", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	// The response text streams live via stream_event text_delta...
+	harness.yieldMessage({
+		type: "stream_event",
+		event: {
+			type: "content_block_delta",
+			delta: { type: "text_delta", text: "hey" },
+		},
+	});
+	expect(await nextEvent(iterator)).toEqual({ kind: "output", text: "hey" });
+
+	// ...and the final assistant message repeats it plus a tool_use: the text
+	// block must be dropped (already streamed above) while tool_use survives.
+	harness.yieldMessage({
+		type: "assistant",
+		message: {
+			role: "assistant",
+			content: [
+				{ type: "text", text: "hey" },
+				{ type: "tool_use", id: "toolu_1", name: "Read", input: {} },
+			],
+		},
+	});
+	expect(await nextEvent(iterator)).toMatchObject({
+		kind: "tool",
+		id: "toolu_1",
+	});
+});
+
+it("normalizes a thinking_delta stream_event into a reasoning-flagged output event", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
 
 	harness.yieldMessage({
-		type: "assistant",
-		message: { role: "assistant", content: [{ type: "text", text: "hey" }] },
+		type: "stream_event",
+		event: {
+			type: "content_block_delta",
+			delta: { type: "thinking_delta", thinking: "pondering…" },
+		},
 	});
 	expect(await nextEvent(iterator)).toEqual({
-		kind: "message",
-		role: "assistant",
-		text: "hey",
+		kind: "output",
+		text: "pondering…",
+		reasoning: true,
 	});
 });
 

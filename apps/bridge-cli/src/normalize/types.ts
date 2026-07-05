@@ -32,6 +32,9 @@ export interface FileEvent {
 /** Raw process output that doesn't fit the other kinds (e.g. shell output). */
 export interface OutputEvent {
 	kind: "output";
+	/** True for a `thinking_delta` chunk (extended-thinking text streaming in),
+	 * as opposed to the assistant's ordinary response text. */
+	reasoning?: boolean;
 	stream?: "stdout" | "stderr";
 	text: string;
 }

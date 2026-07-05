@@ -101,10 +101,14 @@ export const claudeCodeAdapter: Adapter = {
 			options: {
 				cwd: dir,
 				canUseTool: makeCanUseTool(events, approvals),
-				// Enable extended thinking. NOTE: the full reasoning text only
-				// streams as `thinking_delta` frames under includePartialMessages,
-				// which also duplicates the response text — surfacing that cleanly
-				// (dedup) is planned work, so we don't turn it on here yet.
+				// Extended thinking's reasoning text only streams as `thinking_delta`
+				// frames under includePartialMessages — which also streams the
+				// response text as `text_delta` frames, duplicating what later
+				// arrives (again) as a text block on the final assistant message.
+				// `normalizeClaudeCode` is the dedup point: it treats the streamed
+				// deltas as the source of truth and drops the final assistant
+				// message's text blocks (keeping its tool_use blocks).
+				includePartialMessages: true,
 				thinking: { type: "adaptive" },
 			},
 		});

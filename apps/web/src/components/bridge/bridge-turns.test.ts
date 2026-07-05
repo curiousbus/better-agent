@@ -133,6 +133,30 @@ it("keeps a thinking message as its own reasoning turn", () => {
 	]);
 });
 
+it("accumulates reasoning-flagged output into its own collapsible thinking block", () => {
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "output", text: "I sh", reasoning: true }),
+		ev(2, { kind: "output", text: "ould check", reasoning: true }),
+		ev(3, { kind: "output", text: " the file.", reasoning: true }),
+	]);
+	expect(turns).toHaveLength(1);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "reasoning", text: "I should check the file." },
+	]);
+});
+
+it("keeps reasoning and reply output in separate blocks, with no duplication", () => {
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "output", text: "thinking…", reasoning: true }),
+		ev(2, { kind: "output", text: "Here you go." }),
+	]);
+	expect(turns).toHaveLength(1);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "reasoning", text: "thinking…" },
+		{ kind: "text", text: "Here you go." },
+	]);
+});
+
 it("dedupes replayed ids so the assistant text is never doubled", () => {
 	const window = [
 		{ id: 1, data: { kind: "output", text: "abc" } },

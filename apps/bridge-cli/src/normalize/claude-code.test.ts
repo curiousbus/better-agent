@@ -76,6 +76,29 @@ describe("normalizeClaudeCode - stream_event and edge cases", () => {
 		expect(events).toEqual([{ kind: "output", text: "ab" }]);
 	});
 
+	it("maps a stream_event thinking_delta to a reasoning-flagged output event", () => {
+		const events = normalizeClaudeCode({
+			type: "stream_event",
+			event: {
+				type: "content_block_delta",
+				delta: { type: "thinking_delta", thinking: "hmm…" },
+			},
+		});
+		expect(events).toEqual([{ kind: "output", text: "hmm…", reasoning: true }]);
+	});
+
+	it("ignores other stream_event delta types", () => {
+		expect(
+			normalizeClaudeCode({
+				type: "stream_event",
+				event: {
+					type: "content_block_stop",
+					delta: { type: "signature_delta" },
+				},
+			})
+		).toEqual([]);
+	});
+
 	it("ignores unrecognized envelope types", () => {
 		expect(normalizeClaudeCode({ type: "nonsense" })).toEqual([]);
 	});
@@ -87,13 +110,21 @@ describe("normalizeClaudeCode - stream_event and edge cases", () => {
 });
 
 describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
-	it("maps an assistant text block to a message event", () => {
+	it("drops an assistant text block (already streamed via stream_event)", () => {
 		const events = normalizeClaudeCode({
 			type: "assistant",
 			message: { content: [{ type: "text", text: "hello there" }] },
 		});
+		expect(events).toEqual([]);
+	});
+
+	it("keeps a user text block (tool_result echoes are unaffected)", () => {
+		const events = normalizeClaudeCode({
+			type: "user",
+			message: { content: [{ type: "text", text: "hello there" }] },
+		});
 		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "hello there" },
+			{ kind: "message", role: "user", text: "hello there" },
 		]);
 	});
 
@@ -114,7 +145,7 @@ describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
 });
 
 describe("normalizeClaudeCode - assistant tool_use block", () => {
-	it("fans an assistant turn with text + tool_use into two events", () => {
+	it("keeps tool_use but drops the sibling text block on an assistant turn", () => {
 		const events = normalizeClaudeCode({
 			type: "assistant",
 			message: {
@@ -130,7 +161,6 @@ describe("normalizeClaudeCode - assistant tool_use block", () => {
 			},
 		});
 		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "Let me check that file." },
 			{
 				kind: "tool",
 				id: "toolu_1",

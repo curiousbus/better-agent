@@ -69,7 +69,12 @@ function normalizeClaudeContentBlock(
 	}
 	switch (block.type) {
 		case "text":
-			return normalizeTextBlock(role, block);
+			// Assistant response text now streams live via `stream_event`
+			// `text_delta` output (see normalizeClaudeStreamEvent below); the
+			// final assistant message's text block repeats that same text, so
+			// it's dropped here to avoid double-rendering it. User-role
+			// messages (tool_result echoes) are unaffected.
+			return role === "assistant" ? NO_EVENTS : normalizeTextBlock(role, block);
 		case "thinking":
 			return normalizeThinkingBlock(role, block);
 		case "tool_use":
@@ -159,11 +164,20 @@ function normalizeClaudeStreamEvent(
 		return NO_EVENTS;
 	}
 	const delta = event.delta;
-	if (isRecord(delta) && delta.type === "text_delta") {
+	if (!isRecord(delta)) {
+		return NO_EVENTS;
+	}
+	if (delta.type === "text_delta") {
 		const text = asString(delta.text);
 		return text === undefined ? NO_EVENTS : [{ kind: "output", text }];
 	}
-	// Non-text stream_event frames are internal bookkeeping — don't surface them.
+	if (delta.type === "thinking_delta") {
+		const text = asString(delta.thinking);
+		return text === undefined
+			? NO_EVENTS
+			: [{ kind: "output", reasoning: true, text }];
+	}
+	// Non-text/thinking stream_event frames are internal bookkeeping.
 	return NO_EVENTS;
 }
 
