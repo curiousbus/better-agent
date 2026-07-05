@@ -84,7 +84,7 @@ export function Terminal({ session, transport }: TerminalProps) {
 		sendInput,
 		answered,
 		answerApproval,
-	} = useBridgeTerminal(session.id, transport);
+	} = useBridgeTerminal(session.id, transport, session.status === "ended");
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">

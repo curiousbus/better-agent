@@ -8,6 +8,7 @@ import {
 	ALLOW_BUTTON_PATTERN,
 	approvalRaw,
 	DENY_BUTTON_PATTERN,
+	ENDED_SESSION,
 	EVENT_TEXT_PATTERN,
 	makeControllableTransport,
 	SESSION,
@@ -111,4 +112,18 @@ it("renders an approval event as a card with one button per option", async () =>
 		view.getByRole("button", { name: ALLOW_BUTTON_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("button", { name: DENY_BUTTON_PATTERN })).toBeDefined();
+});
+
+it("shows an Ended status and never connects or polls for an already-ended session", () => {
+	const fake = makeControllableTransport();
+	const { container } = render(
+		<Terminal session={ENDED_SESSION} transport={fake.transport} />
+	);
+
+	const view = within(container);
+	expect(view.getByText("Ended")).toBeDefined();
+	expect(fake.connectCalls.length).toBe(0);
+	expect(fake.observe).not.toHaveBeenCalled();
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	expect(textarea.disabled).toBe(true);
 });

@@ -46,6 +46,10 @@ export interface SseConnectionArgs {
 	conn: ConnectionState;
 	dispatchConn: Dispatch<ConnectionAction>;
 	dispatchFeed: Dispatch<FeedAction>;
+	/** Whether this session is still eligible for a live connection at all —
+	 * `false` once it's ended, so a stale detail page never opens a fresh SSE
+	 * connection (or reconnect) against a session nothing is driving anymore. */
+	enabled: boolean;
 	maxSeenIdRef: MutableRefObject<number>;
 	sessionId: string;
 	transport: BridgeTransport;
@@ -58,6 +62,7 @@ export function useSseConnection(args: SseConnectionArgs): void {
 	const {
 		sessionId,
 		conn,
+		enabled,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,
@@ -70,7 +75,7 @@ export function useSseConnection(args: SseConnectionArgs): void {
 	// reopening the stream on every event.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: conn.failureCount is deliberate (see comment above), maxSeenIdRef.current is deliberately excluded (see useMaxSeenIdRef doc)
 	useEffect(() => {
-		if (conn.status === "polling") {
+		if (!enabled || conn.status === "polling") {
 			return noCleanup;
 		}
 		const unsubscribe = transport.connectStream({
@@ -83,6 +88,7 @@ export function useSseConnection(args: SseConnectionArgs): void {
 		return unsubscribe;
 	}, [
 		sessionId,
+		enabled,
 		conn.status,
 		conn.failureCount,
 		transport,
@@ -94,6 +100,9 @@ export function useSseConnection(args: SseConnectionArgs): void {
 export interface PollFallbackArgs {
 	dispatchConn: Dispatch<ConnectionAction>;
 	dispatchFeed: Dispatch<FeedAction>;
+	/** See `SseConnectionArgs.enabled` — the poll fallback is likewise skipped
+	 * once the session has ended. */
+	enabled: boolean;
 	maxSeenIdRef: MutableRefObject<number>;
 	sessionId: string;
 	status: ConnectionState["status"];
@@ -107,13 +116,14 @@ export function usePollFallback(args: PollFallbackArgs): void {
 	const {
 		sessionId,
 		status,
+		enabled,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,
 		dispatchConn,
 	} = args;
 	useEffect(() => {
-		if (status !== "polling") {
+		if (!enabled || status !== "polling") {
 			return noCleanup;
 		}
 		let cancelled = false;
@@ -138,5 +148,13 @@ export function usePollFallback(args: PollFallbackArgs): void {
 			cancelled = true;
 			clearInterval(interval);
 		};
-	}, [sessionId, status, transport, maxSeenIdRef, dispatchFeed, dispatchConn]);
+	}, [
+		sessionId,
+		status,
+		enabled,
+		transport,
+		maxSeenIdRef,
+		dispatchFeed,
+		dispatchConn,
+	]);
 }

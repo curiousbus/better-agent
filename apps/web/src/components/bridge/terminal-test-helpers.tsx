@@ -21,6 +21,12 @@ export const SESSION: BridgeSessionRow = {
 
 export const OTHER_SESSION: BridgeSessionRow = { ...SESSION, id: "session-2" };
 
+export const ENDED_SESSION: BridgeSessionRow = {
+	...SESSION,
+	id: "session-ended",
+	status: "ended",
+};
+
 export function statusRaw(id: number, status: string) {
 	return { id, data: { kind: "status", status } };
 }

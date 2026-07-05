@@ -3,10 +3,10 @@ import { toast } from "sonner";
 import type { StreamEvent } from "./bridge-events";
 import type { BridgeTransport } from "./bridge-transport";
 import {
-	type ConnectionStatus,
 	connectionReducer,
 	initialConnectionState,
 } from "./terminal-connection";
+import type { TerminalConnectionStatus } from "./terminal-status";
 import {
 	useMaxSeenIdRef,
 	usePollFallback,
@@ -26,7 +26,7 @@ export interface UseBridgeTerminalResult {
 	events: StreamEvent[];
 	sendInput: (text: string) => Promise<void>;
 	sending: boolean;
-	status: ConnectionStatus;
+	status: TerminalConnectionStatus;
 }
 
 function useSendInput(sessionId: string, transport: BridgeTransport) {
@@ -82,10 +82,18 @@ function makeAnswerApproval(
  * event-feed.ts), plus the sendInput mutation. `transport` is injected so
  * this hook — and anything built on it — can be tested against a fake
  * instead of real network/oRPC calls.
+ *
+ * `ended` marks a session the server has already closed out (`endSession`
+ * was called, or it was already ended when the page loaded): both the SSE
+ * and poll-fallback effects are disabled outright — there's no local CLI
+ * left to reconnect to, so retrying would just spin forever — and the
+ * reported `status` becomes `"ended"` regardless of whatever transient
+ * connection state came before, with sending disabled to match.
  */
 export function useBridgeTerminal(
 	sessionId: string,
-	transport: BridgeTransport
+	transport: BridgeTransport,
+	ended: boolean
 ): UseBridgeTerminalResult {
 	const [feed, dispatchFeed] = useReducer(feedReducer, initialFeedState);
 	const [conn, dispatchConn] = useReducer(
@@ -97,6 +105,7 @@ export function useBridgeTerminal(
 	useSseConnection({
 		sessionId,
 		conn,
+		enabled: !ended,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,
@@ -105,6 +114,7 @@ export function useBridgeTerminal(
 	usePollFallback({
 		sessionId,
 		status: conn.status,
+		enabled: !ended,
 		maxSeenIdRef,
 		transport,
 		dispatchFeed,
@@ -115,8 +125,8 @@ export function useBridgeTerminal(
 
 	return {
 		events: feed.events,
-		status: conn.status,
-		canSend: conn.everConnected,
+		status: ended ? "ended" : conn.status,
+		canSend: !ended && conn.everConnected,
 		sending,
 		sendInput,
 		answered: feed.answered,
