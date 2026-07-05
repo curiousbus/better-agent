@@ -194,6 +194,42 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 	expect(stop).toHaveBeenCalledTimes(1);
 }
 
+async function aControlStopCommandStopsTheAgentAndEndsTheSession(): Promise<void> {
+	const controller = new AbortController(); // never aborted externally — proves the session ends on its own
+	// A real adapter's `stop()` closes its own event queue; mimicked here so
+	// this exercises the same end-to-end shutdown a live agent process would.
+	const events = createAsyncQueue<string>();
+	const stop = vi.fn(() => events.close());
+	const pollCommands = vi
+		.fn()
+		.mockResolvedValueOnce([
+			{ id: 1, data: { type: "control", action: "stop" } },
+		]);
+	const transport = fakeTransport(pollCommands);
+
+	const result = await runBridgeSession({
+		agentKind: "claude-code",
+		transport,
+		handle: { answerApproval: vi.fn(), events, send: vi.fn(), stop },
+		signal: controller.signal,
+		pollOptions: {
+			sleep: () => Promise.reject(new Error("should not sleep")),
+		},
+	});
+
+	expect(result).toEqual({ sessionId: "sess_1" });
+	// Once from dispatchCommands reacting to the control:stop command, once
+	// more from runBridgeSession's own unconditional cleanup `finally` —
+	// mirrors the existing double-call-safe SIGINT path (real adapters'
+	// `stop()` is idempotent).
+	expect(stop).toHaveBeenCalledTimes(2);
+	expect(pollCommands).toHaveBeenCalledTimes(1);
+	expect(transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
+		sessionId: "sess_1",
+		events: [{ kind: "status", status: "stopped_by_server" }],
+	});
+}
+
 describe("runBridgeSession", () => {
 	it(
 		"starts a session, pushes events, and polls under one sessionId",
@@ -208,5 +244,10 @@ describe("runBridgeSession", () => {
 	it(
 		"retries a failed pushEvents batch instead of dropping it, preserving order",
 		retriesAFailedPushEventsBatchInsteadOfDroppingIt
+	);
+
+	it(
+		"a control:stop command stops the agent, pushes a status event, and ends the session",
+		aControlStopCommandStopsTheAgentAndEndsTheSession
 	);
 });

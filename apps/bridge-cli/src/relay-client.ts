@@ -10,6 +10,7 @@ import {
 	dispatchCommands,
 	type RelayEvent,
 } from "./commands";
+import type { StatusEvent } from "./normalize/types";
 import { createPushQueue, type PushQueue } from "./push-queue";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
@@ -38,6 +39,10 @@ const DEFAULT_FLUSH_INTERVAL_MS = 250;
 // start shedding events, while still bounding memory during a real outage.
 const DEFAULT_MAX_BUFFERED_EVENTS = 1000;
 const FLUSH_TICK = Symbol("flush-tick");
+/** Status pushed straight to the server (bypassing the normal `forwardEvents`
+ * pipeline, which reads from the agent's own event queue) when a `control:
+ * stop` command ends the poll loop — see `pushStoppedByServerStatus`. */
+const STOPPED_BY_SERVER_STATUS = "stopped_by_server";
 
 function defaultSleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -150,6 +155,26 @@ export interface PollLoopOptions {
 	sleep?: Sleep;
 }
 
+/** Best-effort: pushes a final status event noting the session was stopped
+ * remotely, straight to the server (bypassing the agent's own event queue,
+ * which `forwardEvents` drains separately) so the web UI's feed gets an
+ * explicit last word. Swallows failure — the session is winding down either
+ * way, and there's no one left to retry for. */
+async function pushStoppedByServerStatus(
+	transport: RelayTransport,
+	sessionId: string
+): Promise<void> {
+	try {
+		const status: StatusEvent = {
+			kind: "status",
+			status: STOPPED_BY_SERVER_STATUS,
+		};
+		await transport.pushEvents({ sessionId, events: [status] });
+	} catch {
+		// best-effort — nothing else to do here.
+	}
+}
+
 /**
  * Polls `pollCommands(afterId)` in a loop, dispatching each command to
  * `sink` — a text command calls `sink.send`, an approval command calls
@@ -158,6 +183,11 @@ export interface PollLoopOptions {
  * idle. A transient transport error is swallowed (reported via `onError`)
  * and retried at `maxIntervalMs` — `afterIdRef` is left untouched, so the
  * next successful poll resumes exactly where the last one left off.
+ *
+ * A `control: stop` command (the web UI's "End session" action) ends the
+ * loop immediately instead of sleeping and polling again: `dispatchCommands`
+ * has already called `sink.stop()`, so this only needs to push a best-effort
+ * final status event and return.
  */
 export async function pollLoop(
 	transport: RelayTransport,
@@ -177,7 +207,15 @@ export async function pollLoop(
 				sessionId,
 				afterId: afterIdRef.current,
 			});
-			const wasActive = dispatchCommands(commands, sink, afterIdRef);
+			const { wasActive, stopRequested } = dispatchCommands(
+				commands,
+				sink,
+				afterIdRef
+			);
+			if (stopRequested) {
+				await pushStoppedByServerStatus(transport, sessionId);
+				return;
+			}
 			interval = wasActive
 				? minIntervalMs
 				: Math.min(interval * BACKOFF_FACTOR, maxIntervalMs);

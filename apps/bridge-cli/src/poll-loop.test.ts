@@ -99,6 +99,36 @@ describe("pollLoop - approval commands", () => {
 	});
 });
 
+describe("pollLoop - control stop", () => {
+	it("stops the agent, pushes a final status event, and returns without polling again", async () => {
+		const controller = new AbortController(); // never aborted: proves pollLoop returns on its own
+		const pollCommands = vi
+			.fn()
+			.mockResolvedValue([
+				{ id: 9, data: { type: "control", action: "stop" } },
+			]);
+		const transport = fakeTransport(pollCommands);
+		const stop = vi.fn();
+		const sink: CommandSink = { ...fakeCommandSink(), stop };
+		const afterIdRef = { current: 0 };
+		const neverSleep: Sleep = () =>
+			Promise.reject(new Error("should not sleep after a stop command"));
+
+		await pollLoop(transport, "sess_1", sink, afterIdRef, {
+			signal: controller.signal,
+			sleep: neverSleep,
+		});
+
+		expect(stop).toHaveBeenCalledTimes(1);
+		expect(pollCommands).toHaveBeenCalledTimes(1);
+		expect(transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "sess_1",
+			events: [{ kind: "status", status: "stopped_by_server" }],
+		});
+		expect(afterIdRef.current).toBe(9);
+	});
+});
+
 describe("pollLoop - reconnect", () => {
 	it("resumes afterId across a transient transport failure", async () => {
 		const controller = new AbortController();
