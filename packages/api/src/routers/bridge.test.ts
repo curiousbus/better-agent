@@ -152,3 +152,18 @@ it("listSessions and endSession are scoped to the caller", async () => {
 	const [session] = await alice.bridge.listSessions();
 	expect(session?.status).toBe("ended");
 });
+
+it("endSession appends a control:stop command the CLI's poll would see", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	const alice = userClientFor(ALICE);
+	await alice.bridge.endSession({ sessionId });
+
+	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	expect(commands).toHaveLength(1);
+	expect(commands[0]?.data).toEqual({ type: "control", action: "stop" });
+});

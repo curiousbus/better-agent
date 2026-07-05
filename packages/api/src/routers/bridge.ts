@@ -16,6 +16,11 @@ const MAX_PUSH_BATCH = 50;
 const MAX_EVENT_BYTES = 32_768;
 /** Max size (characters) of sendInput's `data` before it's rejected. */
 const MAX_INPUT_CHARS = 8192;
+/** Appended to a session's `commands↓` by `endSession`, so the CLI's poll
+ * loop (see `apps/bridge-cli/src/commands.ts`'s `parseCommandText`) tells the
+ * local agent process to stop instead of the DB flip alone leaving it running
+ * forever. */
+const STOP_CONTROL_COMMAND = { type: "control", action: "stop" } as const;
 
 /** Serialized size of `value` in UTF-8 bytes, as JSON. */
 function byteSizeOf(value: unknown): number {
@@ -195,6 +200,11 @@ export const bridgeRouter = {
 			await context.services.stores.bridgeSession.end(
 				input.sessionId,
 				context.authedUser.id
+			);
+			await context.services.relayStore.append(
+				input.sessionId,
+				"commands",
+				STOP_CONTROL_COMMAND
 			);
 			return { ok: true };
 		}),
