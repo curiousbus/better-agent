@@ -1,0 +1,61 @@
+import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
+import {
+	deriveLocalAgentStatus,
+	type LocalAgentStatus,
+} from "./local-agent-status";
+
+/** A local agent's display status, extending `LocalAgentStatus` with the
+ * case where its token has never had a session at all. */
+export type LocalAgentEntryStatus = LocalAgentStatus | "not-connected";
+
+export interface LocalAgentEntry {
+	latestSession: BridgeSessionRow | null;
+	status: LocalAgentEntryStatus;
+	token: BridgeTokenRow;
+}
+
+/** Finds `token`'s most recent session (by `createdAt`) among `sessions`, or
+ * `null` if the token has none. `createdAt` may arrive as a string or a
+ * `Date` depending on serialization, so comparisons always go through
+ * `new Date(...).getTime()` rather than assuming a `Date` instance. */
+function findLatestSessionForToken(
+	tokenId: string,
+	sessions: BridgeSessionRow[]
+): BridgeSessionRow | null {
+	let latest: BridgeSessionRow | null = null;
+	for (const session of sessions) {
+		if (session.tokenId !== tokenId) {
+			continue;
+		}
+		const isNewer =
+			latest === null ||
+			new Date(session.createdAt).getTime() >
+				new Date(latest.createdAt).getTime();
+		if (isNewer) {
+			latest = session;
+		}
+	}
+	return latest;
+}
+
+/** Joins `listTokens` + `listSessions` client-side into one entry per
+ * non-revoked token, carrying its latest session (by `createdAt`) and a
+ * display status. Revoked tokens are excluded — they've been removed as
+ * local agents. Preserves the input token order. `now` is injectable for
+ * deterministic tests. */
+export function deriveLocalAgentEntries(
+	tokens: BridgeTokenRow[],
+	sessions: BridgeSessionRow[],
+	now: Date = new Date()
+): LocalAgentEntry[] {
+	return tokens
+		.filter((token) => token.revokedAt === null)
+		.map((token) => {
+			const latestSession = findLatestSessionForToken(token.id, sessions);
+			const status: LocalAgentEntryStatus =
+				latestSession === null
+					? "not-connected"
+					: deriveLocalAgentStatus(latestSession, now);
+			return { latestSession, status, token };
+		});
+}
