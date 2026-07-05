@@ -65,7 +65,7 @@ export function GroupSubmenu({
 					{checkedCount}/{group.tools.length}
 				</span>
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="max-h-72 w-72 overflow-y-auto">
+			<DropdownMenuSubContent className="max-h-72 w-[calc(100vw-2rem)] max-w-72 overflow-y-auto">
 				<GroupBulkActions group={group} onToggleGroup={onToggleGroup} />
 				{group.tools.map((tool) => (
 					<DropdownMenuCheckboxItem
@@ -134,7 +134,10 @@ export function ToolPicker({
 		<div className="flex flex-col gap-1.5">
 			<DropdownMenu>
 				<ToolPickerTrigger disabled={isPending} label={label} />
-				<DropdownMenuContent align="start" className="w-72">
+				<DropdownMenuContent
+					align="start"
+					className="w-[calc(100vw-2rem)] max-w-72"
+				>
 					{groups.map((group) => (
 						<GroupSubmenu
 							group={group}

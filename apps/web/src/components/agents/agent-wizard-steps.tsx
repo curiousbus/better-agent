@@ -55,7 +55,7 @@ function StepDot({
 			</span>
 			<span
 				className={cn(
-					"text-xs",
+					"hidden text-xs sm:inline",
 					active || done
 						? "font-medium text-foreground"
 						: "text-muted-foreground"

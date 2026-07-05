@@ -70,7 +70,10 @@ function ServerRow({
 	return (
 		<TableRow>
 			<TableCell className="font-medium">{row.name}</TableCell>
-			<TableCell className="font-mono text-muted-foreground">
+			<TableCell
+				className="max-w-40 truncate font-mono text-muted-foreground"
+				title={row.url}
+			>
 				{row.url}
 			</TableCell>
 			<TableCell>

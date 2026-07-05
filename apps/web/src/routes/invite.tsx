@@ -64,7 +64,7 @@ function TicketForm() {
 	const redeem = useRedeem();
 	return (
 		<form
-			className="flex flex-1 flex-col gap-4 p-7"
+			className="flex flex-1 flex-col gap-4 p-5 sm:p-7"
 			onSubmit={(event) => {
 				event.preventDefault();
 				redeem.mutate({ code });

@@ -42,7 +42,9 @@ export function McpServersField({
 					/>
 					<span className="flex flex-col">
 						<span>{row.name}</span>
-						<span className="text-muted-foreground text-xs">{row.url}</span>
+						<span className="break-all text-muted-foreground text-xs">
+							{row.url}
+						</span>
 					</span>
 				</Label>
 			))}

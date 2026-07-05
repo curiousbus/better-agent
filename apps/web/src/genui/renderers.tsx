@@ -23,7 +23,9 @@ function TodoListNode(_: NodeProps) {
 function Stack({ node, renderChildren }: NodeProps) {
 	const horizontal = node.props.direction === "horizontal";
 	return (
-		<div className={horizontal ? "flex gap-3" : "flex flex-col gap-3"}>
+		<div
+			className={horizontal ? "flex flex-wrap gap-3" : "flex flex-col gap-3"}
+		>
 			{renderChildren(node.children)}
 		</div>
 	);

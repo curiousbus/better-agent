@@ -28,7 +28,7 @@ export const Response = memo(function Response({
 			className={cn(
 				"prose-sm max-w-none break-words text-sm leading-relaxed",
 				"[&_a]:text-primary [&_a]:underline [&_h1]:mt-3 [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:font-semibold",
-				"[&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1.5 [&_table]:my-2 [&_table]:w-full [&_ul]:list-disc [&_ul]:pl-5",
+				"[&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1.5 [&_table]:my-2 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5",
 				"[&_td]:border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:px-2 [&_th]:py-1",
 				className
 			)}

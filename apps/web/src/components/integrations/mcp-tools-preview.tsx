@@ -74,7 +74,7 @@ export function McpToolsPreview({
 			>
 				<WrenchIcon className="size-4" />
 			</PopoverTrigger>
-			<PopoverContent className="w-80">
+			<PopoverContent className="w-[calc(100vw-2rem)] max-w-80">
 				<PopoverTitle className="text-sm">{`${serverName} tools`}</PopoverTitle>
 				<ToolsBody serverId={serverId} />
 			</PopoverContent>

@@ -139,7 +139,10 @@ export function AgentToolsMenu({ agent }: { agent: AgentRow }) {
 			>
 				<WrenchIcon className="size-4" />
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="start" className="w-72">
+			<DropdownMenuContent
+				align="start"
+				className="w-[calc(100vw-2rem)] max-w-72"
+			>
 				<MenuBody groups={groups} isPending={isPending} state={state} />
 			</DropdownMenuContent>
 		</DropdownMenu>

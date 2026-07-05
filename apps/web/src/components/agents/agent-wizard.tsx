@@ -96,7 +96,7 @@ export function AgentWizard({
 					step={step}
 				/>
 				{/* Fixed height so the modal stays the same size across every step. */}
-				<div className="flex min-h-80 flex-col">
+				<div className="flex min-h-64 flex-col sm:min-h-80">
 					{step === IDENTITY_STEP ? (
 						<IdentityStep form={form} set={set} />
 					) : null}
