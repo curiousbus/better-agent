@@ -218,6 +218,13 @@
       "when": 1783264428249,
       "tag": "0030_stiff_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783270514623,
+      "tag": "0031_yielding_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
+import { maybePersistAgentSessionId } from "./bridge-agent-session-id";
 
 const TOKEN_PREFIX = "bt_";
 const LAST4 = 4;
@@ -170,6 +171,7 @@ export const bridgeRouter = {
 					event
 				);
 				await persistEventBestEffort(context, input.sessionId, seq, event);
+				await maybePersistAgentSessionId(context, input.sessionId, event);
 			}
 			await context.services.stores.bridgeSession.touch(input.sessionId);
 			return { ok: true };

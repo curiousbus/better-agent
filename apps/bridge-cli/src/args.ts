@@ -9,6 +9,10 @@ export interface BridgeCliArgs {
 	debug: boolean;
 	dir: string;
 	label: string | undefined;
+	/** A prior claude session id to resume (`--resume <id>`) — threaded to
+	 * `adapter.start(dir, { resume })`. Only claude-code's adapter honors it;
+	 * every other adapter ignores the option entirely. */
+	resume: string | undefined;
 	serverUrl: string;
 	token: string;
 }
@@ -17,6 +21,7 @@ const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
 	"--dir": "dir",
 	"--label": "label",
+	"--resume": "resume",
 	"--server": "serverUrl",
 	"--token": "token",
 } as const;
@@ -50,9 +55,10 @@ function isAgentKind(value: string): value is AgentKind {
 
 /**
  * Parses `better-agent-bridge`'s CLI arguments: `--agent`, `--dir`,
- * `--token`, `--server`, and the optional `--label`. Falls back to env vars
- * (`BETTER_AGENT_BRIDGE_TOKEN`, `BETTER_AGENT_BRIDGE_SERVER`) and the current
- * working directory so the token/server don't have to be typed on every run.
+ * `--token`, `--server`, and the optional `--label`/`--resume`. Falls back to
+ * env vars (`BETTER_AGENT_BRIDGE_TOKEN`, `BETTER_AGENT_BRIDGE_SERVER`) and the
+ * current working directory so the token/server don't have to be typed on
+ * every run.
  */
 export function parseArgs(
 	argv: string[],
@@ -88,6 +94,7 @@ export function parseArgs(
 		serverUrl,
 		dir: validateDir(flags.dir ?? process.cwd()),
 		label: flags.label,
+		resume: flags.resume,
 		debug: argv.includes("--debug"),
 	};
 }

@@ -92,6 +92,12 @@ describe("parseCommandText control commands", () => {
 			parseCommandText({ type: "control", action: "setPermissionMode" })
 		).toBeNull();
 	});
+
+	it("accepts a control:listSessions command", () => {
+		expect(
+			parseCommandText({ type: "control", action: "listSessions" })
+		).toEqual({ type: "control", action: "listSessions" });
+	});
 });
 
 // Cross-boundary regression: apps/web/src/components/bridge/
@@ -137,6 +143,7 @@ describe("parseCommandText web/CLI approval boundary", () => {
  * the exact same sink shape. */
 function fakeSink(): CommandSink & {
 	interrupt: Mock<() => void>;
+	listSessions: Mock<() => void>;
 	setModel: Mock<(model: string) => void>;
 	setPermissionMode: Mock<(mode: string) => void>;
 	stop: Mock<() => void>;
@@ -144,6 +151,7 @@ function fakeSink(): CommandSink & {
 	return {
 		answerApproval: vi.fn(),
 		interrupt: vi.fn(),
+		listSessions: vi.fn(),
 		send: vi.fn(),
 		setModel: vi.fn(),
 		setPermissionMode: vi.fn(),
@@ -236,5 +244,19 @@ describe("dispatchCommands control commands", () => {
 		);
 
 		expect(sink.setPermissionMode).toHaveBeenCalledExactlyOnceWith("plan");
+	});
+
+	it("calls sink.listSessions for a control:listSessions command", () => {
+		const sink = fakeSink();
+		const afterIdRef = { current: 0 };
+
+		const result = dispatchCommands(
+			[{ id: 1, data: { type: "control", action: "listSessions" } }],
+			sink,
+			afterIdRef
+		);
+
+		expect(sink.listSessions).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({ wasActive: true, stopRequested: false });
 	});
 });

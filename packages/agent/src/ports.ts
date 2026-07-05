@@ -210,6 +210,10 @@ export interface BridgeTokenStore {
 
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;
+	/** The underlying local agent's own conversation id (e.g. claude's
+	 * `session_id`) — null until its `session_ready` status event arrives, and
+	 * always null for an adapter that never reports one. */
+	agentSessionId: string | null;
 	createdAt: Date;
 	id: string;
 	label: string | null;
@@ -229,6 +233,10 @@ export interface BridgeSessionStore {
 	end(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<BridgeSessionRow | null>;
 	listByUser(userId: string): Promise<BridgeSessionRow[]>;
+	/** Records the underlying local agent's own conversation id, captured off
+	 * a `session_ready` status event (see `pushEvents` in
+	 * `packages/api/src/routers/bridge.ts`). */
+	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
 	/** Bumps lastSeenAt (bridge heartbeats while relaying output). */
 	touch(id: string): Promise<void>;
 }

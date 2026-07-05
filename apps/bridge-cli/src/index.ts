@@ -17,7 +17,7 @@ async function main(): Promise<void> {
 	process.stdout.write(
 		`Starting ${args.agentKind} in ${args.dir} → ${args.serverUrl}\n`
 	);
-	const handle = await adapter.start(args.dir);
+	const handle = await adapter.start(args.dir, { resume: args.resume });
 	const controller = new AbortController();
 
 	const stop = () => {

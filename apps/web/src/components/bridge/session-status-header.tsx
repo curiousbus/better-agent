@@ -1,11 +1,20 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { cn } from "@better-agent/ui/lib/utils";
-import { BotIcon, FolderIcon, ServerIcon, ShieldIcon } from "lucide-react";
+import {
+	BotIcon,
+	FolderIcon,
+	HashIcon,
+	ServerIcon,
+	ShieldIcon,
+} from "lucide-react";
 import type { SessionReadyDetail } from "./bridge-session-status";
 import { truncateCwd } from "./bridge-usage-format";
 
 const MCP_OK_STATUSES = new Set(["connected", "ready", "ok"]);
 const MCP_ERROR_STATUSES = new Set(["failed", "error", "needs-auth"]);
+/** Short enough to identify at a glance without dominating the header row —
+ * matches how git short-SHAs are conventionally truncated. */
+const SESSION_ID_DISPLAY_LENGTH = 8;
 
 /** Green once connected, red on a known failure state, amber for anything
  * else (pending/connecting/an unrecognized status string) — matches the
@@ -91,6 +100,15 @@ export function SessionStatusHeader({ detail }: SessionStatusHeaderProps) {
 				</span>
 			)}
 			{summary && <span>{summary}</span>}
+			{detail.sessionId && (
+				<span
+					className="flex items-center gap-1"
+					title={`claude session: ${detail.sessionId}`}
+				>
+					<HashIcon className="size-3.5 shrink-0" />
+					claude session: {detail.sessionId.slice(0, SESSION_ID_DISPLAY_LENGTH)}
+				</span>
+			)}
 			{detail.mcpServers && detail.mcpServers.length > 0 && (
 				<span className="flex flex-wrap items-center gap-1">
 					<ServerIcon className="size-3.5 shrink-0" />

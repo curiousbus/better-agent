@@ -89,6 +89,7 @@ function memoryBridgeSessionStore(): BridgeSessionStore {
 				tokenId,
 				agentKind,
 				label: label ?? null,
+				agentSessionId: null,
 				status: "active",
 				createdAt: new Date(),
 				lastSeenAt: new Date(),
@@ -115,6 +116,13 @@ function memoryBridgeSessionStore(): BridgeSessionStore {
 			const row = rows.get(id);
 			if (row && row.userId === userId) {
 				rows.set(id, { ...row, status: "ended" });
+			}
+			return Promise.resolve();
+		},
+		setAgentSessionId(id, agentSessionId) {
+			const row = rows.get(id);
+			if (row) {
+				rows.set(id, { ...row, agentSessionId });
 			}
 			return Promise.resolve();
 		},

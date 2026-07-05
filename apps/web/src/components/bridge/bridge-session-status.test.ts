@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import type { StreamEvent } from "./bridge-events";
 import {
+	latestSessionListDetail,
 	latestSessionReadyDetail,
 	latestTurnUsageDetail,
 } from "./bridge-session-status";
@@ -84,4 +85,67 @@ it("returns null (not a thrown error) for a malformed detail", () => {
 		ev(1, { kind: "status", status: "session_ready", detail: "not-an-object" }),
 	];
 	expect(latestSessionReadyDetail(events)).toBeNull();
+});
+
+it("parses the claude session id off a session_ready detail", () => {
+	const events: StreamEvent[] = [
+		ev(1, {
+			kind: "status",
+			status: "session_ready",
+			detail: { model: "claude-opus-4-6", sessionId: "claude-session-xyz" },
+		}),
+	];
+	expect(latestSessionReadyDetail(events)?.sessionId).toBe(
+		"claude-session-xyz"
+	);
+});
+
+it("returns null when no session_list event has arrived", () => {
+	expect(latestSessionListDetail([])).toBeNull();
+});
+
+it("parses the latest session_list detail's sessions", () => {
+	const events: StreamEvent[] = [
+		ev(1, {
+			kind: "status",
+			status: "session_list",
+			detail: {
+				sessions: [
+					{
+						id: "sess-1",
+						title: "Fix the login bug",
+						lastModified: 1_700_000_000_000,
+						gitBranch: "main",
+						cwd: "/repo",
+					},
+				],
+			},
+		}),
+	];
+	expect(latestSessionListDetail(events)).toEqual({
+		sessions: [
+			{
+				id: "sess-1",
+				title: "Fix the login bug",
+				lastModified: 1_700_000_000_000,
+				gitBranch: "main",
+				cwd: "/repo",
+			},
+		],
+	});
+});
+
+it("drops a session_list entry missing its id, keeping well-formed ones", () => {
+	const events: StreamEvent[] = [
+		ev(1, {
+			kind: "status",
+			status: "session_list",
+			detail: {
+				sessions: [{ title: "no id, dropped" }, { id: "sess-2", title: "ok" }],
+			},
+		}),
+	];
+	expect(latestSessionListDetail(events)).toEqual({
+		sessions: [{ id: "sess-2", title: "ok" }],
+	});
 });

@@ -59,8 +59,18 @@ export interface ControlSetPermissionModeCommand {
 	type: "control";
 }
 
+/** The Local Agent detail page's "Past conversations" button — requests the
+ * agent's local session list (e.g. claude's `listSessions({dir})`). Routed to
+ * `CommandSink.listSessions`; the adapter answers asynchronously by pushing a
+ * `session_list` status event, not a direct return value. */
+export interface ControlListSessionsCommand {
+	action: "listSessions";
+	type: "control";
+}
+
 export type ControlCommand =
 	| ControlInterruptCommand
+	| ControlListSessionsCommand
 	| ControlSetModelCommand
 	| ControlSetPermissionModeCommand
 	| ControlStopCommand;
@@ -95,6 +105,9 @@ function parseControlCommand(
 	if (data.action === "setPermissionMode" && typeof data.mode === "string") {
 		return { action: "setPermissionMode", mode: data.mode, type: "control" };
 	}
+	if (data.action === "listSessions") {
+		return { action: "listSessions", type: "control" };
+	}
 	return null;
 }
 
@@ -104,8 +117,8 @@ function parseControlCommand(
  * `{ text }` (a plain-text command), `{ type: "approval", requestId,
  * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
  * "control", action: "stop" | "interrupt" | "setModel" |
- * "setPermissionMode", ... }` (the web UI's session controls); anything else
- * is `null` and left undispatched.
+ * "setPermissionMode" | "listSessions", ... }` (the web UI's session
+ * controls); anything else is `null` and left undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -142,6 +155,10 @@ export interface CommandSink {
 	 * `control: interrupt` command — the detail page's Stop/Interrupt
 	 * button. */
 	interrupt?(): void;
+	/** Fetches and pushes the agent's past local conversations. Called for a
+	 * `control: listSessions` command — the detail page's "Past
+	 * conversations" button. */
+	listSessions?(): void;
 	send(text: string): void;
 	/** Changes the model used for subsequent turns. Called for a
 	 * `control: setModel` command. */
@@ -166,6 +183,26 @@ export interface DispatchResult {
 	wasActive: boolean;
 }
 
+// Each of these one-liners exists purely so `dispatchControlCommand`'s own
+// branching doesn't also carry the optional-chaining call itself — eslint's
+// `complexity` rule counts each `?.` same as a branch, and the two together
+// on one line push that function's count above the repo's gate.
+function callStop(sink: CommandSink): void {
+	sink.stop?.();
+}
+function callInterrupt(sink: CommandSink): void {
+	sink.interrupt?.();
+}
+function callSetModel(sink: CommandSink, model: string): void {
+	sink.setModel?.(model);
+}
+function callSetPermissionMode(sink: CommandSink, mode: string): void {
+	sink.setPermissionMode?.(mode);
+}
+function callListSessions(sink: CommandSink): void {
+	sink.listSessions?.();
+}
+
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
  * method. Split out of `dispatchCommands` purely to keep that loop's body
  * short. */
@@ -174,13 +211,15 @@ function dispatchControlCommand(
 	sink: CommandSink
 ): void {
 	if (command.action === "stop") {
-		sink.stop?.();
+		callStop(sink);
 	} else if (command.action === "interrupt") {
-		sink.interrupt?.();
+		callInterrupt(sink);
 	} else if (command.action === "setModel") {
-		sink.setModel?.(command.model);
+		callSetModel(sink, command.model);
 	} else if (command.action === "setPermissionMode") {
-		sink.setPermissionMode?.(command.mode);
+		callSetPermissionMode(sink, command.mode);
+	} else if (command.action === "listSessions") {
+		callListSessions(sink);
 	}
 }
 

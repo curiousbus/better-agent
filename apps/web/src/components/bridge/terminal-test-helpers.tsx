@@ -14,6 +14,7 @@ export const SESSION: BridgeSessionRow = {
 	userId: "user-1",
 	tokenId: "token-1",
 	agentKind: "claude-code",
+	agentSessionId: null,
 	label: "my-repo",
 	status: "active",
 	createdAt: new Date("2026-07-04T00:00:00Z"),
@@ -41,6 +42,12 @@ export function sessionReadyRaw(id: number, detail: Record<string, unknown>) {
 /** A curated `turn_usage` status event, emitted once per completed turn. */
 export function turnUsageRaw(id: number, detail: Record<string, unknown>) {
 	return { id, data: { kind: "status", status: "turn_usage", detail } };
+}
+
+/** A curated `session_list` status event — the claude adapter's reply to a
+ * `{ control: listSessions }` command (see past-conversations.tsx). */
+export function sessionListRaw(id: number, detail: Record<string, unknown>) {
+	return { id, data: { kind: "status", status: "session_list", detail } };
 }
 
 export function approvalRaw(id: number, requestId: string) {

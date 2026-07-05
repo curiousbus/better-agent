@@ -1,0 +1,90 @@
+import type { Dispatch } from "react";
+import { toast } from "sonner";
+import type { FeedAction } from "./use-bridge-feed";
+
+// Split out of use-bridge-terminal.ts purely to keep that file under the
+// repo's max-lines-per-file gate: the approval-decision callback and the
+// detail page's session-control callbacks (interrupt/setModel/
+// setPermissionMode/listSessions) both relay through the same `sendRaw`
+// primitive that hook already builds.
+
+const APPROVAL_SEND_FAILURE_MESSAGE =
+	"Couldn't send that decision — try again.";
+
+/**
+ * Builds the approval-decision callback: marks it answered in the feed
+ * store immediately (so the buttons disable and the chosen option shows
+ * before the network round trip settles — no window for a double-click to
+ * send twice), then relays the decision as the `{ type: "approval",
+ * requestId, optionId }` command object the CLI's `commands.ts` parses back
+ * out. This must go over the wire as an object, not a JSON string — the
+ * CLI's `parseCommandText` treats any string as plain chat text (the string
+ * check runs first), so a stringified approval would be typed into the
+ * agent instead of routed to `answerApproval` and the approval would stall
+ * forever. If the send rejects, the optimistic mark is rolled back —
+ * approvals gate destructive operations, so a decision that never reached
+ * the agent must not sit there looking answered — and a toast surfaces the
+ * failure so the user knows to retry. Not itself a hook — takes the
+ * dispatch/sendRaw a hook already produced.
+ */
+export function makeAnswerApproval(
+	dispatchFeed: Dispatch<FeedAction>,
+	sendRaw: (data: unknown) => Promise<void>
+) {
+	return async (requestId: string, optionId: string): Promise<void> => {
+		dispatchFeed({ type: "answer", requestId, optionId });
+		try {
+			await sendRaw({ type: "approval", requestId, optionId });
+		} catch (error) {
+			dispatchFeed({ type: "unanswer", requestId });
+			const message =
+				error instanceof Error ? error.message : APPROVAL_SEND_FAILURE_MESSAGE;
+			toast.error(message);
+		}
+	};
+}
+
+const CONTROL_SEND_FAILURE_MESSAGE = "Couldn't send that — try again.";
+
+/** One send for the detail page's session controls (interrupt/setModel/
+ * setPermissionMode/listSessions): relays `{ type: "control", action,
+ * ...extra }` over the same `sendRaw` path `makeAnswerApproval` uses — an
+ * object, never a stringified one, for the same reason approvals must go
+ * over as objects (see that function's doc). Unlike a chat send, there's no
+ * feed echo and no optimistic local state to roll back; a failure just
+ * toasts. */
+function sendControlCommand(
+	sendRaw: (data: unknown) => Promise<void>,
+	action: string,
+	extra?: Record<string, unknown>
+): Promise<void> {
+	return sendRaw({ type: "control", action, ...extra }).catch((error) => {
+		const message =
+			error instanceof Error ? error.message : CONTROL_SEND_FAILURE_MESSAGE;
+		toast.error(message);
+	});
+}
+
+export interface SessionControls {
+	interrupt: () => Promise<void>;
+	listSessions: () => Promise<void>;
+	setModel: (model: string) => Promise<void>;
+	setPermissionMode: (mode: string) => Promise<void>;
+}
+
+/** Builds the detail page's session-control callbacks (Interrupt/model
+ * picker/permission-mode dropdown/past-conversations request) atop
+ * `sendControlCommand`. Split out purely to keep `useBridgeTerminal` itself
+ * under the repo's max-lines-per-function gate. */
+export function useSessionControls(
+	sendRaw: (data: unknown) => Promise<void>
+): SessionControls {
+	return {
+		interrupt: () => sendControlCommand(sendRaw, "interrupt"),
+		setModel: (model: string) =>
+			sendControlCommand(sendRaw, "setModel", { model }),
+		setPermissionMode: (mode: string) =>
+			sendControlCommand(sendRaw, "setPermissionMode", { mode }),
+		listSessions: () => sendControlCommand(sendRaw, "listSessions"),
+	};
+}

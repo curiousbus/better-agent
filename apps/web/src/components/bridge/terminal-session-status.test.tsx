@@ -61,6 +61,30 @@ it("renders session_ready as the status header, not a chat row", async () => {
 	expect(view.queryByText("session_ready")).toBeNull();
 });
 
+it("shows the claude session id from session_ready in the status header", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "session_ready",
+				detail: { ...SESSION_READY_DETAIL, sessionId: "claude-session-xyz123" },
+			},
+		},
+	]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+
+	await waitFor(() => {
+		expect(
+			view.getByTitle("claude session: claude-session-xyz123")
+		).toBeDefined();
+	});
+});
+
 it("renders turn_usage as the usage chip, not a chat row", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([

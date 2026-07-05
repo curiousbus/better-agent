@@ -25,6 +25,7 @@ function makeSession(
 		userId: "user-1",
 		tokenId: "token-1",
 		agentKind: "claude-code",
+		agentSessionId: null,
 		label: null,
 		status: "active",
 		createdAt: NOW,

@@ -33,6 +33,13 @@ export interface AgentHandle {
 	 * missing `interrupt` as a no-op rather than an error.
 	 */
 	interrupt?(): void;
+	/**
+	 * Fetches the user's past local conversations for this agent (e.g. claude's
+	 * `listSessions({dir})`) and pushes them onto `events` as a curated
+	 * `session_list` status event. Optional — see `interrupt` for why not every
+	 * adapter implements the control methods; only claude-code currently does.
+	 */
+	listSessions?(): void;
 	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
 	send(text: string): void;
 	/**
@@ -50,7 +57,15 @@ export interface AgentHandle {
 	stop(): void;
 }
 
+/** Options that shape how `Adapter.start` begins a session. */
+export interface StartOptions {
+	/** A prior conversation id to resume, from `--resume` (see args.ts). Only
+	 * claude-code's adapter honors this; every other adapter's `start` simply
+	 * doesn't declare the parameter, so it's a no-op for them by construction. */
+	resume?: string;
+}
+
 /** Spawns and wires up one local coding agent in `dir`. */
 export interface Adapter {
-	start(dir: string): Promise<AgentHandle>;
+	start(dir: string, opts?: StartOptions): Promise<AgentHandle>;
 }

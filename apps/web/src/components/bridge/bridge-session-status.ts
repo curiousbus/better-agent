@@ -12,6 +12,10 @@ import type { StreamEvent } from "./bridge-events";
  * `latest*` finders below to pick them back out of the raw feed. */
 export const SESSION_READY_STATUS = "session_ready";
 export const TURN_USAGE_STATUS = "turn_usage";
+/** Pushed by the claude adapter in reply to a `{ control: listSessions }`
+ * command (see `apps/bridge-cli/src/adapters/claude-code.ts`'s
+ * `makeListSessions`) — the "Past conversations" picker's data. */
+export const SESSION_LIST_STATUS = "session_list";
 
 export interface McpServerStatus {
 	name: string;
@@ -23,9 +27,30 @@ export interface SessionReadyDetail {
 	mcpServers?: McpServerStatus[];
 	model?: string;
 	permissionMode?: string;
+	/** Claude's own conversation id for this session (its `session_id`),
+	 * captured off the SDK's init event — also persisted server-side onto the
+	 * bridge_sessions row (see `packages/api/src/routers/bridge.ts`'s
+	 * `maybePersistAgentSessionId`) so a later `--resume` can reopen this exact
+	 * conversation. */
+	sessionId?: string;
 	skills?: string[];
 	slashCommands?: string[];
 	tools?: string[];
+}
+
+/** One past local conversation the "Past conversations" picker renders —
+ * mirrors `SessionListItem` in
+ * `apps/bridge-cli/src/adapters/claude-code.ts`. */
+export interface SessionListItem {
+	cwd?: string;
+	gitBranch?: string;
+	id: string;
+	lastModified?: number;
+	title: string;
+}
+
+export interface SessionListDetail {
+	sessions: SessionListItem[];
 }
 
 export interface TurnUsageTokens {
@@ -87,11 +112,42 @@ function parseSessionReadyDetail(detail: unknown): SessionReadyDetail | null {
 		model: asOptionalString(detail.model),
 		cwd: asOptionalString(detail.cwd),
 		permissionMode: asOptionalString(detail.permissionMode),
+		sessionId: asOptionalString(detail.sessionId),
 		tools: asOptionalStringArray(detail.tools),
 		slashCommands: asOptionalStringArray(detail.slashCommands),
 		skills: asOptionalStringArray(detail.skills),
 		mcpServers: asOptionalMcpServers(detail.mcpServers),
 	};
+}
+
+function asOptionalSessionListItems(
+	value: unknown
+): SessionListItem[] | undefined {
+	if (!Array.isArray(value)) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const items: SessionListItem[] = [];
+	for (const item of value) {
+		if (isRecord(item) && typeof item.id === "string") {
+			items.push({
+				id: item.id,
+				title: asOptionalString(item.title) ?? item.id,
+				lastModified: asOptionalNumber(item.lastModified),
+				gitBranch: asOptionalString(item.gitBranch),
+				cwd: asOptionalString(item.cwd),
+			});
+		}
+	}
+	return items;
+}
+
+function parseSessionListDetail(detail: unknown): SessionListDetail | null {
+	if (!isRecord(detail)) {
+		return null;
+	}
+	const sessions = asOptionalSessionListItems(detail.sessions);
+	return sessions === undefined ? null : { sessions };
 }
 
 function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {
@@ -151,4 +207,14 @@ export function latestTurnUsageDetail(
 ): TurnUsageDetail | null {
 	const detail = latestStatusDetail(events, TURN_USAGE_STATUS);
 	return detail === undefined ? null : parseTurnUsageDetail(detail);
+}
+
+/** The latest `session_list` detail on the feed — `null` before a `{
+ * control: listSessions }` request has gotten a reply (or the reply was
+ * malformed). */
+export function latestSessionListDetail(
+	events: StreamEvent[]
+): SessionListDetail | null {
+	const detail = latestStatusDetail(events, SESSION_LIST_STATUS);
+	return detail === undefined ? null : parseSessionListDetail(detail);
 }

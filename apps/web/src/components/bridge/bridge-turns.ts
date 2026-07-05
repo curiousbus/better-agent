@@ -14,18 +14,21 @@ import type {
 	ToolEvent,
 } from "./bridge-events";
 import {
+	SESSION_LIST_STATUS,
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
 } from "./bridge-session-status";
 
-/** These two curated status events carry session METADATA (capabilities,
- * cost/tokens) surfaced by dedicated header/chip UI — see
- * session-status-header.tsx and turn-usage-chip.tsx — never as an inline
- * chat row. They still act as a turn boundary (closing any open assistant
- * accumulation) but are dropped from the rendered turn list. */
+/** These curated status events carry session METADATA (capabilities,
+ * cost/tokens, the past-conversations list) surfaced by dedicated header/chip
+ * UI — see session-status-header.tsx, turn-usage-chip.tsx, and
+ * past-conversations.tsx — never as an inline chat row. They still act as a
+ * turn boundary (closing any open assistant accumulation) but are dropped
+ * from the rendered turn list. */
 const HIDDEN_STATUS_KINDS = new Set<string>([
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
+	SESSION_LIST_STATUS,
 ]);
 
 /**

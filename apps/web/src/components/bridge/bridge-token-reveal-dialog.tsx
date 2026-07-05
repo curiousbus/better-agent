@@ -9,11 +9,34 @@ import {
 	DialogTitle,
 } from "@better-agent/ui/components/dialog";
 
+/** The raw token is only shown once at creation and never stored server-side
+ * again, so any command built outside that one reveal moment (the
+ * waiting-for-CLI state, the past-conversations resume hint) is necessarily a
+ * copy-paste template, not a live secret — this placeholder makes that
+ * explicit rather than silently omitting `--token`. */
+export const PLACEHOLDER_TOKEN = "<your-bridge-token>";
+
 /** The ready-to-run CLI command for a freshly-minted bridge token. Exported
  * so the "Add local agent" flow (add-local-agent-dialog.tsx) can render the
  * exact same command without duplicating the format. */
 export function bridgeCliCommand(token: string): string {
 	return `better-agent-bridge --agent claude-code --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
+}
+
+/** The ready-to-run CLI command to resume a specific past claude conversation
+ * (the "Past conversations" picker's copy-able hint — see
+ * past-conversations.tsx). `dir` is the conversation's own recorded cwd when
+ * known (from `SessionListItem.cwd`), falling back to `.` exactly like
+ * `bridgeCliCommand`'s default — the same "run this from your project
+ * directory" assumption. Full one-click resume (actually launching the CLI
+ * for the user) is deferred; this only gets them the exact command to paste
+ * into a terminal themselves. */
+export function bridgeResumeCliCommand(
+	token: string,
+	dir: string | undefined,
+	resumeId: string
+): string {
+	return `better-agent-bridge --agent claude-code --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
 }
 
 /**

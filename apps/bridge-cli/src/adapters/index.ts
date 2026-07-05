@@ -4,7 +4,7 @@ import { opencodeAdapter } from "./opencode";
 import { piAdapter } from "./pi";
 import type { Adapter, AgentKind } from "./types";
 
-export type { Adapter, AgentHandle, AgentKind } from "./types";
+export type { Adapter, AgentHandle, AgentKind, StartOptions } from "./types";
 
 /** Picks the adapter for the agent kind selected on the CLI (`--agent`). */
 export function selectAdapter(agentKind: AgentKind): Adapter {

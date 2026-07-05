@@ -11,9 +11,13 @@ import { useMemo } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { BridgeChatRow } from "./bridge-chat-row";
-import type { SessionReadyDetail } from "./bridge-session-status";
+import type {
+	SessionListDetail,
+	SessionReadyDetail,
+} from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
+import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
 import { TerminalComposer } from "./terminal-composer";
 import { TerminalControls } from "./terminal-controls";
@@ -91,6 +95,8 @@ interface TerminalHeaderProps {
 	canSend: boolean;
 	interrupt: () => void;
 	label: string;
+	listSessions: () => void;
+	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
 	setModel: (model: string) => void;
 	setPermissionMode: (mode: string) => void;
@@ -98,13 +104,15 @@ interface TerminalHeaderProps {
 }
 
 /** The session title/connection-status row, the capability summary, and the
- * claude session controls (Interrupt/model/permission mode) — split out of
- * `Terminal` purely to keep that component under the repo's
- * max-lines-per-function gate. */
+ * claude session controls (Interrupt/model/permission mode/past
+ * conversations) — split out of `Terminal` purely to keep that component
+ * under the repo's max-lines-per-function gate. */
 function TerminalHeader({
 	canSend,
 	interrupt,
 	label,
+	listSessions,
+	sessionList,
 	sessionReady,
 	setModel,
 	setPermissionMode,
@@ -118,17 +126,48 @@ function TerminalHeader({
 			</div>
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<SessionStatusHeader detail={sessionReady} />
-				<TerminalControls
-					disabled={!canSend}
-					model={sessionReady?.model}
-					onInterrupt={interrupt}
-					onSetModel={setModel}
-					onSetPermissionMode={setPermissionMode}
-					permissionMode={sessionReady?.permissionMode}
-				/>
+				<div className="flex flex-wrap items-center gap-1.5">
+					<PastConversations
+						disabled={!canSend}
+						onRequestList={listSessions}
+						sessionList={sessionList}
+					/>
+					<TerminalControls
+						disabled={!canSend}
+						model={sessionReady?.model}
+						onInterrupt={interrupt}
+						onSetModel={setModel}
+						onSetPermissionMode={setPermissionMode}
+						permissionMode={sessionReady?.permissionMode}
+					/>
+				</div>
 			</div>
 		</div>
 	);
+}
+
+/** Wires `useBridgeTerminal` to this session plus the derived turns/avatars —
+ * split out purely to keep `Terminal` itself under the repo's
+ * max-lines-per-function gate. */
+function useTerminalView(
+	session: BridgeSessionRow,
+	transport: BridgeTransport,
+	userAvatarUrl: string | undefined
+) {
+	const bridge = useBridgeTerminal(
+		session.id,
+		transport,
+		session.status === "ended"
+	);
+	const turns = useMemo(
+		() => foldEventsToTurns(bridge.events),
+		[bridge.events]
+	);
+	const avatars: ChatAvatars = {
+		assistant: agentAvatar(session.tokenId),
+		user: userAvatarUrl,
+	};
+	return { ...bridge, turns, avatars };
 }
 
 /**
@@ -140,7 +179,6 @@ function TerminalHeader({
  */
 export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 	const {
-		events,
 		status,
 		canSend,
 		sending,
@@ -148,16 +186,15 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 		answered,
 		answerApproval,
 		sessionReady,
+		sessionList,
 		turnUsage,
 		interrupt,
 		setModel,
 		setPermissionMode,
-	} = useBridgeTerminal(session.id, transport, session.status === "ended");
-	const turns = useMemo(() => foldEventsToTurns(events), [events]);
-	const avatars: ChatAvatars = {
-		assistant: agentAvatar(session.tokenId),
-		user: userAvatarUrl,
-	};
+		listSessions,
+		turns,
+		avatars,
+	} = useTerminalView(session, transport, userAvatarUrl);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">
@@ -165,6 +202,8 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 				canSend={canSend}
 				interrupt={interrupt}
 				label={session.label ?? session.agentKind}
+				listSessions={listSessions}
+				sessionList={sessionList}
 				sessionReady={sessionReady}
 				setModel={setModel}
 				setPermissionMode={setPermissionMode}

@@ -19,7 +19,15 @@ const BASE = [
 describe("parseArgs - accepted input", () => {
 	it("parses all flags", () => {
 		const args = parseArgs(
-			[...BASE, "--dir", "/tmp", "--label", "my repo"],
+			[
+				...BASE,
+				"--dir",
+				"/tmp",
+				"--label",
+				"my repo",
+				"--resume",
+				"claude-session-abc",
+			],
 			{}
 		);
 		expect(args).toEqual({
@@ -28,8 +36,14 @@ describe("parseArgs - accepted input", () => {
 			serverUrl: "https://bridge.example.com",
 			dir: "/tmp",
 			label: "my repo",
+			resume: "claude-session-abc",
 			debug: false,
 		});
+	});
+
+	it("defaults resume to undefined when --resume is omitted", () => {
+		const args = parseArgs(BASE, {});
+		expect(args.resume).toBeUndefined();
 	});
 
 	it("sets debug when --debug is passed", () => {
@@ -50,7 +64,11 @@ describe("parseArgs - accepted input", () => {
 		);
 		expect(args.agentKind).toBe("pi");
 	});
+});
 
+// Split from "parseArgs - accepted input" purely to keep each describe's
+// callback under the repo's max-lines-per-function gate.
+describe("parseArgs - env var fallback", () => {
 	it("falls back to env vars for token and server", () => {
 		const args = parseArgs(["--agent", "opencode"], {
 			BETTER_AGENT_BRIDGE_TOKEN: "bt_env",

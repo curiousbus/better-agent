@@ -1,0 +1,1 @@
+ALTER TABLE "bridge_sessions" ADD COLUMN "agent_session_id" text;

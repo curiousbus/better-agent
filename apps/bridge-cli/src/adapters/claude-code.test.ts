@@ -1,5 +1,6 @@
 import {
 	type CanUseTool,
+	listSessions,
 	query,
 	type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -8,7 +9,10 @@ import type { NormalizedEvent } from "../normalize/types";
 import { createAsyncQueue } from "./async-queue";
 import { claudeCodeAdapter } from "./claude-code";
 
-vi.mock("@anthropic-ai/claude-agent-sdk", () => ({ query: vi.fn() }));
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+	query: vi.fn(),
+	listSessions: vi.fn(),
+}));
 
 interface QueryHarness {
 	canUseTool: CanUseTool;
@@ -200,4 +204,90 @@ it("setPermissionMode() ignores an unrecognized mode instead of forwarding it", 
 
 	handle.setPermissionMode?.("not-a-real-mode");
 	expect(harness.setPermissionMode).not.toHaveBeenCalled();
+});
+
+it("start(dir, { resume }) passes the resume id through to query()'s options", async () => {
+	mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", { resume: "claude-session-1" });
+
+	expect(vi.mocked(query)).toHaveBeenLastCalledWith(
+		expect.objectContaining({
+			options: expect.objectContaining({ resume: "claude-session-1" }),
+		})
+	);
+});
+
+it("start(dir) without resume leaves options.resume undefined", async () => {
+	mockQuery();
+	await claudeCodeAdapter.start("/tmp/project");
+
+	expect(vi.mocked(query)).toHaveBeenLastCalledWith(
+		expect.objectContaining({
+			options: expect.objectContaining({ resume: undefined }),
+		})
+	);
+});
+
+it("listSessions() pushes a session_list status event with the fetched sessions", async () => {
+	mockQuery();
+	vi.mocked(listSessions).mockResolvedValue([
+		{
+			sessionId: "sess-1",
+			summary: "Fix the login bug",
+			lastModified: 1_700_000_000_000,
+			gitBranch: "main",
+			cwd: "/tmp/project",
+		},
+		{
+			sessionId: "sess-2",
+			summary: "first prompt fallback",
+			customTitle: "My renamed session",
+			lastModified: 1_700_000_001_000,
+		},
+	]);
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	handle.listSessions?.();
+
+	expect(await nextEvent(iterator)).toEqual({
+		kind: "status",
+		status: "session_list",
+		detail: {
+			sessions: [
+				{
+					id: "sess-1",
+					title: "Fix the login bug",
+					lastModified: 1_700_000_000_000,
+					gitBranch: "main",
+					cwd: "/tmp/project",
+				},
+				{
+					id: "sess-2",
+					title: "My renamed session",
+					lastModified: 1_700_000_001_000,
+					gitBranch: undefined,
+					cwd: undefined,
+				},
+			],
+		},
+	});
+	expect(vi.mocked(listSessions)).toHaveBeenLastCalledWith({
+		dir: "/tmp/project",
+	});
+});
+
+it("listSessions() pushes an error event when the SDK call rejects", async () => {
+	mockQuery();
+	vi.mocked(listSessions).mockRejectedValue(new Error("no claude dir"));
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	handle.listSessions?.();
+
+	expect(await nextEvent(iterator)).toEqual({
+		kind: "error",
+		message: "Failed to list past claude sessions",
+		detail: "no claude dir",
+	});
 });

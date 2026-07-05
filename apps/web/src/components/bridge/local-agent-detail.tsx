@@ -7,7 +7,10 @@ import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
-import { bridgeCliCommand } from "./bridge-token-reveal-dialog";
+import {
+	bridgeCliCommand,
+	PLACEHOLDER_TOKEN,
+} from "./bridge-token-reveal-dialog";
 import { createBridgeTransport } from "./bridge-transport";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import {
@@ -20,10 +23,6 @@ import { withSessionPolling } from "./local-agent-poll";
 import { deriveLocalAgentStatus } from "./local-agent-status";
 import { LocalAgentStatusChip } from "./local-agent-status-chip";
 import { Terminal } from "./terminal";
-
-// The raw token is only shown once at creation and never stored, so the
-// waiting-state command is a copy-paste template, not a live secret.
-const PLACEHOLDER_TOKEN = "<your-bridge-token>";
 
 function useEndSession() {
 	const queryClient = useQueryClient();

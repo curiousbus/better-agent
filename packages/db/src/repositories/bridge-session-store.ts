@@ -19,12 +19,45 @@ function toRow(
 		tokenId: row.tokenId,
 		agentKind: row.agentKind,
 		label: row.label ?? null,
+		agentSessionId: row.agentSessionId ?? null,
 		status: row.status,
 		createdAt: row.createdAt,
 		lastSeenAt: row.lastSeenAt,
 	};
 }
 
+async function touchSession(db: Db, id: string): Promise<void> {
+	await db
+		.update(schema.bridgeSessions)
+		.set({ lastSeenAt: new Date() })
+		.where(eq(schema.bridgeSessions.id, id));
+}
+
+async function setSessionAgentSessionId(
+	db: Db,
+	id: string,
+	agentSessionId: string
+): Promise<void> {
+	await db
+		.update(schema.bridgeSessions)
+		.set({ agentSessionId })
+		.where(eq(schema.bridgeSessions.id, id));
+}
+
+async function endSession(db: Db, id: string, userId: string): Promise<void> {
+	await db
+		.update(schema.bridgeSessions)
+		.set({ status: "ended" })
+		.where(
+			and(
+				eq(schema.bridgeSessions.id, id),
+				eq(schema.bridgeSessions.userId, userId)
+			)
+		);
+}
+
+// Split touch/setAgentSessionId/end out into standalone functions above
+// purely to keep this factory under the repo's max-lines-per-function gate.
 export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 	return {
 		async create({ userId, tokenId, agentKind, label }) {
@@ -54,22 +87,9 @@ export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 				.where(eq(schema.bridgeSessions.userId, userId));
 			return rows.map(toRow);
 		},
-		async touch(id) {
-			await db
-				.update(schema.bridgeSessions)
-				.set({ lastSeenAt: new Date() })
-				.where(eq(schema.bridgeSessions.id, id));
-		},
-		async end(id, userId) {
-			await db
-				.update(schema.bridgeSessions)
-				.set({ status: "ended" })
-				.where(
-					and(
-						eq(schema.bridgeSessions.id, id),
-						eq(schema.bridgeSessions.userId, userId)
-					)
-				);
-		},
+		touch: (id) => touchSession(db, id),
+		setAgentSessionId: (id, agentSessionId) =>
+			setSessionAgentSessionId(db, id, agentSessionId),
+		end: (id, userId) => endSession(db, id, userId),
 	};
 }

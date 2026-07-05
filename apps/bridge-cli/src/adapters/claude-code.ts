@@ -3,12 +3,14 @@ import {
 	type PermissionMode,
 	type PermissionResult,
 	query,
+	type SDKSessionInfo,
 	type SDKUserMessage,
+	listSessions as sdkListSessions,
 } from "@anthropic-ai/claude-agent-sdk";
 import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
-import type { Adapter, AgentHandle } from "./types";
+import type { Adapter, AgentHandle, StartOptions } from "./types";
 
 // Drives the LOCAL claude via the official Claude Agent SDK rather than
 // hand-spawning `claude -p` and reverse-engineering its stream-json stdin
@@ -105,9 +107,61 @@ async function drainSession(
 	events.close();
 }
 
+/** One entry the "Past conversations" picker renders — see
+ * `session_ready`'s sibling status event, `session_list`, pushed by
+ * `makeListSessions` below. */
+interface SessionListItem {
+	cwd?: string;
+	gitBranch?: string;
+	id: string;
+	lastModified: number;
+	title: string;
+}
+
+/** `title` prefers the user's own `/rename`d title, falling back to the
+ * SDK's already-curated `summary` (itself custom title, AI summary, or first
+ * prompt — see `SDKSessionInfo.summary`'s doc). `cwd` lets the web build an
+ * accurate `--dir` for the resume hint even if this conversation started in a
+ * different directory than the one the CLI is running in right now. */
+function toSessionListItem(info: SDKSessionInfo): SessionListItem {
+	return {
+		id: info.sessionId,
+		title: info.customTitle ?? info.summary,
+		lastModified: info.lastModified,
+		gitBranch: info.gitBranch,
+		cwd: info.cwd,
+	};
+}
+
+/** Builds the `AgentHandle.listSessions` implementation: fetches this
+ * project directory's past claude conversations and pushes them as a
+ * `session_list` status event — fire-and-forget (the SDK call is async, but
+ * the handle's method itself isn't), matching `setModel`/`setPermissionMode`'s
+ * shape. A lookup failure becomes an error event rather than an unhandled
+ * rejection. */
+function makeListSessions(dir: string, events: EventSink): () => void {
+	return () => {
+		sdkListSessions({ dir })
+			.then((sessions) => {
+				events.push({
+					kind: "status",
+					status: "session_list",
+					detail: { sessions: sessions.map(toSessionListItem) },
+				});
+			})
+			.catch((error: unknown) => {
+				events.push({
+					kind: "error",
+					message: "Failed to list past claude sessions",
+					detail: error instanceof Error ? error.message : String(error),
+				});
+			});
+	};
+}
+
 export const claudeCodeAdapter: Adapter = {
 	// biome-ignore lint/suspicious/useAwait: the Adapter interface returns a Promise; the SDK query starts lazily.
-	async start(dir: string): Promise<AgentHandle> {
+	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const events = createAsyncQueue<NormalizedEvent>();
 		const input = createAsyncQueue<SDKUserMessage>();
 		// requestId → resolver that completes the pending canUseTool promise.
@@ -117,6 +171,9 @@ export const claudeCodeAdapter: Adapter = {
 			prompt: input,
 			options: {
 				cwd: dir,
+				// A prior claude session id to continue (from `--resume`, see
+				// args.ts) — undefined starts a fresh conversation as before.
+				resume: opts?.resume,
 				canUseTool: makeCanUseTool(events, approvals),
 				// Extended thinking's reasoning text only streams as `thinking_delta`
 				// frames under includePartialMessages — which also streams the
@@ -141,6 +198,7 @@ export const claudeCodeAdapter: Adapter = {
 			interrupt(): void {
 				session.interrupt().catch(() => undefined);
 			},
+			listSessions: makeListSessions(dir, events),
 			send(text: string): void {
 				input.push(userTurn(text));
 			},

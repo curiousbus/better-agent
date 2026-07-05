@@ -48,6 +48,13 @@ export const bridgeSessions = pgTable(
 			.references(() => bridgeTokens.id),
 		agentKind: text("agent_kind").$type<BridgeAgentKind>().notNull(),
 		label: text("label"),
+		// The underlying local agent's own conversation id (e.g. claude's
+		// `session_id`, captured off its `session_ready` status event) — lets the
+		// web show "claude session: <id>" and lets a later CLI run `--resume`
+		// this exact conversation. Nullable: unset until the adapter's first
+		// `session_ready` event arrives, and never set at all for adapters that
+		// don't report one.
+		agentSessionId: text("agent_session_id"),
 		status: text("status")
 			.$type<BridgeSessionStatus>()
 			.notNull()

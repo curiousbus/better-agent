@@ -131,3 +131,20 @@ it("end sets status to ended and only for the owner", async () => {
 	await store.end(created.id, alice);
 	expect((await store.get(created.id))?.status).toBe("ended");
 });
+
+it("create defaults agentSessionId to null; setAgentSessionId records it", async () => {
+	const store = createBridgeSessionStore(db);
+	const userId = await seedUser("alice@x.com");
+	const tokenId = await seedToken(userId);
+	const created = await store.create({
+		userId,
+		tokenId,
+		agentKind: "claude-code",
+	});
+	expect(created.agentSessionId).toBeNull();
+
+	await store.setAgentSessionId(created.id, "claude-session-abc");
+
+	const after = await store.get(created.id);
+	expect(after?.agentSessionId).toBe("claude-session-abc");
+});
