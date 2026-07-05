@@ -153,6 +153,28 @@ it("listSessions and endSession are scoped to the caller", async () => {
 	expect(session?.status).toBe("ended");
 });
 
+it("endSession still ends the session when the relay append fails", async () => {
+	const { userClientFor, bridgeClientFor, services, bridgeSession } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	// Simulate a transient Redis failure on the relay's append call. The DB
+	// status flip must remain authoritative: endSession should still resolve
+	// ok and the session should still read as ended.
+	services.relayStore.append = () =>
+		Promise.reject(new Error("relay unavailable"));
+
+	const alice = userClientFor(ALICE);
+	await expect(alice.bridge.endSession({ sessionId })).resolves.toEqual({
+		ok: true,
+	});
+
+	const row = await bridgeSession.get(sessionId);
+	expect(row?.status).toBe("ended");
+});
+
 it("endSession appends a control:stop command the CLI's poll would see", async () => {
 	const { userClientFor, bridgeClientFor } = build();
 	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });

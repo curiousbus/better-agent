@@ -201,11 +201,22 @@ export const bridgeRouter = {
 				input.sessionId,
 				context.authedUser.id
 			);
-			await context.services.relayStore.append(
-				input.sessionId,
-				"commands",
-				STOP_CONTROL_COMMAND
-			);
+			try {
+				// Best-effort: the DB flip above is authoritative for "ended", so a
+				// transient relay failure here must not fail the call — otherwise the
+				// UI would see an error, keep showing the End button as if nothing
+				// happened, yet the DB already reads "ended" and a retry can never
+				// re-send the stop, leaving the local agent running forever. The CLI
+				// will still notice the session ended via its own polling/error
+				// handling even without this control command.
+				await context.services.relayStore.append(
+					input.sessionId,
+					"commands",
+					STOP_CONTROL_COMMAND
+				);
+			} catch {
+				// swallow — see comment above.
+			}
 			return { ok: true };
 		}),
 };
