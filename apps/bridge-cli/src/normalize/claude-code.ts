@@ -130,13 +130,16 @@ function normalizeClaudeStreamEvent(
 }
 
 /**
- * True for claude's `{type:"system", subtype:"init"}` readiness line. The
- * stream-json input mode is a handshake: claude emits this once it can accept
- * user frames, and SILENTLY DROPS any frame written before it — so the adapter
- * buffers sends until this line arrives.
+ * Reads the `session_id` off claude's `{type:"system", subtype:"init"}` line, or
+ * null for any other line. The adapter captures this from a turn's process so it
+ * can `--resume <id>` the NEXT one-shot `claude -p` invocation, preserving the
+ * conversation across turns without a long-lived process.
  */
-export function isClaudeInitLine(raw: unknown): boolean {
-	return isRecord(raw) && raw.type === "system" && raw.subtype === "init";
+export function extractClaudeSessionId(raw: unknown): string | null {
+	if (!(isRecord(raw) && raw.type === "system" && raw.subtype === "init")) {
+		return null;
+	}
+	return asString(raw.session_id) ?? null;
 }
 
 /** Maps one parsed line of `claude`'s stream-json stdout to normalized events. */
@@ -158,20 +161,6 @@ export function normalizeClaudeCode(raw: unknown): NormalizedEvent[] {
 		default:
 			return NO_EVENTS;
 	}
-}
-
-/**
- * Builds one `claude --input-format stream-json` stdin frame for a follow-up
- * user turn. The exact frame shape isn't published for this direction (see
- * https://github.com/anthropics/claude-code/issues/24594) — this mirrors the
- * documented output shape for a plain-text user message and should be
- * reverified against the installed `claude` binary before relying on it.
- */
-export function buildClaudeInputFrame(text: string): string {
-	return JSON.stringify({
-		type: "user",
-		message: { role: "user", content: [{ type: "text", text }] },
-	});
 }
 
 // --- Approval requests ------------------------------------------------------

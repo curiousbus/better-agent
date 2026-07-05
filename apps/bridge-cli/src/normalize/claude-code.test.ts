@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClaudeInputFrame, normalizeClaudeCode } from "./claude-code";
+import { normalizeClaudeCode } from "./claude-code";
 
 describe("normalizeClaudeCode - system envelope", () => {
 	it("maps a system/init line to a status event", () => {
@@ -159,18 +159,5 @@ describe("normalizeClaudeCode - user tool_result block", () => {
 			},
 		});
 		expect(events[0]).toMatchObject({ status: "failed" });
-	});
-});
-
-describe("buildClaudeInputFrame", () => {
-	it("builds a stdin input frame for a follow-up user turn", () => {
-		const frame = buildClaudeInputFrame("continue please");
-		expect(JSON.parse(frame)).toEqual({
-			type: "user",
-			message: {
-				role: "user",
-				content: [{ type: "text", text: "continue please" }],
-			},
-		});
 	});
 });

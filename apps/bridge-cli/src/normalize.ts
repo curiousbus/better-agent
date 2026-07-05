@@ -4,10 +4,7 @@
 // lives in ./normalize/* so each agent's protocol quirks stay isolated and
 // every file stays well under the line-count limit.
 // biome-ignore lint/performance/noBarrelFile: intentional single entry point per the task brief's required module layout
-export {
-	buildClaudeInputFrame,
-	normalizeClaudeCode,
-} from "./normalize/claude-code";
+export { normalizeClaudeCode } from "./normalize/claude-code";
 export { normalizeCodex } from "./normalize/codex";
 export { normalizeOpencode } from "./normalize/opencode";
 export type {

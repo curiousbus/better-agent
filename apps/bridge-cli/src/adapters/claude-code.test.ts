@@ -1,13 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
+import type { NormalizedEvent } from "../normalize/types";
 import { createAsyncQueue } from "./async-queue";
 import { claudeCodeAdapter } from "./claude-code";
-import type { ProcessExitInfo, ProcessIo } from "./process-io";
+import type { ProcessIo } from "./process-io";
 import { spawnProcessIo } from "./process-io";
 
 vi.mock("./process-io", () => ({ spawnProcessIo: vi.fn() }));
 
-/** An async iterable that never yields — stands in for stdout/stderr on a
- * process that's still running. */
 const neverEndingLines: AsyncIterable<string> = {
 	[Symbol.asyncIterator]() {
 		return {
@@ -16,160 +15,170 @@ const neverEndingLines: AsyncIterable<string> = {
 	},
 };
 
-/** A fake `ProcessIo` whose exit can be triggered, and whose stdout lines can
- * be fed, on demand by the test, standing in for the real child process
- * claude-code.ts spawns. */
-function createFakeProcessIo(): {
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+interface FakeProc {
+	args: string[];
+	/** Close stdout — the one-shot turn ends (claude exited). */
+	end(): void;
 	io: ProcessIo;
 	pushLine(line: string): void;
-	triggerExit(info: ProcessExitInfo): void;
-} {
-	const exitHandlers: Array<(info: ProcessExitInfo) => void> = [];
-	const lines = createAsyncQueue<string>();
-	return {
-		io: {
-			child: {} as ProcessIo["child"],
-			lines,
-			onExit: (handler) => exitHandlers.push(handler),
-			stderrLines: neverEndingLines,
-			stop: vi.fn(),
-			writeLine: vi.fn(),
-		},
-		pushLine(line: string): void {
-			lines.push(line);
-		},
-		triggerExit(info: ProcessExitInfo): void {
-			for (const handler of exitHandlers) {
-				handler(info);
-			}
-		},
-	};
+	writeLine: ReturnType<typeof vi.fn>;
 }
 
-describe("claudeCodeAdapter", () => {
-	it("pushes an agent_exited status, then closes `events`, once the process exits on its own", async () => {
-		const { io, triggerExit } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-
-		const handle = await claudeCodeAdapter.start("/tmp/project");
-		const iterator = handle.events[Symbol.asyncIterator]();
-
-		// Nothing has happened yet: the agent is still "running". Held onto
-		// (rather than discarded) since the queue resolves this same call once
-		// the process exits below — a fresh `iterator.next()` call afterwards
-		// would instead see whatever's pushed *after* this one is resolved.
-		const next = iterator.next();
-		const pending = Promise.race([
-			next.then(() => "settled"),
-			Promise.resolve().then(() => "still-pending"),
-		]);
-		expect(await pending).toBe("still-pending");
-
-		// The process crashes (or simply exits) without anyone calling stop().
-		triggerExit({ code: 1, signal: null });
-
-		const { value: statusEvent } = await next;
-		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
-
-		const result = await iterator.next();
-		expect(result.done).toBe(true);
-	});
-});
-
-describe("claudeCodeAdapter - approvals - can_use_tool", () => {
-	it("surfaces a can_use_tool control_request and replies via answerApproval", async () => {
-		const { io, pushLine } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-
-		const handle = await claudeCodeAdapter.start("/tmp/project");
-		const iterator = handle.events[Symbol.asyncIterator]();
-
-		pushLine(
-			JSON.stringify({
-				type: "control_request",
-				request_id: "req_1",
-				request: {
-					subtype: "can_use_tool",
-					tool_name: "Bash",
-					input: { command: "ls" },
-				},
-			})
-		);
-
-		const { value: event } = await iterator.next();
-		expect(event).toEqual({
-			detail: JSON.stringify({ command: "ls" }),
-			kind: "approval",
-			options: [
-				{ id: "allow", label: "Allow" },
-				{ id: "deny", label: "Deny" },
-			],
-			requestId: "req_1",
-			title: "Use Bash?",
+/** Makes `spawnProcessIo` hand back a fresh fake process per call (claude-code
+ * now spawns one `claude -p` per turn), and records each so a test can drive it. */
+function mockSpawns(): { spawned: FakeProc[] } {
+	const spawned: FakeProc[] = [];
+	vi.mocked(spawnProcessIo).mockImplementation((_cmd, args) => {
+		const lines = createAsyncQueue<string>();
+		const writeLine = vi.fn();
+		const io: ProcessIo = {
+			child: {} as ProcessIo["child"],
+			lines,
+			onExit: () => undefined,
+			stderrLines: neverEndingLines,
+			stop: vi.fn(() => lines.close()),
+			writeLine,
+		};
+		spawned.push({
+			args: args as string[],
+			io,
+			pushLine: (line: string) => lines.push(line),
+			end: () => lines.close(),
+			writeLine,
 		});
+		return Promise.resolve(io);
+	});
+	return { spawned };
+}
 
-		handle.answerApproval("req_1", "allow");
-		expect(io.writeLine).toHaveBeenCalledExactlyOnceWith(
-			JSON.stringify({
-				type: "control_response",
-				request_id: "req_1",
-				response: { subtype: "success", response: { behavior: "allow" } },
-			})
-		);
+async function nextEvent(
+	iterator: AsyncIterator<NormalizedEvent>
+): Promise<NormalizedEvent | undefined> {
+	const { value, done } = await iterator.next();
+	return done ? undefined : value;
+}
+
+it("spawns `claude -p <prompt>` on send and streams the reply", async () => {
+	const { spawned } = mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	handle.send("say hi");
+	await flush();
+	expect(spawned).toHaveLength(1);
+	expect(spawned[0]?.args).toEqual([
+		"-p",
+		"say hi",
+		"--output-format",
+		"stream-json",
+		"--verbose",
+		"--permission-prompt-tool",
+		"stdio",
+	]);
+
+	spawned[0]?.pushLine(
+		JSON.stringify({
+			type: "assistant",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "hey" }],
+			},
+		})
+	);
+	expect(await nextEvent(iterator)).toEqual({
+		kind: "message",
+		role: "assistant",
+		text: "hey",
 	});
 });
 
-describe("claudeCodeAdapter - approvals - unknown requestId", () => {
-	it("emits a status warning instead of replying for an unknown requestId", async () => {
-		const { io } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-		const handle = await claudeCodeAdapter.start("/tmp/project");
+it("resumes the session on the next turn with --resume <session_id>", async () => {
+	const { spawned } = mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
 
-		handle.answerApproval("does-not-exist", "allow");
+	handle.send("first");
+	await flush();
+	spawned[0]?.pushLine(
+		JSON.stringify({ type: "system", subtype: "init", session_id: "sess-1" })
+	);
+	await flush();
+	spawned[0]?.end();
+	await flush();
 
-		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
-		expect(event).toEqual({
-			detail: { requestId: "does-not-exist" },
-			kind: "status",
-			status: "approval_unknown",
-		});
-		expect(io.writeLine).not.toHaveBeenCalled();
-	});
+	handle.send("second");
+	await flush();
+	expect(spawned).toHaveLength(2);
+	expect(spawned[1]?.args).toContain("--resume");
+	expect(spawned[1]?.args).toContain("sess-1");
 });
 
-describe("claudeCodeAdapter - stdin init gate", () => {
-	it("buffers a send until system:init, then flushes the frame", async () => {
-		const { io, pushLine } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-		const handle = await claudeCodeAdapter.start("/tmp/project");
+it("runs turns one at a time (a mid-turn command waits)", async () => {
+	const { spawned } = mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
 
-		// A command arrives before claude is ready — claude would silently drop
-		// a frame written now, so nothing must reach stdin yet.
-		handle.send("hello agent");
-		expect(io.writeLine).not.toHaveBeenCalled();
+	handle.send("one");
+	handle.send("two");
+	await flush();
+	// Only the first turn has spawned; the second is queued.
+	expect(spawned).toHaveLength(1);
 
-		// claude signals readiness; the buffered frame flushes to stdin.
-		pushLine(JSON.stringify({ subtype: "init", type: "system" }));
-		await new Promise((resolve) => setTimeout(resolve, 0));
+	spawned[0]?.end();
+	await flush();
+	expect(spawned).toHaveLength(2);
+	expect(spawned[1]?.args).toContain("two");
+});
 
-		expect(io.writeLine).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(io.writeLine).mock.calls[0]?.[0]).toContain(
-			'"text":"hello agent"'
-		);
-	});
+it("surfaces a can_use_tool control request and replies over the turn's stdin", async () => {
+	const { spawned } = mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
 
-	it("writes a send immediately once init has already passed", async () => {
-		const { io, pushLine } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-		const handle = await claudeCodeAdapter.start("/tmp/project");
+	handle.send("run a tool");
+	await flush();
+	spawned[0]?.pushLine(
+		JSON.stringify({
+			type: "control_request",
+			request_id: "req_1",
+			request: {
+				subtype: "can_use_tool",
+				tool_name: "Bash",
+				input: { command: "ls" },
+			},
+		})
+	);
+	const event = await nextEvent(iterator);
+	expect(event).toMatchObject({ kind: "approval", requestId: "req_1" });
 
-		pushLine(JSON.stringify({ subtype: "init", type: "system" }));
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		handle.send("second turn");
+	handle.answerApproval("req_1", "allow");
+	expect(spawned[0]?.writeLine).toHaveBeenCalledExactlyOnceWith(
+		JSON.stringify({
+			type: "control_response",
+			request_id: "req_1",
+			response: { subtype: "success", response: { behavior: "allow" } },
+		})
+	);
+});
 
-		expect(io.writeLine).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(io.writeLine).mock.calls[0]?.[0]).toContain(
-			'"text":"second turn"'
-		);
+it("stop() closes the events stream", async () => {
+	mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	handle.stop();
+	expect((await iterator.next()).done).toBe(true);
+});
+
+it("emits a status warning instead of replying for an unknown requestId", async () => {
+	mockSpawns();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	handle.answerApproval("does-not-exist", "allow");
+	expect(await nextEvent(iterator)).toEqual({
+		detail: { requestId: "does-not-exist" },
+		kind: "status",
+		status: "approval_unknown",
 	});
 });
