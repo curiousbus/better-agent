@@ -13,8 +13,10 @@ import { agentAvatar } from "@/utils/avatar";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
+import { SessionStatusHeader } from "./session-status-header";
 import { TerminalComposer } from "./terminal-composer";
 import { TerminalStatus } from "./terminal-status";
+import { TurnUsageChip } from "./turn-usage-chip";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 
 function EmptyTerminal() {
@@ -98,6 +100,8 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 		sendInput,
 		answered,
 		answerApproval,
+		sessionReady,
+		turnUsage,
 	} = useBridgeTerminal(session.id, transport, session.status === "ended");
 	const turns = useMemo(() => foldEventsToTurns(events), [events]);
 	const avatars: ChatAvatars = {
@@ -107,11 +111,14 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">
-			<div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-				<span className="font-medium text-sm">
-					{session.label ?? session.agentKind}
-				</span>
-				<TerminalStatus status={status} />
+			<div className="flex shrink-0 flex-col gap-1.5 border-b px-3 py-2">
+				<div className="flex items-center justify-between gap-2">
+					<span className="truncate font-medium text-sm">
+						{session.label ?? session.agentKind}
+					</span>
+					<TerminalStatus status={status} />
+				</div>
+				<SessionStatusHeader detail={sessionReady} />
 			</div>
 			<TerminalFeed
 				answerApproval={answerApproval}
@@ -121,6 +128,7 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 				sending={sending}
 				turns={turns}
 			/>
+			<TurnUsageChip detail={turnUsage} />
 			<TerminalComposer
 				disabled={!canSend}
 				onSend={sendInput}

@@ -32,6 +32,17 @@ export function statusRaw(id: number, status: string) {
 	return { id, data: { kind: "status", status } };
 }
 
+/** A curated `session_ready` status event, as the CLI's normalize layer
+ * emits it on session init — see bridge-session-status.ts. */
+export function sessionReadyRaw(id: number, detail: Record<string, unknown>) {
+	return { id, data: { kind: "status", status: "session_ready", detail } };
+}
+
+/** A curated `turn_usage` status event, emitted once per completed turn. */
+export function turnUsageRaw(id: number, detail: Record<string, unknown>) {
+	return { id, data: { kind: "status", status: "turn_usage", detail } };
+}
+
 export function approvalRaw(id: number, requestId: string) {
 	return {
 		id,

@@ -1,6 +1,12 @@
-import { type Dispatch, useReducer, useState } from "react";
+import { type Dispatch, useMemo, useReducer, useState } from "react";
 import { toast } from "sonner";
 import type { StreamEvent } from "./bridge-events";
+import {
+	latestSessionReadyDetail,
+	latestTurnUsageDetail,
+	type SessionReadyDetail,
+	type TurnUsageDetail,
+} from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import {
 	connectionReducer,
@@ -27,7 +33,14 @@ export interface UseBridgeTerminalResult {
 	events: StreamEvent[];
 	sendInput: (text: string) => Promise<void>;
 	sending: boolean;
+	/** The latest `session_ready` detail (model/cwd/capabilities/mcp), or
+	 * `null` before the CLI's session has initialized — see
+	 * bridge-session-status.ts. */
+	sessionReady: SessionReadyDetail | null;
 	status: TerminalConnectionStatus;
+	/** The latest `turn_usage` detail (cost/tokens/turns), or `null` before
+	 * any turn has completed. */
+	turnUsage: TurnUsageDetail | null;
 }
 
 function useSendInput(
@@ -53,6 +66,25 @@ function useSendInput(
 		return sendRaw(trimmed);
 	};
 	return { sending, sendInput, sendRaw };
+}
+
+interface LatestSessionStatus {
+	sessionReady: SessionReadyDetail | null;
+	turnUsage: TurnUsageDetail | null;
+}
+
+/** Extracts the latest curated `session_ready`/`turn_usage` detail off the
+ * feed — recomputed only when the event list itself changes, not on every
+ * render (cheap either way, a tail scan, but no reason to redo it for e.g. a
+ * `sending` state flip). Split out purely to keep `useBridgeTerminal` itself
+ * under the repo's max-lines-per-function gate. */
+function useLatestSessionStatus(events: StreamEvent[]): LatestSessionStatus {
+	const sessionReady = useMemo(
+		() => latestSessionReadyDetail(events),
+		[events]
+	);
+	const turnUsage = useMemo(() => latestTurnUsageDetail(events), [events]);
+	return { sessionReady, turnUsage };
 }
 
 const APPROVAL_SEND_FAILURE_MESSAGE =
@@ -145,6 +177,7 @@ export function useBridgeTerminal(
 		dispatchFeed
 	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
+	const { sessionReady, turnUsage } = useLatestSessionStatus(feed.events);
 
 	return {
 		events: feed.events,
@@ -159,5 +192,7 @@ export function useBridgeTerminal(
 		sendInput,
 		answered: feed.answered,
 		answerApproval,
+		sessionReady,
+		turnUsage,
 	};
 }

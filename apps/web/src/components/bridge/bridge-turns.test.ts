@@ -157,6 +157,37 @@ it("keeps reasoning and reply output in separate blocks, with no duplication", (
 	]);
 });
 
+it("hides session_ready and turn_usage from the turn list but still closes the assistant boundary", () => {
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "output", text: "first" }),
+		ev(2, {
+			kind: "status",
+			status: "session_ready",
+			detail: { model: "claude-opus-4-6" },
+		}),
+		ev(3, { kind: "output", text: "second" }),
+		ev(4, {
+			kind: "status",
+			status: "turn_usage",
+			detail: { costUsd: 0.01 },
+		}),
+		ev(5, { kind: "status", status: "some-other-status" }),
+	]);
+	// Neither curated status shows up as its own turn — only the ordinary
+	// status kind does, alongside the two assistant bubbles it separated.
+	expect(turns.map((t) => t.kind)).toEqual([
+		"assistant",
+		"assistant",
+		"status",
+	]);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "text", text: "first" },
+	]);
+	expect(asAssistant(turns[1]).blocks).toEqual([
+		{ kind: "text", text: "second" },
+	]);
+});
+
 it("dedupes replayed ids so the assistant text is never doubled", () => {
 	const window = [
 		{ id: 1, data: { kind: "output", text: "abc" } },
