@@ -196,3 +196,82 @@ it("endSession appends a control:stop command the CLI's poll would see", async (
 	expect(commands).toHaveLength(1);
 	expect(commands[0]?.data).toEqual({ type: "control", action: "stop" });
 });
+
+it("pushEvents persists events; history returns them in order for the owner", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	await cli.bridge.pushEvents({
+		sessionId,
+		events: [
+			{ type: "message", text: "hi" },
+			{ type: "output", text: "ok" },
+		],
+	});
+
+	const alice = userClientFor(ALICE);
+	const history = await alice.bridge.history({ sessionId });
+	expect(history).toHaveLength(2);
+	expect(history[0]?.event).toEqual({ type: "message", text: "hi" });
+	expect(history[1]?.event).toEqual({ type: "output", text: "ok" });
+	expect(history[1]?.seq).toBeGreaterThan(history[0]?.seq ?? 0);
+});
+
+it("history is owner-scoped: a non-owner gets NOT_FOUND", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+	await cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] });
+
+	const bob = userClientFor(BOB);
+	await expect(bob.bridge.history({ sessionId })).rejects.toMatchObject({
+		code: "NOT_FOUND",
+	});
+});
+
+it("history paginates via afterSeq", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+	await cli.bridge.pushEvents({
+		sessionId,
+		events: [{ i: 1 }, { i: 2 }, { i: 3 }],
+	});
+
+	const alice = userClientFor(ALICE);
+	const all = await alice.bridge.history({ sessionId });
+	expect(all).toHaveLength(3);
+
+	const afterFirst = await alice.bridge.history({
+		sessionId,
+		afterSeq: all[0]?.seq ?? 0,
+	});
+	expect(afterFirst).toHaveLength(2);
+	expect(afterFirst.map((row) => row.event)).toEqual([{ i: 2 }, { i: 3 }]);
+});
+
+it("pushEvents still succeeds live when message persistence fails", async () => {
+	const { userClientFor, bridgeClientFor, services } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	services.stores.bridgeMessage.append = () =>
+		Promise.reject(new Error("db unavailable"));
+
+	await expect(
+		cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] })
+	).resolves.toEqual({ ok: true });
+
+	const alice = userClientFor(ALICE);
+	const events = await alice.bridge.observe({ sessionId, afterId: 0 });
+	expect(events).toHaveLength(1);
+});

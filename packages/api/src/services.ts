@@ -6,6 +6,7 @@ import type {
 	AgentStore,
 	AttachmentStore,
 	AuthzClient,
+	BridgeMessageStore,
 	BridgeSessionStore,
 	BridgeTokenStore,
 	ComposioAccountStore,
@@ -78,6 +79,7 @@ export interface AgentServices {
 		webAuthzCache: WebAuthzCacheStore;
 		bridgeToken: BridgeTokenStore;
 		bridgeSession: BridgeSessionStore;
+		bridgeMessage: BridgeMessageStore;
 	};
 	tokenService: TokenService;
 }

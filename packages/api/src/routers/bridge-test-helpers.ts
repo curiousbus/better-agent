@@ -1,6 +1,8 @@
 import { createInMemoryRelayStore } from "@better-agent/agent/bridge/relay-store";
 import type {
 	BridgeAgentKind,
+	BridgeMessageRow,
+	BridgeMessageStore,
 	BridgeSessionRow,
 	BridgeSessionStore,
 	BridgeTokenRow,
@@ -119,13 +121,35 @@ function memoryBridgeSessionStore(): BridgeSessionStore {
 	};
 }
 
+function memoryBridgeMessageStore(): BridgeMessageStore {
+	const rowsBySession = new Map<string, BridgeMessageRow[]>();
+	return {
+		append(sessionId, seq, event) {
+			const rows = rowsBySession.get(sessionId) ?? [];
+			rows.push({ seq, event });
+			rowsBySession.set(sessionId, rows);
+			return Promise.resolve();
+		},
+		list(sessionId, afterSeq, limit) {
+			const rows = rowsBySession.get(sessionId) ?? [];
+			return Promise.resolve(
+				rows
+					.filter((row) => row.seq > afterSeq)
+					.sort((a, b) => a.seq - b.seq)
+					.slice(0, limit)
+			);
+		},
+	};
+}
+
 export function build() {
 	const bridgeToken = memoryBridgeTokenStore();
 	const bridgeSession = memoryBridgeSessionStore();
+	const bridgeMessage = memoryBridgeMessageStore();
 	const relayStore = createInMemoryRelayStore();
 	const services = {
 		relayStore,
-		stores: { bridgeToken, bridgeSession },
+		stores: { bridgeToken, bridgeSession, bridgeMessage },
 	};
 	const userClientFor = (user: typeof ALICE) =>
 		createRouterClient(appRouter, {
@@ -151,6 +175,7 @@ export function build() {
 	return {
 		bridgeToken,
 		bridgeSession,
+		bridgeMessage,
 		services,
 		userClientFor,
 		bridgeClientFor,

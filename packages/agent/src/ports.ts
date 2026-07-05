@@ -233,6 +233,23 @@ export interface BridgeSessionStore {
 	touch(id: string): Promise<void>;
 }
 
+/** A persisted bridge event, keyed by the relay's own SERVER-assigned seq. */
+export interface BridgeMessageRow {
+	event: unknown;
+	seq: number;
+}
+
+export interface BridgeMessageStore {
+	/** Persists one relayed event under its relay-assigned seq. */
+	append(sessionId: string, seq: number, event: unknown): Promise<void>;
+	/** Returns persisted events with seq > afterSeq, in ascending seq order. */
+	list(
+		sessionId: string,
+		afterSeq: number,
+		limit: number
+	): Promise<BridgeMessageRow[]>;
+}
+
 export interface WebAuthzCacheRow {
 	authorized: boolean;
 	checkedAt: Date;

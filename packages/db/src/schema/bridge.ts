@@ -2,7 +2,15 @@ import type {
 	BridgeAgentKind,
 	BridgeSessionStatus,
 } from "@better-agent/agent/ports";
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+	bigint,
+	index,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { users } from "./auth";
 
 // A long-lived credential the local bridge CLI uses to authenticate to the
@@ -52,4 +60,27 @@ export const bridgeSessions = pgTable(
 			.defaultNow(),
 	},
 	(table) => [index("bridge_sessions_user_id_idx").on(table.userId)]
+);
+
+// A single relayed bridge event, persisted so a Local Agent conversation
+// survives a page reload — the relay store's window is Redis-only and TTLs
+// out. `seq` mirrors the relay's own SERVER-assigned monotonic id (per
+// session), so persisted history and the live feed share one ordering and
+// the web can dedupe replayed-then-live events by id.
+export const bridgeMessages = pgTable(
+	"bridge_messages",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		sessionId: uuid("session_id")
+			.notNull()
+			.references(() => bridgeSessions.id),
+		seq: bigint("seq", { mode: "number" }).notNull(),
+		event: jsonb("event").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [
+		index("bridge_messages_session_id_seq_idx").on(table.sessionId, table.seq),
+	]
 );

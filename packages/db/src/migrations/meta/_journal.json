@@ -211,6 +211,13 @@
       "when": 1783180672507,
       "tag": "0029_sour_lady_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783264428249,
+      "tag": "0030_stiff_mimic",
+      "breakpoints": true
     }
   ]
 }

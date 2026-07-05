@@ -18,6 +18,7 @@ import { createInMemoryPendingToolCallStore } from "@better-agent/agent/tool/pen
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAgentStore } from "@better-agent/db/repositories/agent-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
+import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
 import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-session-store";
 import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
@@ -158,6 +159,7 @@ function buildRuntime(parts: {
 function buildStores(parts: {
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	authStores: ReturnType<typeof buildAuthServices>["authStores"];
+	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
@@ -187,6 +189,7 @@ function buildStores(parts: {
 		webAuthzCache: parts.webAuthzCache,
 		bridgeToken: parts.bridgeTokenStore,
 		bridgeSession: parts.bridgeSessionStore,
+		bridgeMessage: parts.bridgeMessageStore,
 		...authStores,
 	};
 }
@@ -196,6 +199,7 @@ function assembleServices(parts: {
 	auth: ReturnType<typeof buildAuthServices>;
 	authzBinding?: ServiceBinding;
 	mcpBinding?: ServiceBinding;
+	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	cancellation: CancellationRegistry;
@@ -275,6 +279,7 @@ export function buildServices(
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),
+		bridgeMessageStore: createBridgeMessageStore(db),
 		authzBinding,
 		mcpBinding,
 	});

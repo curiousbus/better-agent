@@ -3,8 +3,10 @@ import {
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
 import { ORPCError } from "@orpc/server";
+import { log } from "evlog";
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
+import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
 
 const TOKEN_PREFIX = "bt_";
@@ -25,6 +27,10 @@ const MAX_INPUT_CHARS = 8192;
  * local agent process to stop instead of the DB flip alone leaving it running
  * forever. */
 const STOP_CONTROL_COMMAND = { type: "control", action: "stop" } as const;
+/** Default page size for the `history` endpoint when `limit` is omitted. */
+const DEFAULT_HISTORY_LIMIT = 500;
+/** Hard cap on `history`'s `limit` input, to bound one query's result size. */
+const MAX_HISTORY_LIMIT = 500;
 
 /** Serialized size of `value` in UTF-8 bytes, as JSON. */
 function byteSizeOf(value: unknown): number {
@@ -67,6 +73,33 @@ const pollInput = z.object({
 	sessionId: z.uuid(),
 	afterId: z.number().int().min(0),
 });
+const historyInput = z.object({
+	sessionId: z.uuid(),
+	afterSeq: z.number().int().min(0).default(0),
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(MAX_HISTORY_LIMIT)
+		.default(DEFAULT_HISTORY_LIMIT),
+});
+
+/** Best-effort persistence of one relayed event under the relay's own
+ * SERVER-assigned seq — a failure here must never break the live relay
+ * (the CLI/web still get the event via pollCommands/observe), so it's
+ * logged and swallowed rather than thrown. */
+async function persistEventBestEffort(
+	context: Context,
+	sessionId: string,
+	seq: number,
+	event: unknown
+): Promise<void> {
+	try {
+		await context.services.stores.bridgeMessage.append(sessionId, seq, event);
+	} catch (err) {
+		log.error({ action: "bridge pushEvents persist", error: String(err) });
+	}
+}
 
 export const bridgeRouter = {
 	// --- user-facing bridge-token management ---
@@ -131,11 +164,12 @@ export const bridgeRouter = {
 			);
 			assertEventsWithinSizeLimit(input.events);
 			for (const event of input.events) {
-				await context.services.relayStore.append(
+				const seq = await context.services.relayStore.append(
 					input.sessionId,
 					"events",
 					event
 				);
+				await persistEventBestEffort(context, input.sessionId, seq, event);
 			}
 			await context.services.stores.bridgeSession.touch(input.sessionId);
 			return { ok: true };
@@ -169,6 +203,25 @@ export const bridgeRouter = {
 				input.sessionId,
 				"events",
 				input.afterId
+			);
+		}),
+
+	/** Persisted event history for a session, seeded on page load before the
+	 * web switches to live `observe` polling. Shares seq numbering with
+	 * `observe`'s relay ids so the caller can dedupe replayed-then-live
+	 * events. */
+	history: userProcedure
+		.input(historyInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedBridgeSession(
+				context,
+				context.authedUser.id,
+				input.sessionId
+			);
+			return context.services.stores.bridgeMessage.list(
+				input.sessionId,
+				input.afterSeq,
+				input.limit
 			);
 		}),
 
