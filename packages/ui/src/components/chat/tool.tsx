@@ -63,39 +63,38 @@ function richResult(
 	return renderToolResult(tool.toolName, tool.result);
 }
 
-function ToolResultSection({
+// A registered rich result renders ALWAYS-VISIBLE (never hidden behind the
+// collapsible), with the raw call folded into a subtle "details" disclosure
+// beneath it — otherwise the component the whole feature exists to show sat
+// collapsed and users only ever saw a plain tool-call row.
+function RichToolView({
 	tool,
 	rich,
 }: {
 	tool: ToolInvocation;
-	rich: ReactNode | null;
+	rich: ReactNode;
 }) {
-	if (tool.status === "running") {
-		return null;
-	}
-	if (rich !== null) {
-		return (
-			<div className="flex flex-col gap-1">
-				<span className="text-muted-foreground text-xs uppercase tracking-wide">
-					Result
-				</span>
-				{rich}
-			</div>
-		);
-	}
-	return <ToolSection label="Result" value={formatValue(tool.result)} />;
+	return (
+		<div className="flex flex-col gap-1.5">
+			{rich}
+			<Collapsible.Root className="rounded-md">
+				<Collapsible.Trigger className="flex items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
+					<WrenchIcon className="size-3" />
+					<span className="font-mono">{tool.toolName}</span>
+					<ChevronDownIcon className="size-3 transition-transform data-[panel-open]:rotate-180" />
+				</Collapsible.Trigger>
+				<Collapsible.Panel className="mt-1.5 flex flex-col gap-2">
+					<ToolSection label="Arguments" value={formatValue(tool.args)} />
+					<ToolSection label="Raw result" value={formatValue(tool.result)} />
+				</Collapsible.Panel>
+			</Collapsible.Root>
+		</div>
+	);
 }
 
-function ToolInvocationView({
-	tool,
-	renderToolResult,
-}: {
-	tool: ToolInvocation;
-	renderToolResult?: RenderToolResult;
-}) {
-	const rich = richResult(tool, renderToolResult);
-	// Errored calls open by default so the failure reason is visible without a
-	// click, and the reason also shows as an inline banner on the trigger row.
+// The plain (unregistered / errored / in-flight) tool block: a collapsible row
+// showing name + status, expanding to arguments and the raw JSON result.
+function PlainToolView({ tool }: { tool: ToolInvocation }) {
 	return (
 		<Collapsible.Root
 			className={cn(
@@ -117,10 +116,26 @@ function ToolInvocationView({
 			) : null}
 			<Collapsible.Panel className="mt-2 flex flex-col gap-2">
 				<ToolSection label="Arguments" value={formatValue(tool.args)} />
-				<ToolResultSection rich={rich} tool={tool} />
+				{tool.status === "running" ? null : (
+					<ToolSection label="Result" value={formatValue(tool.result)} />
+				)}
 			</Collapsible.Panel>
 		</Collapsible.Root>
 	);
+}
+
+function ToolInvocationView({
+	tool,
+	renderToolResult,
+}: {
+	tool: ToolInvocation;
+	renderToolResult?: RenderToolResult;
+}) {
+	const rich = richResult(tool, renderToolResult);
+	if (rich !== null) {
+		return <RichToolView rich={rich} tool={tool} />;
+	}
+	return <PlainToolView tool={tool} />;
 }
 
 function ToolSection({ label, value }: { label: string; value: string }) {

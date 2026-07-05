@@ -48,10 +48,13 @@ function renderTool(tool: ToolInvocation) {
 	return within(container);
 }
 
-it("a registered tool with a successful result renders its rich component", () => {
+it("a registered tool renders its rich component immediately, without expanding", () => {
+	// Regression: the rich component must be visible on its own, NOT hidden
+	// behind the collapsible (which defaulted closed for successful calls) —
+	// otherwise the auto-render feature showed nothing until the user clicked.
 	const tool = baseTool({ result: mcpEnvelope([TWEET_FIXTURE]) });
 	const scope = renderTool(tool);
-	fireEvent.click(scope.getByRole("button"));
+	// No click: the tweet text is on screen straight away.
 	expect(scope.getByText(TWEET_FIXTURE.fullText)).toBeDefined();
 });
 
