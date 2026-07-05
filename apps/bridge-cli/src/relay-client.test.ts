@@ -74,6 +74,36 @@ describe("forwardEvents", () => {
 	});
 });
 
+it("forwards an event that only arrives after several idle flush ticks", async () => {
+	// Regression: a slow source (e.g. claude's ~4s first token) lets the flush
+	// timer fire repeatedly while no event has arrived. The loop must keep the
+	// SAME pending iterator.next() across those ticks — re-creating it each
+	// iteration orphaned the outstanding call, so the eventual event resolved a
+	// next() nobody awaited and was silently dropped (nothing ever forwarded).
+	const push = vi.fn().mockResolvedValue(undefined);
+	const queue = createAsyncQueue<string>();
+	const { sleep, resolveCall } = createControllableSleep();
+	const done = forwardEvents(queue, push, { maxBatchSize: 100, sleep });
+	const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	// Idle flush ticks fire before any event exists.
+	resolveCall(0);
+	await settle();
+	resolveCall(1);
+	await settle();
+	expect(push).not.toHaveBeenCalled();
+
+	// The event finally arrives — it must not have been lost to an orphaned next().
+	queue.push("late");
+	await settle();
+	resolveCall(3); // flush the now-buffered event
+	await settle();
+	expect(push).toHaveBeenCalledWith(["late"]);
+
+	queue.close();
+	await done;
+});
+
 function fakeTransport(
 	pollCommands: RelayTransport["pollCommands"]
 ): RelayTransport {

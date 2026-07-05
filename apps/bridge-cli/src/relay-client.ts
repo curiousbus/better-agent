@@ -121,10 +121,18 @@ export async function forwardEvents<T>(
 		resolveForwardEventsConfig(options, push);
 	const iterator = events[Symbol.asyncIterator]();
 	let buffer: T[] = [];
+	// Hold ONE outstanding iterator.next() across flush ticks. Re-calling next()
+	// every loop iteration (racing it against the flush timer) orphaned the
+	// still-pending call whenever the timer won first — so an event that arrived
+	// during an idle stretch resolved a next() nobody was awaiting and was lost.
+	// With a slow source (claude's ~4s first token) every event fell into that
+	// gap and nothing was ever forwarded. Only advance to a new next() after the
+	// current one yields a value.
+	let pendingNext = iterator.next();
 
 	for (;;) {
 		const tick = sleep(flushIntervalMs).then(() => FLUSH_TICK);
-		const next = await Promise.race([iterator.next(), tick, queue.fatal]);
+		const next = await Promise.race([pendingNext, tick, queue.fatal]);
 		if (next === FLUSH_TICK) {
 			buffer = flushToQueue(buffer, queue);
 			continue;
@@ -133,6 +141,7 @@ export async function forwardEvents<T>(
 		if (result.done) {
 			break;
 		}
+		pendingNext = iterator.next();
 		options.onEvent?.(result.value);
 		buffer.push(result.value);
 		if (buffer.length >= maxBatchSize) {
