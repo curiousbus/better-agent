@@ -12,6 +12,7 @@ import {
 } from "./commands";
 import type { StatusEvent } from "./normalize/types";
 import { createPushQueue, type PushQueue } from "./push-queue";
+import { truncateEvents } from "./truncate-event";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
 export interface RelayTransport {
@@ -271,7 +272,7 @@ export async function runBridgeSession(
 		try {
 			await Promise.all([
 				forwardEvents(
-					options.handle.events,
+					truncateEvents(options.handle.events),
 					(batch) => options.transport.pushEvents({ sessionId, events: batch }),
 					{ ...options.forwardOptions, signal: options.signal }
 				).finally(stopPolling),
