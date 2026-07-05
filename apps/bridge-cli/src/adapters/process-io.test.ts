@@ -25,7 +25,7 @@ describe("spawnProcessIo", () => {
 		await expect(
 			spawnProcessIo(NONEXISTENT_BINARY, [], process.cwd())
 		).rejects.toThrow(
-			`failed to start "${NONEXISTENT_BINARY}": ENOENT (is it installed and on PATH?)`
+			`failed to start "${NONEXISTENT_BINARY}": ENOENT (is "definitely-not-a-real-binary-xyz123" installed and on PATH? does the --dir directory exist?)`
 		);
 	});
 

@@ -47,8 +47,9 @@ export interface ProcessExitInfo {
 
 function describeSpawnFailure(command: string, error: NodeJS.ErrnoException) {
 	const reason = error.code ?? error.message;
+	// ENOENT is ambiguous: a missing binary AND a nonexistent cwd both raise it.
 	return new Error(
-		`failed to start "${command}": ${reason} (is it installed and on PATH?)`
+		`failed to start "${command}": ${reason} (is "${command}" installed and on PATH? does the --dir directory exist?)`
 	);
 }
 

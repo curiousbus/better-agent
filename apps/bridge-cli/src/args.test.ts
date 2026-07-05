@@ -19,14 +19,14 @@ const BASE = [
 describe("parseArgs - accepted input", () => {
 	it("parses all flags", () => {
 		const args = parseArgs(
-			[...BASE, "--dir", "/repo", "--label", "my repo"],
+			[...BASE, "--dir", "/tmp", "--label", "my repo"],
 			{}
 		);
 		expect(args).toEqual({
 			agentKind: "claude-code",
 			token: "bt_abc",
 			serverUrl: "https://bridge.example.com",
-			dir: "/repo",
+			dir: "/tmp",
 			label: "my repo",
 		});
 	});
@@ -87,5 +87,26 @@ describe("parseArgs - rejected input", () => {
 
 	it("rejects a flag with a missing value", () => {
 		expect(() => parseArgs(["--agent"], {})).toThrow(MISSING_VALUE);
+	});
+
+	// A nonexistent cwd spawns with the same ENOENT as a missing binary, which
+	// misled a real user into hunting a "claude not installed" problem when
+	// --dir was misspelled. Fail fast at parse time with the real reason.
+	it("rejects a --dir that does not exist", () => {
+		expect(() =>
+			parseArgs(
+				[
+					"--agent",
+					"codex",
+					"--token",
+					"t",
+					"--server",
+					"s",
+					"--dir",
+					"/nonexistent-path-for-test",
+				],
+				{}
+			)
+		).toThrow("--dir does not exist: /nonexistent-path-for-test");
 	});
 });

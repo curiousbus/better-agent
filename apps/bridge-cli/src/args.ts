@@ -1,3 +1,5 @@
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import type { AgentKind } from "./adapters/types";
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
@@ -83,7 +85,21 @@ export function parseArgs(
 		agentKind,
 		token,
 		serverUrl,
-		dir: flags.dir ?? process.cwd(),
+		dir: validateDir(flags.dir ?? process.cwd()),
 		label: flags.label,
 	};
+}
+
+// Fail fast with a precise message: spawning with a nonexistent cwd surfaces as
+// the same ENOENT as a missing binary, which sent a user hunting for a "claude
+// not installed" problem when --dir was simply misspelled.
+function validateDir(dir: string): string {
+	const absolute = resolve(dir);
+	if (!existsSync(absolute)) {
+		throw new Error(`--dir does not exist: ${absolute}`);
+	}
+	if (!statSync(absolute).isDirectory()) {
+		throw new Error(`--dir is not a directory: ${absolute}`);
+	}
+	return absolute;
 }
