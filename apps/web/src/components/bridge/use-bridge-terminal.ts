@@ -29,7 +29,11 @@ export interface UseBridgeTerminalResult {
 	status: TerminalConnectionStatus;
 }
 
-function useSendInput(sessionId: string, transport: BridgeTransport) {
+function useSendInput(
+	sessionId: string,
+	transport: BridgeTransport,
+	dispatchFeed: Dispatch<FeedAction>
+) {
 	const [sending, setSending] = useState(false);
 	const sendRaw = async (data: unknown): Promise<void> => {
 		setSending(true);
@@ -39,7 +43,14 @@ function useSendInput(sessionId: string, transport: BridgeTransport) {
 			setSending(false);
 		}
 	};
-	const sendInput = (text: string): Promise<void> => sendRaw(text);
+	// Plain chat send only: echo the user's own line into the feed immediately
+	// (optimistic) BEFORE the round trip. `sendRaw` stays echo-free so approval
+	// decisions never produce a fake chat line.
+	const sendInput = (text: string): Promise<void> => {
+		const trimmed = text.trim();
+		dispatchFeed({ type: "localEcho", text: trimmed });
+		return sendRaw(trimmed);
+	};
 	return { sending, sendInput, sendRaw };
 }
 
@@ -123,7 +134,11 @@ export function useBridgeTerminal(
 		dispatchFeed,
 		dispatchConn,
 	});
-	const { sending, sendInput, sendRaw } = useSendInput(sessionId, transport);
+	const { sending, sendInput, sendRaw } = useSendInput(
+		sessionId,
+		transport,
+		dispatchFeed
+	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
 
 	return {

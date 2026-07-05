@@ -71,6 +71,28 @@ it("posts input via the transport and clears the box", async () => {
 	expect(textarea.value).toBe("");
 });
 
+it("echoes the user's own line into the feed immediately, before the CLI replies", async () => {
+	// The transport never resolves, so nothing comes back over the wire — the
+	// line must appear purely from the optimistic local echo.
+	const fake = makeControllableTransport();
+	fake.sendInput.mockReturnValue(new Promise(() => undefined));
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	await act(() => {
+		fake.current()?.onOpen();
+	});
+
+	const view = within(container);
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	fireEvent.change(textarea, { target: { value: "ship it" } });
+	fireEvent.click(view.getByRole("button", { name: "Send" }));
+
+	await waitFor(() => {
+		expect(view.getByText("ship it")).toBeDefined();
+	});
+});
+
 it("can send input before the output stream has connected", async () => {
 	// Regression: input (sendInput RPC) and output (SSE observe) are independent
 	// channels. A failing/slow observe stream must NOT disable the composer —
