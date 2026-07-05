@@ -65,3 +65,28 @@ it("x_search_users parses a single profile object, not a list", () => {
 	const parsed = TOOL_RESULT_RENDERERS.x_search_users?.parse(profile);
 	expect(parsed).toEqual(profile);
 });
+
+it("renders the valid tweets even when one item in the list is malformed", () => {
+	// A user timeline often mixes in an edge-case tweet (missing a count, odd
+	// shape). One bad item must not blank the whole render — the good ones show.
+	const malformed = { tweetId: "2", fullText: "no counts here" };
+	const parsed = TOOL_RESULT_RENDERERS.x_user_tweets?.parse([
+		TWEET_FIXTURE,
+		malformed,
+	]);
+	expect(Array.isArray(parsed)).toBe(true);
+	expect((parsed as unknown[]).length).toBe(1);
+});
+
+it("falls back (null) only when EVERY item in a non-empty list is unparseable", () => {
+	const parsed = TOOL_RESULT_RENDERERS.x_user_tweets?.parse([
+		{ nope: true },
+		{ also: "bad" },
+	]);
+	expect(parsed).toBeNull();
+});
+
+it("parses an empty tweet list to an empty array (renders, does not fall back)", () => {
+	const parsed = TOOL_RESULT_RENDERERS.x_user_tweets?.parse([]);
+	expect(parsed).toEqual([]);
+});

@@ -6,10 +6,8 @@ import { UserCard } from "./user-card";
 import {
 	type NormalizedProfileData,
 	NormalizedProfileSchema,
-	type ProfileListData,
-	ProfileListSchema,
-	type TweetListData,
-	TweetListSchema,
+	type NormalizedTweetData,
+	NormalizedTweetSchema,
 } from "./x-result-schemas";
 
 /** Long tool results (a search returning dozens of tweets) render at most
@@ -40,6 +38,38 @@ function entry<T>(
 	};
 }
 
+// Per-ELEMENT tolerant list parse: scraped X data is messy (retweets, quotes,
+// edited/edge-case tweets), so a single malformed item must not blank the whole
+// render the way `z.array(schema)` would — validate each element and keep the
+// good ones. Only a fully-unparseable result (a non-array, or an array where
+// EVERY element fails — i.e. the shape is wrong, not just one stray item) falls
+// back to the raw tool block.
+function listEntry<T>(
+	elementSchema: ZodType<T>,
+	render: (data: T[]) => ReactNode
+): ToolResultRenderer {
+	return {
+		parse: (result: unknown) => {
+			const unwrapped = unwrapToolResult(result);
+			if (!Array.isArray(unwrapped)) {
+				return null;
+			}
+			const valid: T[] = [];
+			for (const item of unwrapped) {
+				const parsed = elementSchema.safeParse(item);
+				if (parsed.success) {
+					valid.push(parsed.data);
+				}
+			}
+			if (unwrapped.length > 0 && valid.length === 0) {
+				return null;
+			}
+			return valid;
+		},
+		render: (data: unknown) => render(data as T[]),
+	};
+}
+
 function ItemList<T>({
 	items,
 	renderItem,
@@ -59,7 +89,7 @@ function ItemList<T>({
 	);
 }
 
-function renderTweetList(tweets: TweetListData): ReactNode {
+function renderTweetList(tweets: NormalizedTweetData[]): ReactNode {
 	return (
 		<ItemList
 			items={tweets}
@@ -70,7 +100,7 @@ function renderTweetList(tweets: TweetListData): ReactNode {
 	);
 }
 
-function renderProfileList(profiles: ProfileListData): ReactNode {
+function renderProfileList(profiles: NormalizedProfileData[]): ReactNode {
 	return (
 		<ItemList
 			items={profiles}
@@ -99,14 +129,17 @@ const PROFILE_LIST_TOOLS = ["x_followers", "x_following"] as const;
 function tweetListEntries(): [string, ToolResultRenderer][] {
 	return TWEET_LIST_TOOLS.map((name) => [
 		name,
-		entry<TweetListData>(TweetListSchema, renderTweetList),
+		listEntry<NormalizedTweetData>(NormalizedTweetSchema, renderTweetList),
 	]);
 }
 
 function profileListEntries(): [string, ToolResultRenderer][] {
 	return PROFILE_LIST_TOOLS.map((name) => [
 		name,
-		entry<ProfileListData>(ProfileListSchema, renderProfileList),
+		listEntry<NormalizedProfileData>(
+			NormalizedProfileSchema,
+			renderProfileList
+		),
 	]);
 }
 
