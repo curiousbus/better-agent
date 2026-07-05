@@ -108,8 +108,17 @@ function buildTokens(): TokenRow[] {
 vi.mock("@/utils/orpc", () => {
 	const listSessionsKey = ["bridge", "listSessions"];
 	const listTokensKey = ["bridge", "listTokens"];
+	const meKey = ["auth", "me"];
 	return {
 		orpc: {
+			auth: {
+				me: {
+					queryOptions: () => ({
+						queryKey: meKey,
+						queryFn: () => Promise.resolve({ email: "tester@example.com" }),
+					}),
+				},
+			},
 			bridge: {
 				listSessions: {
 					queryOptions: () => ({

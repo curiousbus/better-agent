@@ -175,7 +175,10 @@ function UserRow({
 	avatars,
 }: {
 	message: ChatMessage;
-	agentClient: AgentClient;
+	// Optional so non-chat callers (e.g. the local-agent terminal, whose user
+	// turns never carry file attachments) can reuse this row without an
+	// AgentClient. Chat always passes one, so its behavior is unchanged.
+	agentClient?: AgentClient;
 	avatars?: ChatAvatars;
 }) {
 	const text = messageText(message);
@@ -184,7 +187,7 @@ function UserRow({
 		<Message align="end">
 			<RoleAvatar avatars={avatars} from="user" />
 			<MessageContent>
-				{files.length > 0 ? (
+				{files.length > 0 && agentClient ? (
 					<div className="flex flex-wrap justify-end gap-2">
 						{files.map((b) => (
 							<AttachmentImage
@@ -214,7 +217,7 @@ export function ChatRow({
 	renderToolResult,
 }: {
 	message: ChatMessage;
-	agentClient: AgentClient;
+	agentClient?: AgentClient;
 	avatars?: ChatAvatars;
 	renderToolResult?: RenderToolResult;
 }) {

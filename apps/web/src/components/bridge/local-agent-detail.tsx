@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import type { BridgeSessionRow } from "@/utils/api-types";
+import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
+import { useCurrentUser } from "@/utils/use-current-user";
 import { bridgeCliCommand } from "./bridge-token-reveal-dialog";
 import { createBridgeTransport } from "./bridge-transport";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
@@ -128,6 +130,7 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 		withSessionPolling(orpc.bridge.listSessions.queryOptions())
 	);
 	const endSession = useEndSession();
+	const { email } = useCurrentUser();
 	const transport = useMemo(() => createBridgeTransport(), []);
 
 	if (tokens.isPending || sessions.isPending) {
@@ -161,7 +164,12 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 				onEnd={() => endSession.mutate({ sessionId: session.id })}
 				session={session}
 			/>
-			<Terminal key={session.id} session={session} transport={transport} />
+			<Terminal
+				key={session.id}
+				session={session}
+				transport={transport}
+				userAvatarUrl={email ? userAvatar(email) : undefined}
+			/>
 		</div>
 	);
 }

@@ -77,7 +77,7 @@ const FILE_CHANGE_LABEL: Record<FileEvent["change"], string> = {
 	deleted: "-",
 };
 
-function FileLine({ event }: { event: FileEvent }) {
+export function FileLine({ event }: { event: FileEvent }) {
 	return (
 		<p className="flex items-center gap-1.5">
 			<FileEditIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -101,7 +101,7 @@ function OutputLine({ event }: { event: OutputEvent }) {
 	);
 }
 
-function StatusLine({ event }: { event: StatusEvent }) {
+export function StatusLine({ event }: { event: StatusEvent }) {
 	return (
 		<p className="flex items-center gap-1.5 text-muted-foreground italic">
 			<InfoIcon className="size-3.5 shrink-0" />
@@ -110,7 +110,7 @@ function StatusLine({ event }: { event: StatusEvent }) {
 	);
 }
 
-function ErrorLine({ event }: { event: ErrorEvent }) {
+export function ErrorLine({ event }: { event: ErrorEvent }) {
 	return (
 		<p className="flex items-center gap-1.5 text-destructive">
 			<AlertTriangleIcon className="size-3.5 shrink-0" />
@@ -133,7 +133,7 @@ export interface ApprovalLineProps {
  * session's own click or a replayed event for an already-answered
  * `requestId` — every button disables and the chosen one shows a check.
  */
-function ApprovalLine({
+export function ApprovalLine({
 	answeredOptionId,
 	event,
 	onAnswer,

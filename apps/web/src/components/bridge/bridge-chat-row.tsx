@@ -1,0 +1,80 @@
+import type { ChatMessage } from "@better-agent/ui/components/chat/chat-blocks";
+import {
+	type ChatAvatars,
+	ChatRow,
+} from "@better-agent/ui/components/chat/chat-row";
+import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
+import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
+
+/** The trailing open assistant turn streams a caret — but only while the
+ * session is still live; an ended session shows a settled, complete bubble. */
+function assistantMessage(turn: AssistantTurn, ended: boolean): ChatMessage {
+	const streaming = turn.streaming && !ended;
+	return {
+		id: String(turn.id),
+		role: "assistant",
+		status: streaming ? "streaming" : "complete",
+		blocks: turn.blocks,
+		live: streaming,
+	};
+}
+
+function userMessage(turn: UserTurn): ChatMessage {
+	return {
+		id: String(turn.id),
+		role: "user",
+		status: "complete",
+		blocks: [{ kind: "text", text: turn.text }],
+	};
+}
+
+export interface BridgeChatRowProps {
+	/** requestId -> chosen optionId, for approvals already answered. */
+	answered: Record<string, string>;
+	avatars?: ChatAvatars;
+	/** True once the session has ended — suppresses the streaming caret. */
+	ended: boolean;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	/** True while a sendInput mutation is in flight — gates approval buttons. */
+	sending: boolean;
+	turn: BridgeTurn;
+}
+
+/**
+ * Renders one folded bridge turn with the SAME components as the normal chat:
+ * user/assistant turns as chat bubbles (avatars, markdown, tool cards), and
+ * the lifecycle kinds as subtle inline lines. Approval stays the bridge's own
+ * card, sitting inside the assistant flow.
+ */
+export function BridgeChatRow({
+	answered,
+	avatars,
+	ended,
+	onAnswerApproval,
+	sending,
+	turn,
+}: BridgeChatRowProps) {
+	switch (turn.kind) {
+		case "user":
+			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
+		case "assistant":
+			return (
+				<ChatRow avatars={avatars} message={assistantMessage(turn, ended)} />
+			);
+		case "status":
+			return <StatusLine event={turn.event} />;
+		case "error":
+			return <ErrorLine event={turn.event} />;
+		case "file":
+			return <FileLine event={turn.event} />;
+		default:
+			return (
+				<ApprovalLine
+					answeredOptionId={answered[turn.event.requestId]}
+					event={turn.event}
+					onAnswer={onAnswerApproval}
+					pending={sending}
+				/>
+			);
+	}
+}
