@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { connectJsonRpc } from "./jsonrpc-io";
+import type { ProcessExitInfo } from "./process-io";
 
 // See process-io.test.ts: spawning this is exactly the ENOENT path, and is
 // safe in CI because it never starts a real agent.
@@ -30,6 +31,28 @@ const REQUEST_THEN_ECHO_SCRIPT = [
 	"  const msg = JSON.parse(line);",
 	'  process.stdout.write(JSON.stringify({ type: "received", result: msg.result }) + "\\n");',
 	"  process.exit(0);",
+	"});",
+].join("\n");
+
+// Exit codes the script below uses to signal its assertion back to the test
+// (there's no stdio channel left to write on once the reply line has been
+// read and checked): 0 means the echoed `respond()` id matched the string id
+// the "server" sent, 1 means it didn't.
+const STRING_ID_MATCHED_EXIT_CODE = 0;
+const STRING_ID_MISMATCHED_EXIT_CODE = 1;
+const REQUEST_STRING_ID = "req-abc";
+
+// A tiny stdio JSON-RPC "server" that sends a server-initiated *request* with
+// a string `id` (some real JSON-RPC servers use strings, not just our own
+// numeric counter) and exits 0 only if `respond()` echoed that same string id
+// back unchanged.
+const REQUEST_WITH_STRING_ID_SCRIPT = [
+	'const readline = require("node:readline");',
+	"const rl = readline.createInterface({ input: process.stdin });",
+	`process.stdout.write(JSON.stringify({ id: ${JSON.stringify(REQUEST_STRING_ID)}, method: "need_approval", params: { foo: "bar" } }) + "\\n");`,
+	'rl.once("line", (line) => {',
+	"  const msg = JSON.parse(line);",
+	`  process.exit(msg.id === ${JSON.stringify(REQUEST_STRING_ID)} ? ${STRING_ID_MATCHED_EXIT_CODE} : ${STRING_ID_MISMATCHED_EXIT_CODE});`,
 	"});",
 ].join("\n");
 
@@ -88,7 +111,7 @@ describe("connectJsonRpc - server-initiated requests", () => {
 		const notified = vi.fn();
 		rpc.onNotification(notified);
 		const received = new Promise<{
-			id: number;
+			id: number | string;
 			method: string;
 			params: unknown;
 		}>((resolve) => {
@@ -105,5 +128,36 @@ describe("connectJsonRpc - server-initiated requests", () => {
 
 		rpc.respond(request.id, { decision: "accept" });
 		await new Promise((resolve) => rpc.onExit(resolve));
+	});
+});
+
+describe("connectJsonRpc - server-initiated requests with a string id", () => {
+	it("surfaces a server-initiated request with a string id via onRequest, and respond echoes that same string id back", async () => {
+		const rpc = await connectJsonRpc(
+			process.execPath,
+			["-e", REQUEST_WITH_STRING_ID_SCRIPT],
+			process.cwd()
+		);
+		const received = new Promise<{
+			id: number | string;
+			method: string;
+			params: unknown;
+		}>((resolve) => {
+			rpc.onRequest((id, method, params) => resolve({ id, method, params }));
+		});
+
+		const request = await received;
+		expect(request).toEqual({
+			id: REQUEST_STRING_ID,
+			method: "need_approval",
+			params: { foo: "bar" },
+		});
+
+		const exited = new Promise<ProcessExitInfo>((resolve) =>
+			rpc.onExit(resolve)
+		);
+		rpc.respond(request.id, { decision: "accept" });
+
+		expect((await exited).code).toBe(STRING_ID_MATCHED_EXIT_CODE);
 	});
 });

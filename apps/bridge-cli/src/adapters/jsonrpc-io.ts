@@ -25,13 +25,17 @@ export interface JsonRpcIo {
 	onExit(handler: (info: ProcessExitInfo) => void): void;
 	onNotification(handler: (method: string, params: unknown) => void): void;
 	/** Registers a handler for server-initiated requests (inbound lines with
-	 * both an `id` and a `method`). Reply with `respond(id, result)`. */
+	 * both an `id` and a `method`). The id may be a string or a number — unlike
+	 * ids we mint ourselves in `request()` (always numeric, from our own
+	 * counter), JSON-RPC servers are free to use either. Reply with
+	 * `respond(id, result)`, echoing back whichever type was received. */
 	onRequest(
-		handler: (id: number, method: string, params: unknown) => void
+		handler: (id: number | string, method: string, params: unknown) => void
 	): void;
 	request(method: string, params: unknown): Promise<unknown>;
-	/** Answers a server-initiated request surfaced via `onRequest`. */
-	respond(id: number, result: unknown): void;
+	/** Answers a server-initiated request surfaced via `onRequest`, echoing
+	 * back its `id` verbatim (string or number). */
+	respond(id: number | string, result: unknown): void;
 	stop(): void;
 }
 
@@ -41,7 +45,11 @@ interface PendingRequest {
 }
 
 type NotificationHandler = (method: string, params: unknown) => void;
-type RequestHandler = (id: number, method: string, params: unknown) => void;
+type RequestHandler = (
+	id: number | string,
+	method: string,
+	params: unknown
+) => void;
 
 /** Message used both to settle in-flight requests when the process exits and
  * to reject any `request()` call made afterwards — in both cases the agent
@@ -63,6 +71,13 @@ function tryParseJson(line: string): unknown {
 	} catch {
 		return null;
 	}
+}
+
+/** A server-initiated request's `id` may be either shape on the wire; ids we
+ * mint ourselves (in `request()`) are always numeric, but we must accept
+ * either here since we don't control the server's choice. */
+function isRequestId(value: unknown): value is number | string {
+	return typeof value === "number" || typeof value === "string";
 }
 
 /** Settles a pending `request()` call from its matching response line, if any is still waiting. */
@@ -105,7 +120,7 @@ function handleLine(
 	if (typeof parsed.method !== "string") {
 		return;
 	}
-	if (typeof parsed.id === "number") {
+	if (isRequestId(parsed.id)) {
 		for (const handler of requestHandlers) {
 			handler(parsed.id, parsed.method, parsed.params);
 		}
@@ -152,7 +167,13 @@ function buildJsonRpcIo(io: ProcessIo, state: JsonRpcState): JsonRpcIo {
 		notify(method: string, params: unknown): void {
 			io.writeLine(JSON.stringify({ method, params }));
 		},
-		respond(id: number, result: unknown): void {
+		respond(id: number | string, result: unknown): void {
+			// Mirrors the `state.exited` guard in `request()`: a dead child can
+			// never read this reply, so silently drop it instead of writing to a
+			// closed pipe.
+			if (state.exited) {
+				return;
+			}
 			io.writeLine(JSON.stringify({ id, result }));
 		},
 		onExit(handler: (info: ProcessExitInfo) => void): void {

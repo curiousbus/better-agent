@@ -115,3 +115,52 @@ describe("codexAdapter - approvals", () => {
 		expect(rpc.respond).not.toHaveBeenCalled();
 	});
 });
+
+describe("codexAdapter - approvals - repeated or post-exit answers", () => {
+	it("writes exactly one reply frame when answerApproval is called twice for the same requestId", async () => {
+		const { rpc, triggerRequest } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerRequest(
+			APPROVAL_REQUEST_ID,
+			"item/commandExecution/requestApproval",
+			{ itemId: "item_1", command: ["ls"] }
+		);
+		await iterator.next();
+
+		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
+		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
+
+		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
+			decision: "accept",
+		});
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			detail: { requestId: String(APPROVAL_REQUEST_ID) },
+			kind: "status",
+			status: "approval_unknown",
+		});
+	});
+
+	it("does not throw and writes no reply for answerApproval called after the process exits", async () => {
+		const { rpc, triggerRequest, triggerExit } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await codexAdapter.start("/tmp/project");
+
+		triggerRequest(
+			APPROVAL_REQUEST_ID,
+			"item/commandExecution/requestApproval",
+			{ itemId: "item_1", command: ["ls"] }
+		);
+		await handle.events[Symbol.asyncIterator]().next();
+
+		triggerExit({ code: 0, signal: null });
+
+		expect(() =>
+			handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept")
+		).not.toThrow();
+		expect(rpc.respond).not.toHaveBeenCalled();
+	});
+});

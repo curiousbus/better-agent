@@ -5,11 +5,24 @@
 // control_request) produced it. Cleared on process exit so a dead agent
 // never leaves a dangling reply function that would write to a closed pipe.
 
-import type { NormalizedEvent } from "../normalize/types";
+import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
 
 /** Status emitted in place of a reply when `answer()` is called with a
  * `requestId` that was never registered, or was already answered. */
 const APPROVAL_UNKNOWN_STATUS = "approval_unknown";
+
+/** Status emitted in place of a reply when `answer()` is called with an
+ * `optionId` that wasn't among the options announced on the matching
+ * `ApprovalEvent` — e.g. a stale or hand-crafted client request. */
+const APPROVAL_INVALID_OPTION_STATUS = "approval_invalid_option";
+
+/** A still-open approval: the options the user was offered (to validate
+ * `answer()`'s `optionId` against) and the reply to invoke once one is
+ * picked. */
+interface PendingApproval {
+	options: ApprovalOption[];
+	reply(optionId: string): void;
+}
 
 export interface ApprovalRegistry {
 	/**
@@ -18,29 +31,37 @@ export interface ApprovalRegistry {
 	 * same id is a no-op. An unknown id (never registered, already answered,
 	 * or dropped by `clear()`) emits a `status` warning event instead of
 	 * throwing, since the agent may simply have moved on by the time the
-	 * user answers.
+	 * user answers. An `optionId` that isn't among the options announced at
+	 * `register()` time also emits a `status` warning instead of replying,
+	 * but leaves the approval pending so a corrected answer can still land.
 	 */
 	answer(requestId: string, optionId: string): void;
 	/** Drops every still-pending reply function. Call once the agent process
 	 * has exited, so a later `answer()` for a stale id can never write to a
 	 * closed pipe. */
 	clear(): void;
-	/** Registers `reply` to be invoked (at most once) by a matching `answer()`. */
-	register(requestId: string, reply: (optionId: string) => void): void;
+	/** Registers `reply` to be invoked (at most once) by a matching `answer()`
+	 * whose `optionId` is one of `options`. */
+	register(
+		requestId: string,
+		options: ApprovalOption[],
+		reply: (optionId: string) => void
+	): void;
 }
 
-/** Builds an `ApprovalRegistry` that reports unknown-id answers on `events`. */
+/** Builds an `ApprovalRegistry` that reports unknown-id and invalid-option
+ * answers on `events`. */
 export function createApprovalRegistry(events: {
 	push(event: NormalizedEvent): void;
 }): ApprovalRegistry {
-	const pending = new Map<string, (optionId: string) => void>();
+	const pending = new Map<string, PendingApproval>();
 	return {
-		register(requestId, reply) {
-			pending.set(requestId, reply);
+		register(requestId, options, reply) {
+			pending.set(requestId, { options, reply });
 		},
 		answer(requestId, optionId) {
-			const reply = pending.get(requestId);
-			if (!reply) {
+			const entry = pending.get(requestId);
+			if (!entry) {
 				events.push({
 					kind: "status",
 					status: APPROVAL_UNKNOWN_STATUS,
@@ -48,8 +69,16 @@ export function createApprovalRegistry(events: {
 				});
 				return;
 			}
+			if (!entry.options.some((option) => option.id === optionId)) {
+				events.push({
+					kind: "status",
+					status: APPROVAL_INVALID_OPTION_STATUS,
+					detail: { requestId, optionId },
+				});
+				return;
+			}
 			pending.delete(requestId);
-			reply(optionId);
+			entry.reply(optionId);
 		},
 		clear() {
 			pending.clear();

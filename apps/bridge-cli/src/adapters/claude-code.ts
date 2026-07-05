@@ -48,7 +48,7 @@ function handleClaudeLine(
 	if (!event) {
 		return false;
 	}
-	approvals.register(event.requestId, (optionId) => {
+	approvals.register(event.requestId, event.options, (optionId) => {
 		io.writeLine(buildClaudeControlResponse(event.requestId, optionId));
 	});
 	events.push(event);

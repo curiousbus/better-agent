@@ -29,10 +29,11 @@ function wireOpencodeApprovals(
 			method,
 			params
 		);
-		if (approvalEvents.length === 0) {
+		const [approvalEvent] = approvalEvents;
+		if (!approvalEvent) {
 			return;
 		}
-		approvals.register(requestId, (optionId) => {
+		approvals.register(requestId, approvalEvent.options, (optionId) => {
 			rpc.respond(id, acpSelectedOutcome(optionId));
 		});
 		for (const event of approvalEvents) {
