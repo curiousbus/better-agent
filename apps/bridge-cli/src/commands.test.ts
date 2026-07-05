@@ -49,6 +49,44 @@ describe("parseCommandText", () => {
 	});
 });
 
+// Cross-boundary regression: apps/web/src/components/bridge/
+// use-bridge-terminal.ts's `makeAnswerApproval` sends its decision as
+// `transport.sendInput({ sessionId, data: { type: "approval", requestId,
+// optionId } })` — an object, never `JSON.stringify`'d. These two cases pin
+// down why: the string check in `parseCommandText` runs first, so a
+// stringified approval is indistinguishable from plain chat text and would
+// never reach `answerApproval`, leaving the approval stalled forever. Split
+// out of the `describe("parseCommandText", ...)` block above to stay under
+// this repo's max-lines-per-function gate.
+describe("parseCommandText web/CLI approval boundary", () => {
+	it("routes the exact object the web sends to an approval command, not text", () => {
+		const webApprovalPayload = {
+			type: "approval",
+			requestId: "req-1",
+			optionId: "allow",
+		};
+
+		expect(parseCommandText(webApprovalPayload)).toEqual({
+			type: "approval",
+			requestId: "req-1",
+			optionId: "allow",
+		});
+	});
+
+	it("treats a JSON.stringify'd approval payload as plain text, not a command", () => {
+		const stringifiedApprovalPayload = JSON.stringify({
+			type: "approval",
+			requestId: "req-1",
+			optionId: "allow",
+		});
+
+		expect(parseCommandText(stringifiedApprovalPayload)).toEqual({
+			type: "text",
+			text: stringifiedApprovalPayload,
+		});
+	});
+});
+
 describe("dispatchCommands", () => {
 	function fakeSink(): CommandSink & { stop: Mock<() => void> } {
 		return { answerApproval: vi.fn(), send: vi.fn(), stop: vi.fn() };

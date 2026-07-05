@@ -44,11 +44,11 @@ it("answers an approval via sendInput, disables its buttons, and shows the chose
 	await waitFor(() => {
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
-			data: JSON.stringify({
+			data: {
 				type: "approval",
 				requestId: "req-1",
 				optionId: "allow",
-			}),
+			},
 		});
 	});
 	const allowButton = view.getByRole("button", {
