@@ -1,6 +1,6 @@
 // Mirrors the normalized event union from `apps/bridge-cli/src/normalize/types.ts`.
 // The CLI is a private standalone app (not a workspace package web can import),
-// so the shape is duplicated here — only the six `kind`s and the fields the
+// so the shape is duplicated here — only the seven `kind`s and the fields the
 // terminal view actually renders, not the full agent-protocol surface.
 
 /** A single chat turn from either the user or the assistant. */
@@ -50,13 +50,35 @@ export interface ErrorEvent {
 	message: string;
 }
 
+/** One option the user can pick to answer an `ApprovalEvent`. */
+export interface ApprovalOption {
+	id: string;
+	label: string;
+}
+
+/**
+ * A server-initiated request for the user to approve or deny an action
+ * (run a command, apply a patch, use a tool) before the agent's turn can
+ * proceed. `requestId` round-trips in a `{ type: "approval", requestId,
+ * optionId }` decision command sent back via `sendInput` — see
+ * `apps/bridge-cli/src/commands.ts`.
+ */
+export interface ApprovalEvent {
+	detail?: string;
+	kind: "approval";
+	options: ApprovalOption[];
+	requestId: string;
+	title: string;
+}
+
 export type NormalizedEvent =
 	| MessageEvent
 	| ToolEvent
 	| FileEvent
 	| OutputEvent
 	| StatusEvent
-	| ErrorEvent;
+	| ErrorEvent
+	| ApprovalEvent;
 
 /** One relayed event as it comes off the wire (SSE `data:`/`id:` pair, or a
  * row from `bridge.observe`) — `data` is `unknown` until validated. */
@@ -78,6 +100,7 @@ const EVENT_KINDS = new Set([
 	"output",
 	"status",
 	"error",
+	"approval",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

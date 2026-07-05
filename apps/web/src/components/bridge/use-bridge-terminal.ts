@@ -1,4 +1,4 @@
-import { useReducer, useState } from "react";
+import { type Dispatch, useReducer, useState } from "react";
 import type { StreamEvent } from "./bridge-events";
 import type { BridgeTransport } from "./bridge-transport";
 import {
@@ -12,9 +12,15 @@ import {
 	useResetOnSessionChange,
 	useSseConnection,
 } from "./use-bridge-connection-effects";
-import { feedReducer, initialFeedState } from "./use-bridge-feed";
+import {
+	type FeedAction,
+	feedReducer,
+	initialFeedState,
+} from "./use-bridge-feed";
 
 export interface UseBridgeTerminalResult {
+	answerApproval: (requestId: string, optionId: string) => Promise<void>;
+	answered: Record<string, string>;
 	canSend: boolean;
 	events: StreamEvent[];
 	sendInput: (text: string) => Promise<void>;
@@ -33,6 +39,24 @@ function useSendInput(sessionId: string, transport: BridgeTransport) {
 		}
 	};
 	return { sending, sendInput };
+}
+
+/**
+ * Builds the approval-decision callback: marks it answered in the feed
+ * store immediately (so the buttons disable and the chosen option shows
+ * before the network round trip settles — no window for a double-click to
+ * send twice), then relays the decision as the `{ type: "approval",
+ * requestId, optionId }` command the CLI's `commands.ts` parses back out.
+ * Not itself a hook — takes the dispatch/sendInput a hook already produced.
+ */
+function makeAnswerApproval(
+	dispatchFeed: Dispatch<FeedAction>,
+	sendInput: (text: string) => Promise<void>
+) {
+	return async (requestId: string, optionId: string): Promise<void> => {
+		dispatchFeed({ type: "answer", requestId, optionId });
+		await sendInput(JSON.stringify({ type: "approval", requestId, optionId }));
+	};
 }
 
 /**
@@ -70,6 +94,7 @@ export function useBridgeTerminal(
 		dispatchConn,
 	});
 	const { sending, sendInput } = useSendInput(sessionId, transport);
+	const answerApproval = makeAnswerApproval(dispatchFeed, sendInput);
 
 	return {
 		events: feed.events,
@@ -77,5 +102,7 @@ export function useBridgeTerminal(
 		canSend: conn.everConnected,
 		sending,
 		sendInput,
+		answered: feed.answered,
+		answerApproval,
 	};
 }

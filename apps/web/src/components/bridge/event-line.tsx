@@ -1,12 +1,22 @@
 import { Badge } from "@better-agent/ui/components/badge";
+import { Button } from "@better-agent/ui/components/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@better-agent/ui/components/card";
 import { cn } from "@better-agent/ui/lib/utils";
 import {
 	AlertTriangleIcon,
+	CheckIcon,
 	FileEditIcon,
 	InfoIcon,
 	WrenchIcon,
 } from "lucide-react";
 import type {
+	ApprovalEvent,
 	ErrorEvent,
 	FileEvent,
 	MessageEvent,
@@ -15,6 +25,8 @@ import type {
 	StatusEvent,
 	ToolEvent,
 } from "./bridge-events";
+
+const DEFAULT_OPTION_INDEX = 0;
 
 function MessageLine({ event }: { event: MessageEvent }) {
 	const isUser = event.role === "user";
@@ -107,8 +119,73 @@ function ErrorLine({ event }: { event: ErrorEvent }) {
 	);
 }
 
+export interface ApprovalLineProps {
+	answeredOptionId?: string;
+	event: ApprovalEvent;
+	onAnswer?: (requestId: string, optionId: string) => void;
+	pending: boolean;
+}
+
+/**
+ * Approval request card: title + optional detail + one button per option.
+ * The first option is the "allow"-style default action, the rest render as
+ * outline buttons. Once `answeredOptionId` is set — either from this
+ * session's own click or a replayed event for an already-answered
+ * `requestId` — every button disables and the chosen one shows a check.
+ */
+function ApprovalLine({
+	answeredOptionId,
+	event,
+	onAnswer,
+	pending,
+}: ApprovalLineProps) {
+	const disabled = answeredOptionId !== undefined || pending;
+	return (
+		<Card className="gap-2 font-sans" size="sm">
+			<CardHeader>
+				<CardTitle>{event.title}</CardTitle>
+				{event.detail && <CardDescription>{event.detail}</CardDescription>}
+			</CardHeader>
+			<CardContent className="flex flex-wrap gap-2">
+				{event.options.map((option, index) => {
+					const chosen = answeredOptionId === option.id;
+					return (
+						<Button
+							disabled={disabled}
+							key={option.id}
+							onClick={() => onAnswer?.(event.requestId, option.id)}
+							size="sm"
+							type="button"
+							variant={index === DEFAULT_OPTION_INDEX ? "default" : "outline"}
+						>
+							{chosen && <CheckIcon className="size-3.5" />}
+							{option.label}
+							{chosen && <span className="sr-only"> (chosen)</span>}
+						</Button>
+					);
+				})}
+			</CardContent>
+		</Card>
+	);
+}
+
+export interface EventLineProps {
+	/** requestId -> chosen optionId, for approvals already answered. */
+	answeredApprovals?: Record<string, string>;
+	/** True while a sendInput mutation is in flight — disables not-yet
+	 * answered approval buttons so a second click can't fire a second send. */
+	approvalPending?: boolean;
+	event: NormalizedEvent;
+	onAnswerApproval?: (requestId: string, optionId: string) => void;
+}
+
 /** Renders one normalized bridge event, styled distinctly per `kind`. */
-export function EventLine({ event }: { event: NormalizedEvent }) {
+export function EventLine({
+	answeredApprovals,
+	approvalPending,
+	event,
+	onAnswerApproval,
+}: EventLineProps) {
 	switch (event.kind) {
 		case "message":
 			return <MessageLine event={event} />;
@@ -122,6 +199,15 @@ export function EventLine({ event }: { event: NormalizedEvent }) {
 			return <StatusLine event={event} />;
 		case "error":
 			return <ErrorLine event={event} />;
+		case "approval":
+			return (
+				<ApprovalLine
+					answeredOptionId={answeredApprovals?.[event.requestId]}
+					event={event}
+					onAnswer={onAnswerApproval}
+					pending={approvalPending ?? false}
+				/>
+			);
 		default:
 			return null;
 	}
