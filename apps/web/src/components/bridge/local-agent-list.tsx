@@ -2,16 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 import { LocalAgentCard } from "./local-agent-card";
 import { LocalAgentListSkeleton } from "./local-agent-list-skeleton";
-
-const SESSION_POLL_INTERVAL_MS = 5000;
+import { withSessionPolling } from "./local-agent-poll";
 
 /** Polls the user's bridge sessions and renders them as cards linking to
  * each session's detail page. */
 export function LocalAgentList() {
-	const sessions = useQuery({
-		...orpc.bridge.listSessions.queryOptions(),
-		refetchInterval: SESSION_POLL_INTERVAL_MS,
-	});
+	const sessions = useQuery(
+		withSessionPolling(orpc.bridge.listSessions.queryOptions())
+	);
 
 	if (sessions.isPending) {
 		return <LocalAgentListSkeleton />;

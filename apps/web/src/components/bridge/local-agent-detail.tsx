@@ -6,13 +6,12 @@ import type { BridgeSessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { createBridgeTransport } from "./bridge-transport";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
+import { formatSessionTimestamp } from "./local-agent-format";
+import { AgentKindIcon } from "./local-agent-kind-icon";
+import { withSessionPolling } from "./local-agent-poll";
 import { deriveLocalAgentStatus } from "./local-agent-status";
 import { LocalAgentStatusChip } from "./local-agent-status-chip";
 import { Terminal } from "./terminal";
-
-function formatDateTime(value: Date): string {
-	return new Date(value).toLocaleString();
-}
 
 function useEndSession() {
 	const queryClient = useQueryClient();
@@ -40,15 +39,21 @@ function DetailHeader({
 	const status = deriveLocalAgentStatus(session);
 	return (
 		<div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
-			<div className="min-w-0">
-				<p className="truncate font-medium text-sm">
-					{session.label ?? session.agentKind}
-				</p>
-				<p className="text-muted-foreground text-xs">{session.agentKind}</p>
-				<p className="text-muted-foreground text-xs">
-					Started {formatDateTime(session.createdAt)} · last seen{" "}
-					{formatDateTime(session.lastSeenAt)}
-				</p>
+			<div className="flex min-w-0 items-start gap-2">
+				<AgentKindIcon
+					className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+					kind={session.agentKind}
+				/>
+				<div className="min-w-0">
+					<p className="truncate font-medium text-sm">
+						{session.label ?? session.agentKind}
+					</p>
+					<p className="text-muted-foreground text-xs">{session.agentKind}</p>
+					<p className="text-muted-foreground text-xs">
+						Started {formatSessionTimestamp(session.createdAt)} · last seen{" "}
+						{formatSessionTimestamp(session.lastSeenAt)}
+					</p>
+				</div>
 			</div>
 			<div className="flex shrink-0 items-center gap-2">
 				<LocalAgentStatusChip status={status} />
@@ -71,7 +76,9 @@ function DetailHeader({
  * cache entry.
  */
 export function LocalAgentDetail({ sessionId }: { sessionId: string }) {
-	const sessions = useQuery(orpc.bridge.listSessions.queryOptions());
+	const sessions = useQuery(
+		withSessionPolling(orpc.bridge.listSessions.queryOptions())
+	);
 	const endSession = useEndSession();
 	const transport = useMemo(() => createBridgeTransport(), []);
 
