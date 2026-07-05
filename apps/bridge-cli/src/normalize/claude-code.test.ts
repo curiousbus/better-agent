@@ -128,18 +128,42 @@ describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
 		]);
 	});
 
-	it("maps a thinking block with the thinking flag set", () => {
+	it("drops an assistant thinking block (already streamed via thinking_delta)", () => {
+		// Symmetric with text: reasoning streams live via stream_event
+		// thinking_delta, and the final assistant message repeats it as a
+		// thinking block — dropping it here prevents rendering reasoning twice.
 		const events = normalizeClaudeCode({
 			type: "assistant",
 			message: { content: [{ type: "thinking", thinking: "pondering…" }] },
 		});
-		expect(events).toEqual([
-			{
-				kind: "message",
-				role: "assistant",
-				text: "pondering…",
-				thinking: true,
+		expect(events).toEqual([]);
+	});
+
+	it("a full thinking turn yields reasoning once (streamed), not duplicated by the final message", () => {
+		const streamed = normalizeClaudeCode({
+			type: "stream_event",
+			event: {
+				type: "content_block_delta",
+				delta: { type: "thinking_delta", thinking: "let me think" },
 			},
+		});
+		const final = normalizeClaudeCode({
+			type: "assistant",
+			message: {
+				content: [
+					{ type: "thinking", thinking: "let me think" },
+					{ type: "text", text: "the answer" },
+					{ type: "tool_use", id: "t1", name: "Read", input: {} },
+				],
+			},
+		});
+		// Streamed reasoning survives; the final message contributes ONLY the
+		// tool_use (its thinking + text blocks are dropped as duplicates).
+		expect(streamed).toEqual([
+			{ kind: "output", reasoning: true, text: "let me think" },
+		]);
+		expect(final).toEqual([
+			{ kind: "tool", id: "t1", name: "Read", status: "started", input: {} },
 		]);
 	});
 });

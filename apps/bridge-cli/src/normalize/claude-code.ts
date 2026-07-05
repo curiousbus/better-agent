@@ -69,14 +69,17 @@ function normalizeClaudeContentBlock(
 	}
 	switch (block.type) {
 		case "text":
-			// Assistant response text now streams live via `stream_event`
-			// `text_delta` output (see normalizeClaudeStreamEvent below); the
-			// final assistant message's text block repeats that same text, so
-			// it's dropped here to avoid double-rendering it. User-role
-			// messages (tool_result echoes) are unaffected.
+			// Assistant response text AND reasoning both stream live via
+			// `stream_event` (`text_delta` / `thinking_delta`) — see
+			// normalizeClaudeStreamEvent. The final assistant message repeats
+			// both as `text`/`thinking` blocks, so drop them here to avoid
+			// double-rendering (reasoning would otherwise show twice + a spurious
+			// bubble). User-role messages (tool_result echoes) are unaffected.
 			return role === "assistant" ? NO_EVENTS : normalizeTextBlock(role, block);
 		case "thinking":
-			return normalizeThinkingBlock(role, block);
+			return role === "assistant"
+				? NO_EVENTS
+				: normalizeThinkingBlock(role, block);
 		case "tool_use":
 			return normalizeToolUseBlock(block);
 		case "tool_result":
