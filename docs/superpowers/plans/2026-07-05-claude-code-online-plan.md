@@ -7,6 +7,20 @@
 
 **Already shipped (0918ede):** noise hidden (hooks/thinking_tokens/stream bookkeeping), empty reasoning dropped, init → curated `session_ready` (model/session/tools/slash/skills/mcp), result → `turn_usage` (cost/tokens), thinking enabled.
 
+## Phase 0 — Persist Local Agent conversation history (why there's no history today)
+Bridge events are Redis-window-only (ephemeral; the session's feed vanishes on reload / when the window TTLs). Persist them so a Local Agent conversation survives reload and can be reopened, exactly like the normal chat.
+- DB: new `bridge_messages` table — id, session_id (fk bridge_sessions), seq (monotonic per session), event jsonb, created_at; index (session_id, seq). Store the SERVER-assigned relay id as seq so history + live feed share one ordering.
+- Store: `BridgeMessageStore` — `append(sessionId, event) → seq`, `list(sessionId, afterSeq?, limit) → {seq, event}[]`. Wire into services (Postgres impl; fake for tests).
+- API `pushEvents`: after `relayStore.append`, also persist to `bridgeMessages` (best-effort; a persist failure must not break the live relay). `history` endpoint (userProcedure, owner-asserted): `{sessionId, afterSeq?, limit}` → persisted events.
+- Web: the detail terminal loads `history` on mount (seed the feed), THEN live via SSE/observe — dedupe by id so replayed live events don't double. Mirrors the chat's listMessages-then-stream seeding.
+- Skip persisting the noisy/curated status internals if desired; persist message/output/tool/file/approval + the curated session_ready/turn_usage.
+
+## Phase 0.5 — Common agent-capability abstraction (across claude / pi / opencode / codex)
+Don't special-case claude. Define a capability model each adapter reports, and the web surfaces each feature ONLY for agents that support it (see the capability matrix from the pi/opencode research).
+- `AgentCapabilities` on the adapter/handle: `{ reasoning, sessionList, sessionResume, slashCommands, skills, usage, contextUsage, toolApproval, modelSwitch, permissionMode, interrupt }` (booleans / optional method presence). claude = full; pi/opencode = per research; codex = per research.
+- Surface capabilities to the web (via the `session_ready` event's detail or a dedicated capability event), so the composer/status/session UIs render conditionally.
+- The normalized event model already unifies message/output/tool/file/status/error/approval — keep every agent mapping onto it; capability flags gate the OPTIONAL surfaces (slash picker, session list, usage panel, model/permission controls).
+
 ## Phase 1 — Reasoning display (the #1 complaint)
 - Adapter: turn on `includePartialMessages: true`.
 - Normalize `stream_event`: `text_delta` → `output`; `thinking_delta` → a reasoning-flagged output (`OutputEvent.reasoning?: boolean`).
