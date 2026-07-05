@@ -25,9 +25,11 @@ function normalizeThinkingBlock(
 	block: Record<string, unknown>
 ): NormalizedEvent[] {
 	const text = asString(block.thinking);
-	return text === undefined
-		? NO_EVENTS
-		: [{ kind: "message", role, text, thinking: true }];
+	// Drop empty/whitespace-only reasoning — an empty "thinking" bubble is worse
+	// than none (the SDK emits a placeholder thinking block before content).
+	return text && text.trim() !== ""
+		? [{ kind: "message", role, text, thinking: true }]
+		: NO_EVENTS;
 }
 
 function normalizeToolUseBlock(
@@ -100,18 +102,53 @@ function normalizeClaudeMessage(
 	return content.flatMap((block) => normalizeClaudeContentBlock(role, block));
 }
 
+// Curated session metadata pulled off the init line — the model, resumable
+// session id, and the capabilities a "Claude Code online" UI surfaces (tools,
+// slash commands, skills, MCP servers, permission mode). The raw init line
+// (and every other system line: hooks, thinking-token counters, stream_event
+// bookkeeping) is internal noise the user shouldn't see in the chat.
+function sessionInfo(raw: Record<string, unknown>): Record<string, unknown> {
+	return {
+		sessionId: asString(raw.session_id),
+		model: asString(raw.model),
+		cwd: asString(raw.cwd),
+		permissionMode: asString(raw.permissionMode),
+		tools: raw.tools,
+		slashCommands: raw.slash_commands,
+		skills: raw.skills,
+		mcpServers: raw.mcp_servers,
+	};
+}
+
 function normalizeClaudeSystem(
 	raw: Record<string, unknown>
 ): NormalizedEvent[] {
-	const subtype = asString(raw.subtype) ?? "unknown";
-	return [{ kind: "status", status: `system:${subtype}`, detail: raw }];
+	if (asString(raw.subtype) === "init") {
+		return [
+			{ kind: "status", status: "session_ready", detail: sessionInfo(raw) },
+		];
+	}
+	// Every other system subtype (hooks, thinking_tokens, …) is internal noise.
+	return NO_EVENTS;
 }
 
+// The turn's cost/usage, curated from the result line for a usage footer.
 function normalizeClaudeResult(
 	raw: Record<string, unknown>
 ): NormalizedEvent[] {
-	const subtype = asString(raw.subtype) ?? "unknown";
-	return [{ kind: "status", status: `result:${subtype}`, detail: raw }];
+	return [
+		{
+			kind: "status",
+			status: "turn_usage",
+			detail: {
+				costUsd: raw.total_cost_usd,
+				numTurns: raw.num_turns,
+				durationMs: raw.duration_ms,
+				usage: raw.usage,
+				isError: raw.is_error === true,
+			},
+		},
+	];
 }
 
 function normalizeClaudeStreamEvent(
@@ -126,7 +163,8 @@ function normalizeClaudeStreamEvent(
 		const text = asString(delta.text);
 		return text === undefined ? NO_EVENTS : [{ kind: "output", text }];
 	}
-	return [{ kind: "status", status: "stream_event", detail: event }];
+	// Non-text stream_event frames are internal bookkeeping — don't surface them.
+	return NO_EVENTS;
 }
 
 /**

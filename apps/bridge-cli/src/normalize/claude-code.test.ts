@@ -2,39 +2,62 @@ import { describe, expect, it } from "vitest";
 import { normalizeClaudeCode } from "./claude-code";
 
 describe("normalizeClaudeCode - system envelope", () => {
-	it("maps a system/init line to a status event", () => {
+	it("maps a system/init line to a curated session_ready status", () => {
 		const events = normalizeClaudeCode({
 			type: "system",
 			subtype: "init",
 			session_id: "sess_1",
+			model: "claude-opus-4-8",
+			slash_commands: ["clear", "compact"],
+			skills: ["pdf"],
 		});
 		expect(events).toEqual([
 			{
 				kind: "status",
-				status: "system:init",
-				detail: { type: "system", subtype: "init", session_id: "sess_1" },
+				status: "session_ready",
+				detail: {
+					sessionId: "sess_1",
+					model: "claude-opus-4-8",
+					cwd: undefined,
+					permissionMode: undefined,
+					tools: undefined,
+					slashCommands: ["clear", "compact"],
+					skills: ["pdf"],
+					mcpServers: undefined,
+				},
 			},
 		]);
+	});
+
+	it("hides noisy system lines (hooks, thinking_tokens)", () => {
+		expect(
+			normalizeClaudeCode({ type: "system", subtype: "hook_started" })
+		).toEqual([]);
+		expect(
+			normalizeClaudeCode({ type: "system", subtype: "thinking_tokens" })
+		).toEqual([]);
 	});
 });
 
 describe("normalizeClaudeCode - result envelope", () => {
-	it("maps a result line to a status event", () => {
+	it("maps a result line to a curated turn_usage status", () => {
 		const events = normalizeClaudeCode({
 			type: "result",
 			subtype: "success",
 			total_cost_usd: 0.01,
+			num_turns: 1,
 			session_id: "sess_1",
 		});
 		expect(events).toEqual([
 			{
 				kind: "status",
-				status: "result:success",
+				status: "turn_usage",
 				detail: {
-					type: "result",
-					subtype: "success",
-					total_cost_usd: 0.01,
-					session_id: "sess_1",
+					costUsd: 0.01,
+					numTurns: 1,
+					durationMs: undefined,
+					usage: undefined,
+					isError: false,
 				},
 			},
 		]);

@@ -98,7 +98,15 @@ export const claudeCodeAdapter: Adapter = {
 
 		const session = query({
 			prompt: input,
-			options: { cwd: dir, canUseTool: makeCanUseTool(events, approvals) },
+			options: {
+				cwd: dir,
+				canUseTool: makeCanUseTool(events, approvals),
+				// Enable extended thinking. NOTE: the full reasoning text only
+				// streams as `thinking_delta` frames under includePartialMessages,
+				// which also duplicates the response text — surfacing that cleanly
+				// (dedup) is planned work, so we don't turn it on here yet.
+				thinking: { type: "adaptive" },
+			},
 		});
 		drainSession(session, events);
 
