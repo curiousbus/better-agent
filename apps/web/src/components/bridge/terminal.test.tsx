@@ -71,6 +71,28 @@ it("posts input via the transport and clears the box", async () => {
 	expect(textarea.value).toBe("");
 });
 
+it("can send input before the output stream has connected", async () => {
+	// Regression: input (sendInput RPC) and output (SSE observe) are independent
+	// channels. A failing/slow observe stream must NOT disable the composer —
+	// gating send on the stream having opened once silenced input entirely when
+	// the SSE couldn't connect. Note: no onOpen() is called here.
+	const fake = makeControllableTransport();
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	expect(textarea.disabled).toBe(false);
+	fireEvent.change(textarea, { target: { value: "hello before connect" } });
+	fireEvent.click(view.getByRole("button", { name: "Send" }));
+	await waitFor(() => {
+		expect(fake.sendInput).toHaveBeenCalledWith({
+			sessionId: SESSION.id,
+			data: "hello before connect",
+		});
+	});
+});
+
 it("degrades to polling after MAX_SSE_FAILURES consecutive stream errors", async () => {
 	const fake = makeControllableTransport();
 	const { container } = render(

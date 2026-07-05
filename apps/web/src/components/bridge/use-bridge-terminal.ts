@@ -129,7 +129,12 @@ export function useBridgeTerminal(
 	return {
 		events: feed.events,
 		status: ended ? "ended" : conn.status,
-		canSend: !ended && conn.everConnected,
+		// Input (sendInput RPC → commands↓) and output (the SSE observe stream)
+		// are INDEPENDENT channels: the CLI polls commands regardless of any SSE.
+		// Gating send on `everConnected` (the OUTPUT stream having opened) meant a
+		// failing/slow observe stream also silenced the input — the user could
+		// neither send nor see anything. Send whenever the session is live.
+		canSend: !ended,
 		sending,
 		sendInput,
 		answered: feed.answered,
