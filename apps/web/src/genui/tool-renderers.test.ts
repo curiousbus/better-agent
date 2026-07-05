@@ -66,15 +66,25 @@ it("x_search_users parses a single profile object, not a list", () => {
 	expect(parsed).toEqual(profile);
 });
 
-it("renders the valid tweets even when one item in the list is malformed", () => {
-	// A user timeline often mixes in an edge-case tweet (missing a count, odd
-	// shape). One bad item must not blank the whole render — the good ones show.
-	const malformed = { tweetId: "2", fullText: "no counts here" };
+it("keeps a tweet that is only missing display fields (defaults fill in)", () => {
+	// The resilient schema requires only tweetId; a tweet with no counts/media
+	// still renders (counts default to 0) rather than being dropped.
+	const sparse = { tweetId: "2", fullText: "just an id and text" };
 	const parsed = TOOL_RESULT_RENDERERS.x_user_tweets?.parse([
 		TWEET_FIXTURE,
-		malformed,
+		sparse,
 	]);
 	expect(Array.isArray(parsed)).toBe(true);
+	expect((parsed as unknown[]).length).toBe(2);
+});
+
+it("skips a non-tweet item (no tweetId) but keeps the real tweets", () => {
+	// Only an item with NO tweetId is truly unparseable — it's skipped, the real
+	// tweet still renders.
+	const parsed = TOOL_RESULT_RENDERERS.x_user_tweets?.parse([
+		TWEET_FIXTURE,
+		{ notATweet: true },
+	]);
 	expect((parsed as unknown[]).length).toBe(1);
 });
 

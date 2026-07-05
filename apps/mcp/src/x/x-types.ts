@@ -22,7 +22,6 @@ export interface NormalizedTweet {
 	postedAt: Date;
 	quoteCount: number;
 	quotedTweetId: string | null;
-	rawJson: unknown;
 	replyCount: number;
 	replyToScreenName: string | null;
 	replyToTweetId: string | null;

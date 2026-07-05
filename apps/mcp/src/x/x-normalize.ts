@@ -171,7 +171,6 @@ export function normalizeTweet(raw: unknown): NormalizedTweet {
 		...extractCounts(rec, legacy),
 		postedAt: extractPostedAt(legacy),
 		media: extractMedia(legacy),
-		rawJson: raw,
 	};
 }
 
