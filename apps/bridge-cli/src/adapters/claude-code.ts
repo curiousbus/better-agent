@@ -10,13 +10,16 @@ import { createAsyncQueue } from "./async-queue";
 import { type ProcessIo, spawnProcessIo } from "./process-io";
 import type { Adapter, AgentHandle } from "./types";
 
-// One-shot per turn: `claude -p <prompt>` processes the prompt and exits. The
-// persistent `--input-format stream-json` stdin mode silently DROPPED frames
-// written to an already-open stdin (claude only reliably processes a complete
-// input unit, i.e. a piped frame + EOF), so a bridge session runs claude fresh
-// for each user turn and carries context via `--resume <session_id>`, captured
-// from the previous turn's init line. Approval prompts still flow over that
-// turn's stdio (`--permission-prompt-tool stdio`).
+// One-shot per turn: `claude -p <prompt>` processes the prompt and exits. Two
+// hard-won details:
+//  1. claude only processes its input once stdin reaches EOF — with stdin left
+//     open (a spawned pipe) it waits forever and produces NOTHING, so runTurn
+//     closes the child's stdin immediately after spawn.
+//  2. because stdin is closed, the interactive `--permission-prompt-tool stdio`
+//     channel can't be answered, so tools run under `--permission-mode
+//     acceptEdits` instead (the agent can edit/act without a live prompt).
+// Context carries across turns via `--resume <session_id>` from the previous
+// turn's init line.
 function turnArgs(prompt: string, sessionId: string | null): string[] {
 	const base = [
 		"-p",
@@ -24,8 +27,8 @@ function turnArgs(prompt: string, sessionId: string | null): string[] {
 		"--output-format",
 		"stream-json",
 		"--verbose",
-		"--permission-prompt-tool",
-		"stdio",
+		"--permission-mode",
+		"acceptEdits",
 	];
 	return sessionId ? [...base, "--resume", sessionId] : base;
 }
@@ -77,6 +80,9 @@ async function runTurn(ctx: TurnContext, prompt: string): Promise<void> {
 		ctx.dir
 	);
 	ctx.current = io;
+	// EOF: claude waits for stdin to close before processing its prompt — with a
+	// spawned pipe left open it just hangs and produces nothing.
+	io.child.stdin?.end();
 	(async () => {
 		for await (const line of io.stderrLines) {
 			ctx.events.push({ kind: "error", message: line });

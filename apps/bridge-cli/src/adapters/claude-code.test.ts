@@ -74,8 +74,8 @@ it("spawns `claude -p <prompt>` on send and streams the reply", async () => {
 		"--output-format",
 		"stream-json",
 		"--verbose",
-		"--permission-prompt-tool",
-		"stdio",
+		"--permission-mode",
+		"acceptEdits",
 	]);
 
 	spawned[0]?.pushLine(
