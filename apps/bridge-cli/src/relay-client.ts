@@ -30,7 +30,10 @@ export interface RelayTransport {
 export type Sleep = (ms: number) => Promise<void>;
 
 const DEFAULT_MIN_INTERVAL_MS = 500;
-const DEFAULT_MAX_INTERVAL_MS = 5000;
+// Idle backoff ceiling. Kept modest (2s, not 5s+) so the first command a user
+// types in the web takes at most ~2s to be picked up even after the loop has
+// gone idle — the bridge is interactive, not a batch poller.
+const DEFAULT_MAX_INTERVAL_MS = 2000;
 const BACKOFF_FACTOR = 2;
 const DEFAULT_MAX_BATCH_SIZE = 25;
 const DEFAULT_FLUSH_INTERVAL_MS = 250;
@@ -239,6 +242,9 @@ export interface RunBridgeSessionOptions {
 		stop(): void;
 	};
 	label?: string;
+	/** Fired once the session is registered, before the loops start — lets the
+	 * CLI print the session id so the operator sees it connected. */
+	onStart?: (sessionId: string) => void;
 	pollOptions?: Omit<PollLoopOptions, "signal">;
 	signal: AbortSignal;
 	transport: RelayTransport;
@@ -261,6 +267,7 @@ export async function runBridgeSession(
 			agentKind: options.agentKind,
 			label: options.label,
 		});
+		options.onStart?.(sessionId);
 		const afterIdRef: AfterIdRef = { current: 0 };
 		const pollController = new AbortController();
 		const stopPolling = () => pollController.abort();

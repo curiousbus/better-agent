@@ -129,6 +129,16 @@ function normalizeClaudeStreamEvent(
 	return [{ kind: "status", status: "stream_event", detail: event }];
 }
 
+/**
+ * True for claude's `{type:"system", subtype:"init"}` readiness line. The
+ * stream-json input mode is a handshake: claude emits this once it can accept
+ * user frames, and SILENTLY DROPS any frame written before it — so the adapter
+ * buffers sends until this line arrives.
+ */
+export function isClaudeInitLine(raw: unknown): boolean {
+	return isRecord(raw) && raw.type === "system" && raw.subtype === "init";
+}
+
 /** Maps one parsed line of `claude`'s stream-json stdout to normalized events. */
 export function normalizeClaudeCode(raw: unknown): NormalizedEvent[] {
 	if (!isRecord(raw)) {

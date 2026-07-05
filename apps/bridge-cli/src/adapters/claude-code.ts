@@ -1,6 +1,7 @@
 import {
 	buildClaudeControlResponse,
 	buildClaudeInputFrame,
+	isClaudeInitLine,
 	normalizeClaudeCode,
 	normalizeClaudeControlRequest,
 } from "../normalize/claude-code";
@@ -32,12 +33,47 @@ function tryParseJson(line: string): unknown {
 	}
 }
 
+/** Buffers stdin frames until claude signals readiness (system:init), then
+ * flushes them in order. Frames written before init are dropped by claude, so
+ * gating the writes is what makes the first command actually reach the agent. */
+interface StdinGate {
+	release(): void;
+	write(frame: string): void;
+}
+
+function createStdinGate(io: { writeLine(line: string): void }): StdinGate {
+	let ready = false;
+	const pending: string[] = [];
+	return {
+		write(frame: string): void {
+			if (ready) {
+				io.writeLine(frame);
+				return;
+			}
+			pending.push(frame);
+		},
+		release(): void {
+			if (ready) {
+				return;
+			}
+			ready = true;
+			for (const frame of pending) {
+				io.writeLine(frame);
+			}
+			pending.length = 0;
+		},
+	};
+}
+
 /**
  * Handles one already-parsed stdout line: if it's a `can_use_tool` control
  * request, registers its reply function and pushes the approval event, and
  * returns `true` so the caller skips re-processing it as an ordinary
  * stream-json line. Returns `false` for everything else.
  */
+// Control responses (approval replies) go straight to stdin, not through the
+// init gate: a control_request only ever arrives mid-turn, after init, so its
+// reply is never at risk of racing claude's boot the way a user prompt is.
 function handleClaudeLine(
 	parsed: unknown,
 	io: { writeLine(line: string): void },
@@ -62,6 +98,7 @@ export const claudeCodeAdapter: Adapter = {
 		const io = await spawnProcessIo("claude", CLAUDE_ARGS, dir);
 		const events = createAsyncQueue<NormalizedEvent>();
 		const approvals = createApprovalRegistry(events);
+		const gate = createStdinGate(io);
 		io.onExit(() => {
 			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
 			events.close();
@@ -71,6 +108,9 @@ export const claudeCodeAdapter: Adapter = {
 		(async () => {
 			for await (const line of io.lines) {
 				const parsed = tryParseJson(line);
+				if (isClaudeInitLine(parsed)) {
+					gate.release();
+				}
 				if (handleClaudeLine(parsed, io, approvals, events)) {
 					continue;
 				}
@@ -92,7 +132,7 @@ export const claudeCodeAdapter: Adapter = {
 			},
 			events,
 			send(text: string): void {
-				io.writeLine(buildClaudeInputFrame(text));
+				gate.write(buildClaudeInputFrame(text));
 			},
 			stop(): void {
 				io.stop();

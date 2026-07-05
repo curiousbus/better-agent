@@ -14,6 +14,9 @@ async function main(): Promise<void> {
 		serverUrl: args.serverUrl,
 		token: args.token,
 	});
+	process.stdout.write(
+		`Starting ${args.agentKind} in ${args.dir} → ${args.serverUrl}\n`
+	);
 	const handle = await adapter.start(args.dir);
 	const controller = new AbortController();
 
@@ -30,6 +33,10 @@ async function main(): Promise<void> {
 		transport,
 		handle,
 		signal: controller.signal,
+		onStart: (id) =>
+			process.stdout.write(
+				`Connected. Session ${id}. Drive it from the web Local Agent view; input here is forwarded to the agent.\n`
+			),
 		forwardOptions: {
 			onWarning: (message) => process.stderr.write(`${message}\n`),
 		},

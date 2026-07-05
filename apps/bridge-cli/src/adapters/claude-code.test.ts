@@ -136,3 +136,40 @@ describe("claudeCodeAdapter - approvals - unknown requestId", () => {
 		expect(io.writeLine).not.toHaveBeenCalled();
 	});
 });
+
+describe("claudeCodeAdapter - stdin init gate", () => {
+	it("buffers a send until system:init, then flushes the frame", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+		const handle = await claudeCodeAdapter.start("/tmp/project");
+
+		// A command arrives before claude is ready — claude would silently drop
+		// a frame written now, so nothing must reach stdin yet.
+		handle.send("hello agent");
+		expect(io.writeLine).not.toHaveBeenCalled();
+
+		// claude signals readiness; the buffered frame flushes to stdin.
+		pushLine(JSON.stringify({ subtype: "init", type: "system" }));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(io.writeLine).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(io.writeLine).mock.calls[0]?.[0]).toContain(
+			'"text":"hello agent"'
+		);
+	});
+
+	it("writes a send immediately once init has already passed", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+		const handle = await claudeCodeAdapter.start("/tmp/project");
+
+		pushLine(JSON.stringify({ subtype: "init", type: "system" }));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		handle.send("second turn");
+
+		expect(io.writeLine).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(io.writeLine).mock.calls[0]?.[0]).toContain(
+			'"text":"second turn"'
+		);
+	});
+});
