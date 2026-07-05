@@ -133,6 +133,8 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 				disabled={!canSend}
 				onSend={sendInput}
 				sending={sending}
+				skills={sessionReady?.skills}
+				slashCommands={sessionReady?.slashCommands}
 			/>
 		</div>
 	);

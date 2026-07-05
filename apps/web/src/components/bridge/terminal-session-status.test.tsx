@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, waitFor, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { Terminal } from "./terminal";
 import { makeControllableTransport, SESSION } from "./terminal-test-helpers";
@@ -102,4 +102,47 @@ it("still renders a normal assistant message as a chat bubble", async () => {
 	await waitFor(() => {
 		expect(view.getByText("Hello there")).toBeDefined();
 	});
+});
+
+it("feeds the composer's '/' picker from session_ready's slashCommands/skills", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "session_ready",
+				detail: SESSION_READY_DETAIL,
+			},
+		},
+	]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+
+	await waitFor(() => {
+		expect(view.getByText("claude-opus-4-6")).toBeDefined();
+	});
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	fireEvent.change(textarea, { target: { value: "/" } });
+
+	expect(view.getByRole("option", { name: "compact" })).toBeDefined();
+	expect(view.getByRole("option", { name: "web-design" })).toBeDefined();
+});
+
+it("shows no '/' picker before session_ready has arrived", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+	const textarea = (await waitFor(() =>
+		view.getByLabelText("Message")
+	)) as HTMLTextAreaElement;
+
+	fireEvent.change(textarea, { target: { value: "/" } });
+
+	expect(view.queryByRole("listbox")).toBeNull();
 });
