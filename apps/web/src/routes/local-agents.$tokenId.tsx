@@ -3,12 +3,12 @@ import { ArrowLeftIcon } from "lucide-react";
 
 import { LocalAgentDetail } from "@/components/bridge/local-agent-detail";
 
-export const Route = createFileRoute("/local-agents/$sessionId")({
+export const Route = createFileRoute("/local-agents/$tokenId")({
 	component: LocalAgentDetailPage,
 });
 
 function LocalAgentDetailPage() {
-	const { sessionId } = Route.useParams();
+	const { tokenId } = Route.useParams();
 
 	return (
 		<div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
@@ -19,7 +19,7 @@ function LocalAgentDetailPage() {
 				<ArrowLeftIcon className="size-4" />
 				Local agents
 			</Link>
-			<LocalAgentDetail sessionId={sessionId} />
+			<LocalAgentDetail tokenId={tokenId} />
 		</div>
 	);
 }
