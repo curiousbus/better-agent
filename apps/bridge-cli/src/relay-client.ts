@@ -4,15 +4,13 @@
 // `forwardEvents`, an injected `sleep`) so they're fully testable without a
 // real network or a real timer — see relay-client.test.ts.
 
-import {
-	type AfterIdRef,
-	type CommandSink,
-	dispatchCommands,
-	type RelayEvent,
-} from "./commands";
-import type { StatusEvent } from "./normalize/types";
+import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
+import { type PollLoopOptions, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { truncateEvents } from "./truncate-event";
+
+export type { PollLoopOptions } from "./poll-loop";
+export { pollLoop } from "./poll-loop";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
 export interface RelayTransport {
@@ -29,12 +27,6 @@ export interface RelayTransport {
 
 export type Sleep = (ms: number) => Promise<void>;
 
-const DEFAULT_MIN_INTERVAL_MS = 500;
-// Idle backoff ceiling. Kept modest (2s, not 5s+) so the first command a user
-// types in the web takes at most ~2s to be picked up even after the loop has
-// gone idle — the bridge is interactive, not a batch poller.
-const DEFAULT_MAX_INTERVAL_MS = 2000;
-const BACKOFF_FACTOR = 2;
 const DEFAULT_MAX_BATCH_SIZE = 25;
 const DEFAULT_FLUSH_INTERVAL_MS = 250;
 // How many events `forwardEvents` will hold in `pushEvents` retry backlog
@@ -43,10 +35,6 @@ const DEFAULT_FLUSH_INTERVAL_MS = 250;
 // start shedding events, while still bounding memory during a real outage.
 const DEFAULT_MAX_BUFFERED_EVENTS = 1000;
 const FLUSH_TICK = Symbol("flush-tick");
-/** Status pushed straight to the server (bypassing the normal `forwardEvents`
- * pipeline, which reads from the agent's own event queue) when a `control:
- * stop` command ends the poll loop — see `pushStoppedByServerStatus`. */
-const STOPPED_BY_SERVER_STATUS = "stopped_by_server";
 
 function defaultSleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,6 +44,9 @@ export interface ForwardEventsOptions {
 	flushIntervalMs?: number;
 	maxBatchSize?: number;
 	maxBufferedEvents?: number;
+	/** Debug hook: called for every event drained from the agent, before it's
+	 * batched and pushed. Lets `--debug` show exactly what the agent produced. */
+	onEvent?: (event: unknown) => void;
 	onWarning?: (message: string) => void;
 	/** Sleep implementation for `pushEvents` retry backoff. Defaults to
 	 * `sleep` — split out so tests can control the flush-interval timer and
@@ -142,6 +133,7 @@ export async function forwardEvents<T>(
 		if (result.done) {
 			break;
 		}
+		options.onEvent?.(result.value);
 		buffer.push(result.value);
 		if (buffer.length >= maxBatchSize) {
 			buffer = flushToQueue(buffer, queue);
@@ -149,89 +141,6 @@ export async function forwardEvents<T>(
 	}
 	flushToQueue(buffer, queue);
 	await queue.close();
-}
-
-export interface PollLoopOptions {
-	maxIntervalMs?: number;
-	minIntervalMs?: number;
-	onError?: (error: unknown) => void;
-	signal: AbortSignal;
-	sleep?: Sleep;
-}
-
-/** Best-effort: pushes a final status event noting the session was stopped
- * remotely, straight to the server (bypassing the agent's own event queue,
- * which `forwardEvents` drains separately) so the web UI's feed gets an
- * explicit last word. Swallows failure — the session is winding down either
- * way, and there's no one left to retry for. */
-async function pushStoppedByServerStatus(
-	transport: RelayTransport,
-	sessionId: string
-): Promise<void> {
-	try {
-		const status: StatusEvent = {
-			kind: "status",
-			status: STOPPED_BY_SERVER_STATUS,
-		};
-		await transport.pushEvents({ sessionId, events: [status] });
-	} catch {
-		// best-effort — nothing else to do here.
-	}
-}
-
-/**
- * Polls `pollCommands(afterId)` in a loop, dispatching each command to
- * `sink` — a text command calls `sink.send`, an approval command calls
- * `sink.answerApproval`. The interval speeds back up to `minIntervalMs`
- * right after an active poll and backs off toward `maxIntervalMs` while
- * idle. A transient transport error is swallowed (reported via `onError`)
- * and retried at `maxIntervalMs` — `afterIdRef` is left untouched, so the
- * next successful poll resumes exactly where the last one left off.
- *
- * A `control: stop` command (the web UI's "End session" action) ends the
- * loop immediately instead of sleeping and polling again: `dispatchCommands`
- * has already called `sink.stop()`, so this only needs to push a best-effort
- * final status event and return.
- */
-export async function pollLoop(
-	transport: RelayTransport,
-	sessionId: string,
-	sink: CommandSink,
-	afterIdRef: AfterIdRef,
-	options: PollLoopOptions
-): Promise<void> {
-	const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
-	const maxIntervalMs = options.maxIntervalMs ?? DEFAULT_MAX_INTERVAL_MS;
-	const sleep = options.sleep ?? defaultSleep;
-	let interval = minIntervalMs;
-
-	while (!options.signal.aborted) {
-		try {
-			const commands = await transport.pollCommands({
-				sessionId,
-				afterId: afterIdRef.current,
-			});
-			const { wasActive, stopRequested } = dispatchCommands(
-				commands,
-				sink,
-				afterIdRef
-			);
-			if (stopRequested) {
-				await pushStoppedByServerStatus(transport, sessionId);
-				return;
-			}
-			interval = wasActive
-				? minIntervalMs
-				: Math.min(interval * BACKOFF_FACTOR, maxIntervalMs);
-		} catch (error) {
-			options.onError?.(error);
-			interval = maxIntervalMs;
-		}
-		if (options.signal.aborted) {
-			break;
-		}
-		await sleep(interval);
-	}
 }
 
 export interface RunBridgeSessionOptions {

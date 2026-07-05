@@ -28,7 +28,13 @@ describe("parseArgs - accepted input", () => {
 			serverUrl: "https://bridge.example.com",
 			dir: "/tmp",
 			label: "my repo",
+			debug: false,
 		});
+	});
+
+	it("sets debug when --debug is passed", () => {
+		const args = parseArgs([...BASE, "--debug"], {});
+		expect(args.debug).toBe(true);
 	});
 
 	it("defaults dir to the current working directory and label to undefined", () => {

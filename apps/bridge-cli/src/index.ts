@@ -37,8 +37,17 @@ async function main(): Promise<void> {
 			process.stdout.write(
 				`Connected. Session ${id}. Drive it from the web Local Agent view; input here is forwarded to the agent.\n`
 			),
+		pollOptions: args.debug
+			? {
+					onCommands: (commands) =>
+						process.stderr.write(`← command(s): ${JSON.stringify(commands)}\n`),
+				}
+			: undefined,
 		forwardOptions: {
 			onWarning: (message) => process.stderr.write(`${message}\n`),
+			onEvent: args.debug
+				? (event) => process.stderr.write(`→ event: ${JSON.stringify(event)}\n`)
+				: undefined,
 		},
 	});
 

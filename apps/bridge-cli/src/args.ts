@@ -6,6 +6,7 @@ const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
 export interface BridgeCliArgs {
 	agentKind: AgentKind;
+	debug: boolean;
 	dir: string;
 	label: string | undefined;
 	serverUrl: string;
@@ -87,6 +88,7 @@ export function parseArgs(
 		serverUrl,
 		dir: validateDir(flags.dir ?? process.cwd()),
 		label: flags.label,
+		debug: argv.includes("--debug"),
 	};
 }
 
