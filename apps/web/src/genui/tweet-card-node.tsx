@@ -1,4 +1,5 @@
 import type { NodeProps } from "@better-agent/ui/components/genui/generative-ui";
+import type { UIAction } from "@curiousbus/agent-client";
 import {
 	BadgeCheck,
 	BarChart3,
@@ -37,7 +38,7 @@ function trimDecimal(v: number): string {
 	return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-function compactNumber(n: number): string {
+export function compactNumber(n: number): string {
 	if (n < KILO) {
 		return String(n);
 	}
@@ -75,7 +76,7 @@ function relativeTime(iso: string): string {
 	return RELATIVE_DATE_FORMAT.format(date);
 }
 
-function AuthorAvatar({ name, url }: { name: string; url: string }) {
+export function AuthorAvatar({ name, url }: { name: string; url: string }) {
 	if (url) {
 		return (
 			// biome-ignore lint/correctness/useImageSize: remote avatar, size set via className
@@ -212,5 +213,59 @@ export function TweetCardNode({ node }: NodeProps) {
 		>
 			{body}
 		</a>
+	);
+}
+
+/** A tweet from the X MCP tools' `NormalizedTweet` shape (see
+ * apps/mcp/src/x/x-types.ts) — plain data, not an agent-authored UI tree. */
+export interface TweetCardTweet {
+	authorScreenName: string;
+	fullText: string;
+	likeCount: number;
+	media: { sortOrder: number; url: string }[];
+	postedAt: string;
+	replyCount: number;
+	retweetCount: number;
+	tweetId: string;
+	viewCount: number;
+}
+
+const NOOP_ACTION = (_action: UIAction): void => {
+	// Real X tweets don't emit genui actions; TweetCardNode never calls this.
+};
+
+const NOOP_RENDER_CHILDREN = (): null => null;
+
+function tweetToNode(tweet: TweetCardTweet): UINode {
+	const mediaUrls = [...tweet.media]
+		.sort((a, b) => a.sortOrder - b.sortOrder)
+		.map((m) => m.url);
+	return {
+		id: tweet.tweetId,
+		type: "TweetCard",
+		props: {
+			authorHandle: tweet.authorScreenName,
+			authorName: tweet.authorScreenName,
+			likeCount: tweet.likeCount,
+			mediaUrls,
+			postedAt: tweet.postedAt,
+			replyCount: tweet.replyCount,
+			retweetCount: tweet.retweetCount,
+			text: tweet.fullText,
+			url: `https://x.com/${tweet.authorScreenName}/status/${tweet.tweetId}`,
+			viewCount: tweet.viewCount,
+		},
+	};
+}
+
+/** Render a real X tweet (from the tool-result registry) via the same visual
+ * card the agent's generative UI uses, by adapting it into a synthetic UINode. */
+export function TweetCardFromTweet({ tweet }: { tweet: TweetCardTweet }) {
+	return (
+		<TweetCardNode
+			node={tweetToNode(tweet)}
+			onAction={NOOP_ACTION}
+			renderChildren={NOOP_RENDER_CHILDREN}
+		/>
 	);
 }

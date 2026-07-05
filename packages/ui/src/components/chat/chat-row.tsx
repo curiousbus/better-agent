@@ -22,14 +22,17 @@ import type { ReactNode } from "react";
 
 import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
+import type { RenderToolResult } from "./tool";
 import { ToolGroup } from "./tool";
 
 function BlockView({
 	block,
 	streaming,
+	renderToolResult,
 }: {
 	block: ChatBlock;
 	streaming: boolean;
+	renderToolResult?: RenderToolResult;
 }) {
 	if (block.kind === "reasoning") {
 		return (
@@ -40,7 +43,9 @@ function BlockView({
 		);
 	}
 	if (block.kind === "tool") {
-		return <ToolGroup tools={[block.tool]} />;
+		return (
+			<ToolGroup renderToolResult={renderToolResult} tools={[block.tool]} />
+		);
 	}
 	if (block.kind === "text") {
 		return <Response isAnimating={streaming}>{block.text}</Response>;
@@ -54,11 +59,13 @@ function AssistantContent({
 	renderTree,
 	hasTree,
 	streaming,
+	renderToolResult,
 }: {
 	message: ChatMessage;
 	renderTree?: (tree: unknown) => ReactNode;
 	hasTree: boolean;
 	streaming: boolean;
+	renderToolResult?: RenderToolResult;
 }) {
 	if (hasTree) {
 		return <>{renderTree?.(message.structured)}</>;
@@ -70,6 +77,7 @@ function AssistantContent({
 					block={block}
 					// biome-ignore lint/suspicious/noArrayIndexKey: blocks are append-only and never reorder
 					key={`${index}-${block.kind}`}
+					renderToolResult={renderToolResult}
 					streaming={streaming}
 				/>
 			))}
@@ -91,9 +99,11 @@ function isThinking(message: ChatMessage, hasTree: boolean): boolean {
 function AssistantBody({
 	message,
 	renderTree,
+	renderToolResult,
 }: {
 	message: ChatMessage;
 	renderTree?: (tree: unknown) => ReactNode;
+	renderToolResult?: RenderToolResult;
 }) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
@@ -114,6 +124,7 @@ function AssistantBody({
 			<AssistantContent
 				hasTree={hasTree}
 				message={message}
+				renderToolResult={renderToolResult}
 				renderTree={renderTree}
 				streaming={streaming}
 			/>
@@ -218,11 +229,13 @@ export function ChatRow({
 	agentClient,
 	renderTree,
 	avatars,
+	renderToolResult,
 }: {
 	message: ChatMessage;
 	agentClient: AgentClient;
 	renderTree?: (tree: unknown) => ReactNode;
 	avatars?: ChatAvatars;
+	renderToolResult?: RenderToolResult;
 }) {
 	if (message.role === "user") {
 		return (
@@ -235,10 +248,16 @@ export function ChatRow({
 			<MessageContent>
 				<Bubble variant="ghost">
 					<BubbleContent className="text-sm">
-						<AssistantBody message={message} renderTree={renderTree} />
+						<AssistantBody
+							message={message}
+							renderToolResult={renderToolResult}
+							renderTree={renderTree}
+						/>
 					</BubbleContent>
 				</Bubble>
 			</MessageContent>
 		</Message>
 	);
 }
+
+export type { RenderToolResult } from "./tool";
