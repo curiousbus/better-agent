@@ -29,6 +29,25 @@ export const ENDED_SESSION: BridgeSessionRow = {
 	status: "ended",
 };
 
+/** A `pi` session — used by capability-gating tests (see
+ * agent-capabilities.ts) to exercise the reduced surface: no "Past
+ * conversations", a default/plan-only permission-mode dropdown, and no usage
+ * chip (pi only polls for usage, it doesn't stream it). */
+export const PI_SESSION: BridgeSessionRow = {
+	...SESSION,
+	id: "session-pi",
+	agentKind: "pi",
+};
+
+/** A `codex` session — the conservative matrix (see agent-capabilities.ts):
+ * only reasoning and interrupt on, everything else off until codex is
+ * installed and verified. */
+export const CODEX_SESSION: BridgeSessionRow = {
+	...SESSION,
+	id: "session-codex",
+	agentKind: "codex",
+};
+
 export function statusRaw(id: number, status: string) {
 	return { id, data: { kind: "status", status } };
 }

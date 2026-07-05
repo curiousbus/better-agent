@@ -4,6 +4,52 @@ import type { NormalizedEvent } from "../normalize";
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
 export type AgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
+/** How a session's cost/token usage becomes available: pushed on the event
+ * stream as it happens ("stream"), only obtainable by asking the agent on
+ * demand ("poll"), or not available at all ("none"). Mirrored field-for-field
+ * by the web's own copy in
+ * `apps/web/src/components/bridge/agent-capabilities.ts` — the web isn't a
+ * workspace package this CLI can import, so it keeps a duplicate rather than
+ * a shared import; keep the two in sync. */
+export type UsageMode = "stream" | "poll" | "none";
+
+/**
+ * What one adapter's underlying agent actually supports, independent of the
+ * normalized event model every adapter maps onto (message/output/tool/file/
+ * status/error/approval always applies). The web gates every OPTIONAL
+ * surface — session controls, "Past conversations", the slash/skills picker,
+ * the usage chip — on this, keyed by `AgentKind`, so no agent is special-cased
+ * in the UI. This type isn't currently read by anything server-side (the web
+ * looks its copy up client-side, keyed by the session's already-known
+ * `agentKind`, rather than round-tripping a capabilities event) — kept here
+ * so both sides have one canonical shape to keep in sync against.
+ */
+export interface AgentCapabilities {
+	/** `getContextUsage()`-style on-demand context percentage. */
+	contextUsage: boolean;
+	/** Cancels the in-flight turn without ending the session. */
+	interrupt: boolean;
+	/** Switching models mid-session. */
+	modelSwitch: boolean;
+	/** The permission-mode values this agent actually accepts; empty means the
+	 * agent has no such concept at all. */
+	permissionModes: string[];
+	/** Extended-thinking/reasoning blocks are streamed. */
+	reasoning: boolean;
+	/** The agent can enumerate the user's past local conversations. */
+	sessionList: boolean;
+	/** The agent supports reopening a prior conversation with full context. */
+	sessionResume: boolean;
+	/** The agent exposes a skills list. */
+	skills: boolean;
+	/** The agent exposes a slash-command list. */
+	slashCommands: boolean;
+	/** The agent can pause a turn for the user to approve/deny a tool call. */
+	toolApproval: boolean;
+	/** See `UsageMode`. */
+	usageMode: UsageMode;
+}
+
 /** `status` value pushed on `events` right before it's closed, whenever the
  * underlying process exits on its own — a crash, or the agent simply
  * finishing its work — so the web UI (and CLI stdout) sees an explicit "the

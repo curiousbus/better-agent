@@ -1,0 +1,149 @@
+import type { BridgeSessionRow } from "@/utils/api-types";
+
+// Client-side capability model: rather than special-casing "claude" all over
+// the terminal UI, every optional surface (session controls, past
+// conversations, the slash/skills picker, the usage chip) is gated on a
+// per-agent-kind capability matrix, keyed by the session's own `agentKind` —
+// no CLI event round-trip needed, since the web already knows which agent a
+// session drives from `bridge.listSessions` (see local-agent-detail.tsx).
+// Mirrors the shape of `AgentCapabilities` documented in
+// `apps/bridge-cli/src/adapters/types.ts` — keep the two field-identical.
+
+type AgentKind = BridgeSessionRow["agentKind"];
+
+/** How a session's cost/token usage becomes available: pushed on the event
+ * stream as it happens ("stream" — claude/opencode), only obtainable by
+ * asking the agent on demand ("poll" — pi's `get_session_stats` RPC, not yet
+ * wired through the bridge), or not available at all ("none"). */
+export type UsageMode = "stream" | "poll" | "none";
+
+export interface AgentCapabilities {
+	/** `query.getContextUsage()`-style on-demand context percentage. */
+	contextUsage: boolean;
+	/** Cancels the in-flight turn without ending the session — gates the
+	 * Interrupt button (Phase 5). */
+	interrupt: boolean;
+	/** The agent supports switching models mid-session — gates the model
+	 * picker (Phase 5). */
+	modelSwitch: boolean;
+	/** The permission-mode values this agent actually accepts — gates both
+	 * whether the dropdown renders at all (empty = hidden) and which options
+	 * it offers (Phase 5). */
+	permissionModes: string[];
+	/** Extended-thinking/reasoning blocks are streamed and worth rendering as a
+	 * collapsible "Thinking" section (Phase 1). */
+	reasoning: boolean;
+	/** The agent can enumerate the user's past local conversations for this
+	 * directory — gates the "Past conversations" button (Phase 3). */
+	sessionList: boolean;
+	/** The agent supports reopening a prior conversation with full context
+	 * (claude's `resume`, pi's `switch_session`/`fork`, opencode's
+	 * `session.get`). */
+	sessionResume: boolean;
+	/** The agent exposes a skills list — gates the "/" picker's skill half
+	 * (Phase 4). */
+	skills: boolean;
+	/** The agent exposes a slash-command list — gates the "/" picker's command
+	 * half (Phase 4). */
+	slashCommands: boolean;
+	/** The agent can pause a turn for the user to approve/deny a tool call
+	 * (claude/opencode's `canUseTool`/`permission.updated`). pi has no native
+	 * hook for this, so its adapter simply never emits an `approval` event —
+	 * no separate gate is needed on the approval card itself. */
+	toolApproval: boolean;
+	/** See `UsageMode` — gates whether the per-turn usage chip renders. */
+	usageMode: UsageMode;
+}
+
+/** claude's full `PermissionMode` enum (mirrors `PERMISSION_MODES` in
+ * `apps/bridge-cli/src/adapters/claude-code.ts`). */
+const CLAUDE_PERMISSION_MODES = [
+	"default",
+	"acceptEdits",
+	"bypassPermissions",
+	"plan",
+	"dontAsk",
+	"auto",
+];
+
+/** pi (`--plan`) and opencode both only accept a default/plan toggle. */
+const PLAN_ONLY_PERMISSION_MODES = ["default", "plan"];
+
+const CLAUDE_CAPABILITIES: AgentCapabilities = {
+	reasoning: true,
+	sessionList: true,
+	sessionResume: true,
+	slashCommands: true,
+	skills: true,
+	contextUsage: true,
+	toolApproval: true,
+	modelSwitch: true,
+	interrupt: true,
+	usageMode: "stream",
+	permissionModes: CLAUDE_PERMISSION_MODES,
+};
+
+/** pi's RPC mode has no `session.list`-equivalent enumeration and no native
+ * tool-approval hook, and only reports usage/cost via an on-demand poll
+ * (`get_session_stats`) rather than a stream event. */
+const PI_CAPABILITIES: AgentCapabilities = {
+	reasoning: true,
+	sessionList: false,
+	sessionResume: true,
+	slashCommands: true,
+	skills: true,
+	contextUsage: true,
+	toolApproval: false,
+	modelSwitch: true,
+	interrupt: true,
+	usageMode: "poll",
+	permissionModes: PLAN_ONLY_PERMISSION_MODES,
+};
+
+const OPENCODE_CAPABILITIES: AgentCapabilities = {
+	reasoning: true,
+	sessionList: true,
+	sessionResume: true,
+	slashCommands: true,
+	skills: true,
+	contextUsage: true,
+	toolApproval: true,
+	modelSwitch: true,
+	interrupt: true,
+	usageMode: "stream",
+	permissionModes: PLAN_ONLY_PERMISSION_MODES,
+};
+
+/** codex isn't installed/verified yet — conservative until confirmed:
+ * everything off except reasoning (the normalize layer already treats
+ * thinking-shaped output generically) and interrupt (cancelling a subprocess
+ * turn is assumed universal). TODO: replace with the real matrix once codex
+ * is wired up and its control surface is verified against the running CLI. */
+const CODEX_CAPABILITIES: AgentCapabilities = {
+	reasoning: true,
+	sessionList: false,
+	sessionResume: false,
+	slashCommands: false,
+	skills: false,
+	contextUsage: false,
+	toolApproval: false,
+	modelSwitch: false,
+	interrupt: true,
+	usageMode: "none",
+	permissionModes: [],
+};
+
+/** The capability matrix from the pi/opencode research (see plan Phase 0.5) —
+ * keyed by the same `AgentKind` the bridge session row already carries. */
+export const CAPABILITIES: Record<AgentKind, AgentCapabilities> = {
+	"claude-code": CLAUDE_CAPABILITIES,
+	pi: PI_CAPABILITIES,
+	opencode: OPENCODE_CAPABILITIES,
+	codex: CODEX_CAPABILITIES,
+};
+
+/** Looks up the capability matrix for a bridge session's `agentKind` — the
+ * single entry point the terminal UI gates every optional surface on. */
+export function capabilities(kind: AgentKind): AgentCapabilities {
+	return CAPABILITIES[kind];
+}

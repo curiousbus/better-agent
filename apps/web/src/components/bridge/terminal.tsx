@@ -10,10 +10,12 @@ import {
 import { useMemo } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
+import { type AgentCapabilities, capabilities } from "./agent-capabilities";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type {
 	SessionListDetail,
 	SessionReadyDetail,
+	TurnUsageDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
@@ -93,6 +95,7 @@ export interface TerminalProps {
 
 interface TerminalHeaderProps {
 	canSend: boolean;
+	caps: AgentCapabilities;
 	interrupt: () => void;
 	label: string;
 	listSessions: () => void;
@@ -104,10 +107,13 @@ interface TerminalHeaderProps {
 }
 
 /** The session title/connection-status row, the capability summary, and the
- * claude session controls (Interrupt/model/permission mode/past
- * conversations) — split out of `Terminal` purely to keep that component
- * under the repo's max-lines-per-function gate. */
+ * session controls (Interrupt/model/permission mode/past conversations) —
+ * each gated on `caps` (see agent-capabilities.ts) so a session only shows
+ * the controls its running agent actually supports. Split out of `Terminal`
+ * purely to keep that component under the repo's max-lines-per-function
+ * gate. */
 function TerminalHeader({
+	caps,
 	canSend,
 	interrupt,
 	label,
@@ -127,11 +133,13 @@ function TerminalHeader({
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<SessionStatusHeader detail={sessionReady} />
 				<div className="flex flex-wrap items-center gap-1.5">
-					<PastConversations
-						disabled={!canSend}
-						onRequestList={listSessions}
-						sessionList={sessionList}
-					/>
+					{caps.sessionList && (
+						<PastConversations
+							disabled={!canSend}
+							onRequestList={listSessions}
+							sessionList={sessionList}
+						/>
+					)}
 					<TerminalControls
 						disabled={!canSend}
 						model={sessionReady?.model}
@@ -139,10 +147,67 @@ function TerminalHeader({
 						onSetModel={setModel}
 						onSetPermissionMode={setPermissionMode}
 						permissionMode={sessionReady?.permissionMode}
+						permissionModes={caps.permissionModes}
+						showInterrupt={caps.interrupt}
+						showModelPicker={caps.modelSwitch}
 					/>
 				</div>
 			</div>
 		</div>
+	);
+}
+
+interface TerminalBodyProps {
+	answerApproval: (requestId: string, optionId: string) => Promise<void>;
+	answered: Record<string, string>;
+	avatars: ChatAvatars;
+	caps: AgentCapabilities;
+	disabled: boolean;
+	ended: boolean;
+	onSend: (text: string) => Promise<void>;
+	sending: boolean;
+	sessionReady: SessionReadyDetail | null;
+	turns: BridgeTurn[];
+	turnUsage: TurnUsageDetail | null;
+}
+
+/** The feed, the (capability-gated) usage chip, and the composer — split out
+ * of `Terminal` purely to keep that component under the repo's
+ * max-lines-per-function gate. */
+function TerminalBody({
+	answerApproval,
+	answered,
+	avatars,
+	caps,
+	disabled,
+	ended,
+	onSend,
+	sending,
+	sessionReady,
+	turns,
+	turnUsage,
+}: TerminalBodyProps) {
+	return (
+		<>
+			<TerminalFeed
+				answerApproval={answerApproval}
+				answered={answered}
+				avatars={avatars}
+				ended={ended}
+				sending={sending}
+				turns={turns}
+			/>
+			{caps.usageMode === "stream" && <TurnUsageChip detail={turnUsage} />}
+			<TerminalComposer
+				disabled={disabled}
+				onSend={onSend}
+				sending={sending}
+				skills={caps.skills ? sessionReady?.skills : undefined}
+				slashCommands={
+					caps.slashCommands ? sessionReady?.slashCommands : undefined
+				}
+			/>
+		</>
 	);
 }
 
@@ -195,11 +260,13 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 		turns,
 		avatars,
 	} = useTerminalView(session, transport, userAvatarUrl);
+	const caps = capabilities(session.agentKind);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">
 			<TerminalHeader
 				canSend={canSend}
+				caps={caps}
 				interrupt={interrupt}
 				label={session.label ?? session.agentKind}
 				listSessions={listSessions}
@@ -209,21 +276,18 @@ export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
 				setPermissionMode={setPermissionMode}
 				status={status}
 			/>
-			<TerminalFeed
+			<TerminalBody
 				answerApproval={answerApproval}
 				answered={answered}
 				avatars={avatars}
-				ended={status === "ended"}
-				sending={sending}
-				turns={turns}
-			/>
-			<TurnUsageChip detail={turnUsage} />
-			<TerminalComposer
+				caps={caps}
 				disabled={!canSend}
+				ended={status === "ended"}
 				onSend={sendInput}
 				sending={sending}
-				skills={sessionReady?.skills}
-				slashCommands={sessionReady?.slashCommands}
+				sessionReady={sessionReady}
+				turns={turns}
+				turnUsage={turnUsage}
 			/>
 		</div>
 	);

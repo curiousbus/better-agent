@@ -8,10 +8,11 @@ import {
 } from "@better-agent/ui/components/select";
 import { OctagonXIcon } from "lucide-react";
 
-// Claude-specific for now (the SDK's `query.setModel`/`setPermissionMode`
-// control requests — see apps/bridge-cli/src/adapters/claude-code.ts); a
-// later capability-abstraction task (plan Phase 0.5) will gate these per
-// adapter instead of always showing them on the Local Agent detail page.
+// Gated per adapter capability (plan Phase 0.5, see agent-capabilities.ts):
+// Interrupt only for `interrupt`-capable agents, the model picker only for
+// `modelSwitch`-capable agents, and the permission-mode dropdown restricted
+// to (and hidden entirely absent) the agent's own `permissionModes` list —
+// see apps/bridge-cli/src/adapters/claude-code.ts for claude's full set.
 
 interface PickerOption {
 	label: string;
@@ -105,16 +106,30 @@ export interface TerminalControlsProps {
 	/** The session's currently-reported permission mode (from
 	 * `session_ready`) — same "shows what's active" contract as `model`. */
 	permissionMode?: string;
+	/** The agent's own accepted permission-mode values (its capability's
+	 * `permissionModes`) — the dropdown offers only these, and renders nothing
+	 * at all when empty (the agent has no such concept). */
+	permissionModes: readonly string[];
+	/** Whether this agent supports `interrupt` — hides the button entirely
+	 * when it doesn't, instead of showing a control that would just no-op. */
+	showInterrupt: boolean;
+	/** Whether this agent supports `modelSwitch` — hides the picker entirely
+	 * when it doesn't. */
+	showModelPicker: boolean;
 }
 
 /**
- * The Local Agent detail page's claude session controls: a Stop/Interrupt
- * button that cancels the in-flight turn without ending the session, a model
+ * The Local Agent detail page's session controls: a Stop/Interrupt button
+ * that cancels the in-flight turn without ending the session, a model
  * picker, and a permission-mode dropdown — all routed through
  * `useBridgeTerminal`'s `interrupt`/`setModel`/`setPermissionMode`, which relay
  * `{ type: "control", ... }` commands the same way approvals do (see
- * use-bridge-terminal.ts). Deliberately unobtrusive: small controls, no
- * confirmation dialogs — Interrupt/model/mode are all reversible mid-session.
+ * use-bridge-terminal.ts). Each control is individually gated on the running
+ * agent's capabilities (see agent-capabilities.ts) — a picker or button for a
+ * control the agent doesn't support would just no-op, so it isn't shown at
+ * all rather than shown disabled. Deliberately unobtrusive otherwise: small
+ * controls, no confirmation dialogs — Interrupt/model/mode are all reversible
+ * mid-session.
  */
 export function TerminalControls({
 	disabled,
@@ -122,34 +137,46 @@ export function TerminalControls({
 	onSetModel,
 	onSetPermissionMode,
 	permissionMode,
+	permissionModes,
 	model,
+	showInterrupt,
+	showModelPicker,
 }: TerminalControlsProps) {
+	const permissionModeOptions = PERMISSION_MODE_OPTIONS.filter((option) =>
+		permissionModes.includes(option.value)
+	);
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
-			<Button
-				aria-label="Interrupt"
-				disabled={disabled}
-				onClick={onInterrupt}
-				size="xs"
-				variant="outline"
-			>
-				<OctagonXIcon />
-				Interrupt
-			</Button>
-			<ControlSelect
-				disabled={disabled}
-				label="Model"
-				onChange={onSetModel}
-				options={MODEL_PRESETS}
-				value={model}
-			/>
-			<ControlSelect
-				disabled={disabled}
-				label="Permission mode"
-				onChange={onSetPermissionMode}
-				options={PERMISSION_MODE_OPTIONS}
-				value={permissionMode}
-			/>
+			{showInterrupt && (
+				<Button
+					aria-label="Interrupt"
+					disabled={disabled}
+					onClick={onInterrupt}
+					size="xs"
+					variant="outline"
+				>
+					<OctagonXIcon />
+					Interrupt
+				</Button>
+			)}
+			{showModelPicker && (
+				<ControlSelect
+					disabled={disabled}
+					label="Model"
+					onChange={onSetModel}
+					options={MODEL_PRESETS}
+					value={model}
+				/>
+			)}
+			{permissionModeOptions.length > 0 && (
+				<ControlSelect
+					disabled={disabled}
+					label="Permission mode"
+					onChange={onSetPermissionMode}
+					options={permissionModeOptions}
+					value={permissionMode}
+				/>
+			)}
 		</div>
 	);
 }
