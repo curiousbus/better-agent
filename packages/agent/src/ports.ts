@@ -180,7 +180,7 @@ export interface ComposioAccountStore {
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
 
-export type BridgeAgentKind = "claude-code" | "opencode" | "codex";
+export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
 export type BridgeSessionStatus = "active" | "ended";
 
 /** A bridge token as exposed to clients: never includes the hash. */

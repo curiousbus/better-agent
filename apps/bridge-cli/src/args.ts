@@ -1,6 +1,6 @@
 import type { AgentKind } from "./adapters/types";
 
-const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex"];
+const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
 export interface BridgeCliArgs {
 	agentKind: AgentKind;
@@ -59,11 +59,13 @@ export function parseArgs(
 
 	const agentKind = flags.agentKind;
 	if (agentKind === undefined) {
-		throw new Error("--agent is required (claude-code | opencode | codex)");
+		throw new Error(
+			"--agent is required (claude-code | opencode | codex | pi)"
+		);
 	}
 	if (!isAgentKind(agentKind)) {
 		throw new Error(
-			`Unknown --agent "${agentKind}" (expected claude-code | opencode | codex)`
+			`Unknown --agent "${agentKind}" (expected claude-code | opencode | codex | pi)`
 		);
 	}
 

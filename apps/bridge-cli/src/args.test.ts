@@ -37,6 +37,14 @@ describe("parseArgs - accepted input", () => {
 		expect(args.label).toBeUndefined();
 	});
 
+	it("accepts pi as an agent kind", () => {
+		const args = parseArgs(
+			["--agent", "pi", "--token", "t", "--server", "s"],
+			{}
+		);
+		expect(args.agentKind).toBe("pi");
+	});
+
 	it("falls back to env vars for token and server", () => {
 		const args = parseArgs(["--agent", "opencode"], {
 			BETTER_AGENT_BRIDGE_TOKEN: "bt_env",

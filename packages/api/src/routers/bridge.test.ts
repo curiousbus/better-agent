@@ -71,6 +71,13 @@ it("startSession binds a session to the bridge token's user", async () => {
 	expect(row?.tokenId).toBe("tok-1");
 });
 
+it("startSession accepts every documented agentKind, including pi", async () => {
+	const { bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({ agentKind: "pi" });
+	expect(sessionId).toBeTruthy();
+});
+
 it("a bridge-token session pushes events the owner can observe via poll", async () => {
 	const { userClientFor, bridgeClientFor } = build();
 	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });

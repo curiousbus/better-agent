@@ -1,4 +1,4 @@
-import { BotIcon, Code2Icon, TerminalIcon } from "lucide-react";
+import { BotIcon, Code2Icon, SparklesIcon, TerminalIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 
@@ -11,6 +11,7 @@ export const AGENT_KIND_ICON: Record<AgentKind, typeof BotIcon> = {
 	"claude-code": BotIcon,
 	codex: Code2Icon,
 	opencode: TerminalIcon,
+	pi: SparklesIcon,
 };
 
 /** Renders the icon for a bridge session's `agentKind`. Shared by

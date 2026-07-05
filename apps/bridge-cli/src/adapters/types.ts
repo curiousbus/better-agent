@@ -2,7 +2,7 @@ import type { NormalizedEvent } from "../normalize";
 
 /** Which local coding agent a bridge session drives. Mirrors `AGENT_KINDS`
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
-export type AgentKind = "claude-code" | "opencode" | "codex";
+export type AgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
 /** `status` value pushed on `events` right before it's closed, whenever the
  * underlying process exits on its own — a crash, or the agent simply

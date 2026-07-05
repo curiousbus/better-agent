@@ -9,7 +9,7 @@ import { bridgeProcedure, userProcedure } from "../index";
 
 const TOKEN_PREFIX = "bt_";
 const LAST4 = 4;
-const AGENT_KINDS = ["claude-code", "opencode", "codex"] as const;
+const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 /** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
 const MAX_PUSH_BATCH = 50;
 /** Max serialized size (bytes) of a single pushed event before it's rejected. */

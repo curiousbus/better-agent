@@ -1,6 +1,7 @@
 import { claudeCodeAdapter } from "./claude-code";
 import { codexAdapter } from "./codex";
 import { opencodeAdapter } from "./opencode";
+import { piAdapter } from "./pi";
 import type { Adapter, AgentKind } from "./types";
 
 export type { Adapter, AgentHandle, AgentKind } from "./types";
@@ -14,6 +15,8 @@ export function selectAdapter(agentKind: AgentKind): Adapter {
 			return opencodeAdapter;
 		case "codex":
 			return codexAdapter;
+		case "pi":
+			return piAdapter;
 		default:
 			throw new Error(`Unknown agent kind: ${agentKind satisfies never}`);
 	}

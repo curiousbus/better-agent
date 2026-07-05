@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { AGENT_KIND_ICON } from "./local-agent-kind-icon";
 
-const KNOWN_AGENT_KINDS = ["claude-code", "opencode", "codex"] as const;
+const KNOWN_AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 
 it("maps every known agent kind to an icon component", () => {
 	for (const kind of KNOWN_AGENT_KINDS) {
