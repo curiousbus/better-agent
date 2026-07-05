@@ -9,7 +9,6 @@ export interface StreamOutcome {
 	errorMessage: string | null;
 	finishReason: FinishReason;
 	status: "complete" | "error" | "aborted";
-	structured: unknown;
 	usage: MessageUsage | null;
 }
 
@@ -30,7 +29,6 @@ export function resetOutcome(state: StreamOutcome): void {
 	state.errorMessage = null;
 	state.errorCategory = null;
 	state.emittedOutput = false;
-	state.structured = null;
 }
 
 export function shouldRetryAttempt(

@@ -1,6 +1,6 @@
 import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import type { ModelMessage } from "ai";
-import { hasToolCall, stepCountIs, streamText } from "ai";
+import { stepCountIs, streamText } from "ai";
 import type { AgentConfig, AgentParams } from "../agent/types";
 import type {
 	AgentStore,
@@ -35,10 +35,6 @@ import { drainStream } from "./runtime-drain";
 import { finalizeAssistant } from "./runtime-finalize";
 import { buildAssistantCtx, settleTitleEvent } from "./runtime-support";
 import { SessionBusyError, type SessionLock } from "./session-lock";
-import {
-	buildStructuredOutputToolDef,
-	STRUCTURED_OUTPUT_TOOL_NAME,
-} from "./structured-output";
 import type { Titler } from "./titler";
 import { maybeTitle } from "./titler";
 import {
@@ -70,7 +66,6 @@ export interface RunTurnInput {
 	abortSignal?: AbortSignal;
 	/** Ids of attachments uploaded for this turn (linked to the user message). */
 	attachmentIds?: string[];
-	outputSchema?: Record<string, unknown>;
 	sessionId: string;
 	text: string;
 	tools?: ToolDef[];
@@ -93,7 +88,6 @@ interface AttemptArgs {
 	model: AiModel;
 	params: AgentParams | null;
 	providerOptions: SharedV3ProviderOptions;
-	structuredOutput?: boolean;
 }
 
 // Deferred binding: inactive schemas aren't sent; search grows the set.
@@ -101,12 +95,6 @@ function deferStepOptions(args: AttemptArgs) {
 	return args.activeToolNames
 		? { prepareStep: () => ({ activeTools: args.activeToolNames?.() }) }
 		: {};
-}
-
-function stopCondition(structuredOutput: boolean | undefined) {
-	return structuredOutput
-		? [stepCountIs(DEFAULT_MAX_STEPS), hasToolCall(STRUCTURED_OUTPUT_TOOL_NAME)]
-		: stepCountIs(DEFAULT_MAX_STEPS);
 }
 
 async function* runAttempt(
@@ -133,10 +121,9 @@ async function* runAttempt(
 			model,
 			messages,
 			providerOptions,
-			stopWhen: stopCondition(args.structuredOutput),
+			stopWhen: stepCountIs(DEFAULT_MAX_STEPS),
 			tools,
 			...deferStepOptions(args),
-			...(args.structuredOutput ? { toolChoice: "required" as const } : {}),
 			experimental_repairToolCall: () => Promise.resolve(null),
 			abortSignal,
 			maxRetries: 0,
@@ -177,7 +164,6 @@ async function* streamAssistant(
 		errorMessage: null,
 		errorCategory: null,
 		emittedOutput: false,
-		structured: null,
 	};
 	for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
 		resetOutcome(state);
@@ -209,17 +195,12 @@ async function prepareMessages(
 
 // Assemble the turn's tool set. Past the defer threshold, defer-marked schemas
 // are withheld and reached through search_tools (token cost scales with tools
-// USED). StructuredOutput is injected last, before any deferral decision.
-function prepareToolBinding(
-	tools: ToolDef[] | undefined,
-	outputSchema?: Record<string, unknown>
-): { activeNames?: () => string[]; defs: ToolDef[] } {
+// USED).
+function prepareToolBinding(tools: ToolDef[] | undefined): {
+	activeNames?: () => string[];
+	defs: ToolDef[];
+} {
 	const toolDefs = [...(tools ?? [])];
-	if (outputSchema) {
-		// genui turns never defer: search_tools pollutes structured output.
-		toolDefs.push(buildStructuredOutputToolDef(outputSchema));
-		return { defs: toolDefs };
-	}
 	if (!shouldDefer(toolDefs)) {
 		return { defs: toolDefs };
 	}
@@ -242,7 +223,7 @@ async function* executeTurn(
 	});
 	const titlePromise = maybeTitle(deps, session, agent, text);
 	const cached = await prepareMessages(deps, agent, session, sessionId);
-	const binding = prepareToolBinding(tools, input.outputSchema);
+	const binding = prepareToolBinding(tools);
 	const { assistant, ctx } = await buildAssistantCtx(
 		deps.messageStore,
 		agent,
@@ -261,7 +242,6 @@ async function* executeTurn(
 		abortSignal,
 		cacheToolDefs: cached.cacheToolDefs,
 		guard,
-		structuredOutput: input.outputSchema != null,
 		activeToolNames: binding.activeNames,
 	});
 	const message = yield* finalizeAssistant(deps, {

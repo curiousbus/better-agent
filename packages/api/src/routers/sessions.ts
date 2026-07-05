@@ -27,7 +27,6 @@ export const promptInput = z
 		sessionId: z.uuid(),
 		text: z.string(),
 		tools: z.array(remoteToolSchema).optional(),
-		outputSchema: z.record(z.string(), z.unknown()).optional(),
 		attachmentIds: z.array(z.uuid()).max(MAX_ATTACHMENTS).optional(),
 	})
 	.refine(
@@ -61,20 +60,6 @@ export async function drain(
 	return next.value;
 }
 
-export async function drainWithStructured(
-	gen: AsyncGenerator<RunEvent, Message>
-): Promise<Message & { structured: unknown }> {
-	let structured: unknown = null;
-	let next = await gen.next();
-	while (!next.done) {
-		if (next.value.type === "done") {
-			structured = next.value.structured ?? null;
-		}
-		next = await gen.next();
-	}
-	return { ...next.value, structured };
-}
-
 export function errorMessage(error: unknown): string {
 	if (error instanceof ORPCError) {
 		return error.message;
@@ -100,7 +85,6 @@ async function* streamTurn(
 			description: string;
 			parameters: Record<string, unknown>;
 		}>;
-		outputSchema?: Record<string, unknown>;
 		attachmentIds?: string[];
 	},
 	signal: AbortSignal | undefined
@@ -114,7 +98,6 @@ async function* streamTurn(
 			sessionId: input.sessionId,
 			text: input.text,
 			tools: toolDefs,
-			outputSchema: input.outputSchema,
 			attachmentIds: input.attachmentIds,
 			abortSignal: signal,
 		});
@@ -199,12 +182,11 @@ export const sessionsRouter = {
 						context.services.pendingToolCallStore
 					)
 				: undefined;
-			return drainWithStructured(
+			return drain(
 				context.services.runtime.runTurn({
 					sessionId: input.sessionId,
 					text: input.text,
 					tools: toolDefs,
-					outputSchema: input.outputSchema,
 					attachmentIds: input.attachmentIds,
 					abortSignal: signal,
 				})

@@ -10,7 +10,6 @@ export type RunEvent =
 			type: "done";
 			usage: MessageUsage | null;
 			finishReason: FinishReason;
-			structured?: unknown;
 	  }
 	| { type: "error"; message: string }
 	| { type: "tool-call"; callId: string; toolName: string; args: unknown }
@@ -21,5 +20,4 @@ export type RunEvent =
 			result: unknown;
 			isError: boolean;
 	  }
-	| { type: "structured-delta"; partial: unknown }
 	| { type: "title"; title: string };

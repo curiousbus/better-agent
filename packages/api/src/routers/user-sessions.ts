@@ -13,7 +13,7 @@ import {
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
 import { assembleAgentToolDefs } from "./agent-tool-defs";
-import { drainWithStructured, errorMessage, promptInput } from "./sessions";
+import { drain, errorMessage, promptInput } from "./sessions";
 import { createTurnChannel, pumpTurn } from "./turn-channel";
 
 const idInput = z.object({ id: z.uuid() });
@@ -55,7 +55,6 @@ async function* streamUserTurn(
 			description: string;
 			parameters: Record<string, unknown>;
 		}>;
-		outputSchema?: Record<string, unknown>;
 		attachmentIds?: string[];
 	}
 ): AsyncGenerator<RunEvent, void> {
@@ -76,7 +75,6 @@ async function* streamUserTurn(
 				sessionId: input.sessionId,
 				text: input.text,
 				tools: allDefs.length > 0 ? allDefs : undefined,
-				outputSchema: input.outputSchema,
 				attachmentIds: input.attachmentIds,
 			}),
 			channel,
@@ -159,12 +157,11 @@ export const userSessionsRouter = {
 						context.services.pendingToolCallStore
 					)
 				: undefined;
-			return drainWithStructured(
+			return drain(
 				context.services.runtime.runTurn({
 					sessionId: input.sessionId,
 					text: input.text,
 					tools: toolDefs,
-					outputSchema: input.outputSchema,
 					attachmentIds: input.attachmentIds,
 					abortSignal: signal,
 				})
