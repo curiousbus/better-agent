@@ -6,9 +6,8 @@ import {
 	PromptInputToolbar,
 	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
-import { cn } from "@better-agent/ui/lib/utils";
 import type { AgentClient } from "@curiousbus/agent-client";
-import { ImagePlusIcon, SparklesIcon } from "lucide-react";
+import { ImagePlusIcon } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import {
 	ChipRow,
@@ -18,33 +17,6 @@ import {
 import type { AttachmentRef } from "./chat-blocks";
 
 const ACCEPT_IMAGES = "image/png,image/jpeg,image/webp,image/gif";
-
-function GenuiToggle({
-	active,
-	onToggle,
-}: {
-	active: boolean;
-	onToggle: () => void;
-}) {
-	return (
-		<Button
-			aria-label="Generative UI"
-			aria-pressed={active}
-			className={cn(
-				"gap-1.5",
-				active && "bg-primary/10 text-primary hover:bg-primary/15"
-			)}
-			onClick={onToggle}
-			size="sm"
-			title="Generative UI: agent replies render as interactive UI"
-			type="button"
-			variant="ghost"
-		>
-			<SparklesIcon className="size-4" />
-			<span className="text-xs">Generative UI</span>
-		</Button>
-	);
-}
 
 function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) {
 	const fileRef = useRef<HTMLInputElement>(null);
@@ -77,18 +49,12 @@ function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) {
 
 function ComposerToolbar({
 	onFiles,
-	genuiActive,
-	genuiAvailable,
-	onToggleGenui,
 	onStop,
 	streaming,
 	toolsSlot,
 }: {
-	genuiActive?: boolean;
-	genuiAvailable?: boolean;
 	onFiles: (files: File[]) => void;
 	onStop: () => void;
-	onToggleGenui?: () => void;
 	streaming: boolean;
 	toolsSlot?: ReactNode;
 }) {
@@ -96,9 +62,6 @@ function ComposerToolbar({
 		<PromptInputToolbar>
 			<PromptInputTools>
 				<AttachButton onFiles={onFiles} />
-				{genuiAvailable && onToggleGenui ? (
-					<GenuiToggle active={genuiActive === true} onToggle={onToggleGenui} />
-				) : null}
 				{toolsSlot}
 			</PromptInputTools>
 			<PromptInputSubmit
@@ -111,11 +74,8 @@ function ComposerToolbar({
 
 interface ChatComposerProps {
 	agentClient: AgentClient;
-	genuiActive?: boolean;
-	genuiAvailable?: boolean;
 	onSend: (text: string, attachments: AttachmentRef[]) => void;
 	onStop: () => void;
-	onToggleGenui?: () => void;
 	sessionId: string;
 	streaming: boolean;
 	/** App-provided extra control(s) in the composer toolbar (e.g. a tools popover). */
@@ -158,9 +118,6 @@ export function ChatComposer({
 	onStop,
 	agentClient,
 	sessionId,
-	genuiActive,
-	genuiAvailable,
-	onToggleGenui,
 	toolsSlot,
 }: ChatComposerProps) {
 	const { text, setText, items, addFiles, remove, submit } = useComposerState({
@@ -186,11 +143,8 @@ export function ChatComposer({
 						value={text}
 					/>
 					<ComposerToolbar
-						genuiActive={genuiActive}
-						genuiAvailable={genuiAvailable}
 						onFiles={addFiles}
 						onStop={onStop}
-						onToggleGenui={onToggleGenui}
 						streaming={streaming}
 						toolsSlot={toolsSlot}
 					/>

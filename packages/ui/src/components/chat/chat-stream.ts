@@ -2,11 +2,7 @@ import {
 	createStreamReveal,
 	type StreamReveal,
 } from "@better-agent/ui/lib/stream-reveal";
-import type {
-	AgentClient,
-	ClientToolDef,
-	RunEvent,
-} from "@curiousbus/agent-client";
+import type { AgentClient, RunEvent } from "@curiousbus/agent-client";
 
 import type { ChatMessage } from "./chat-blocks";
 
@@ -107,17 +103,10 @@ function applyEvent(event: RunEvent, state: StreamState) {
 	}
 }
 
-/** When set, the turn attaches client-executed data tools (e.g. todo CRUD)
- * alongside any server-side tools already configured for the agent. */
-export interface GenuiStreamConfig {
-	tools: ClientToolDef[];
-}
-
 interface StreamArgs {
 	agentClient: AgentClient;
 	assistant: ChatMessage;
 	attachmentIds?: string[];
-	genui?: GenuiStreamConfig;
 	sessionId: string;
 	setDraft: (msgs: ChatMessage[]) => void;
 	signal: AbortSignal;
@@ -138,7 +127,6 @@ export async function streamPrompt(args: StreamArgs) {
 			sessionId: args.sessionId,
 			signal: args.signal,
 			attachmentIds: args.attachmentIds,
-			tools: args.genui?.tools,
 		})) {
 			// Stop applying events the moment the user aborts, so a stream that
 			// doesn't unwind instantly can't keep re-rendering "Thinking…".

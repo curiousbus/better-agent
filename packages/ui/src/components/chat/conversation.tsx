@@ -6,21 +6,15 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import type { AgentClient, ClientToolDef } from "@curiousbus/agent-client";
+import type { AgentClient } from "@curiousbus/agent-client";
 import type { ReactNode } from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import type { ChatMessage } from "./chat-blocks";
 import { ChatComposer } from "./chat-composer";
 import { type ChatAvatars, ChatRow, type RenderToolResult } from "./chat-row";
 import { RevealText } from "./reveal-text";
 import { useChat } from "./use-chat";
-
-/** Generative-UI wiring an app injects: client-executed data tools attached
- * to the turn when the composer's genui toggle is on. */
-export interface GenerativeUIChatConfig {
-	tools: ClientToolDef[];
-}
 
 function EmptyMessages() {
 	return (
@@ -106,19 +100,10 @@ function useInitialSend(
 	}, [initialText]);
 }
 
-function genuiStreamConfig(
-	generativeUI: GenerativeUIChatConfig | undefined,
-	genuiOn: boolean
-) {
-	return generativeUI && genuiOn ? { tools: generativeUI.tools } : undefined;
-}
-
 export function Conversation({
 	sessionId,
 	agentClient,
 	initialText,
-	initialGenui,
-	generativeUI,
 	avatars,
 	composerTools,
 	renderToolResult,
@@ -126,20 +111,11 @@ export function Conversation({
 	sessionId: string;
 	agentClient: AgentClient;
 	initialText?: string;
-	initialGenui?: boolean;
-	generativeUI?: GenerativeUIChatConfig;
 	avatars?: ChatAvatars;
 	composerTools?: ReactNode;
 	renderToolResult?: RenderToolResult;
 }) {
-	// Start in the genui mode chosen on the landing composer, so the FIRST message
-	// (sent via initialText before the in-chat toggle is reachable) honors it.
-	const [genuiOn, setGenuiOn] = useState(initialGenui === true);
-	const { messages, streaming, send, stop } = useChat(
-		sessionId,
-		agentClient,
-		genuiStreamConfig(generativeUI, genuiOn)
-	);
+	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
 	useInitialSend(initialText, send);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -151,11 +127,8 @@ export function Conversation({
 			/>
 			<ChatComposer
 				agentClient={agentClient}
-				genuiActive={genuiOn}
-				genuiAvailable={generativeUI !== undefined}
 				onSend={send}
 				onStop={stop}
-				onToggleGenui={() => setGenuiOn((v) => !v)}
 				sessionId={sessionId}
 				streaming={streaming}
 				toolsSlot={composerTools}

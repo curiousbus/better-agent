@@ -4,7 +4,6 @@ import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@curiousbus/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
-import { GENUI_CHAT_CONFIG } from "@/genui/config";
 import { renderToolResult } from "@/genui/tool-renderers";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
@@ -13,7 +12,6 @@ import { useCurrentUser } from "@/utils/use-current-user";
 interface ChatViewProps {
 	agent: AgentRow;
 	agentClient: AgentClient;
-	initialGenui?: boolean;
 	initialText?: string;
 	onClose: () => void;
 	onNewSession: () => void;
@@ -70,7 +68,6 @@ export function ChatView({
 	agent,
 	agentClient,
 	initialText,
-	initialGenui,
 	sessionId,
 	sessions,
 	onClose,
@@ -95,8 +92,6 @@ export function ChatView({
 					assistant: agentAvatar(agent.id),
 				}}
 				composerTools={<AgentToolsMenu agent={agent} />}
-				generativeUI={GENUI_CHAT_CONFIG}
-				initialGenui={initialGenui}
 				initialText={initialText}
 				key={sessionId}
 				renderToolResult={renderToolResult}

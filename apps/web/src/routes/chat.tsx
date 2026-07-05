@@ -145,7 +145,6 @@ function useHomeState() {
 	const [selectedAgent, setSelectedAgent] = useState<AgentRow | null>(null);
 	const [sessionId, setSessionId] = useState("");
 	const [sending, setSending] = useState(false);
-	const [genuiOn, setGenuiOn] = useState(false);
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
@@ -167,8 +166,6 @@ function useHomeState() {
 		selectedAgent,
 		sessionId,
 		sending,
-		genuiOn,
-		toggleGenui: () => setGenuiOn((v) => !v),
 		agentClient,
 		sessions,
 		...actions,
@@ -178,7 +175,6 @@ function useHomeState() {
 interface ChatPanelProps {
 	agent: AgentRow;
 	agentClient: AgentClient | null;
-	initialGenui: boolean;
 	onClose: () => void;
 	onNewSession: () => void;
 	onSessionChange: (id: string) => void;
@@ -189,7 +185,6 @@ interface ChatPanelProps {
 function ChatPanel({
 	agent,
 	agentClient,
-	initialGenui,
 	onClose,
 	onNewSession,
 	onSessionChange,
@@ -204,7 +199,6 @@ function ChatPanel({
 			<ChatView
 				agent={agent}
 				agentClient={agentClient}
-				initialGenui={initialGenui}
 				onClose={onClose}
 				onNewSession={onNewSession}
 				onSessionChange={onSessionChange}
@@ -234,7 +228,6 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 		<ChatPanel
 			agent={selectedAgent}
 			agentClient={home.agentClient}
-			initialGenui={home.genuiOn}
 			onClose={home.closeChat}
 			onNewSession={() => home.newSession(selectedAgent)}
 			onSessionChange={(id) => home.selectSession(selectedAgent, id)}

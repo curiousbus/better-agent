@@ -42,14 +42,6 @@ export function row(
 	} as unknown as MessageHistory[number];
 }
 
-// Production always wires generative UI (chat-view passes GENUI_CHAT_CONFIG),
-// attaching client data tools when the composer's genui toggle is on. The
-// harness mirrors that shape so these regression tests exercise the same
-// Conversation config prod does.
-const GENUI_TEST_CONFIG = {
-	tools: [],
-};
-
 export function renderChat(client: AgentClient, sessionId: string) {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -60,7 +52,6 @@ export function renderChat(client: AgentClient, sessionId: string) {
 		<QueryClientProvider client={queryClient}>
 			<Conversation
 				agentClient={client}
-				generativeUI={GENUI_TEST_CONFIG}
 				initialText="hi-question"
 				sessionId={sessionId}
 			/>

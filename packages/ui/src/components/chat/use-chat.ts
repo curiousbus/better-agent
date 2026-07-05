@@ -10,9 +10,8 @@ import {
 	type StallRef,
 } from "./chat-observe";
 import { type ChatSessionStore, chatSession } from "./chat-session-store";
-import { type GenuiStreamConfig, streamPrompt } from "./chat-stream";
+import { streamPrompt } from "./chat-stream";
 
-export type { GenuiStreamConfig } from "./chat-stream";
 export { streamPrompt } from "./chat-stream";
 
 // Query key for a session's message history, fetched through the Agent SDK
@@ -22,7 +21,6 @@ const messagesKey = (sessionId: string) =>
 
 interface SendArgs {
 	agentClient: AgentClient;
-	genui?: GenuiStreamConfig;
 	sessionId: string;
 	store: ChatSessionStore;
 }
@@ -85,7 +83,6 @@ async function sendMessage(
 			assistant,
 			setDraft: (msgs) => args.store.setDraft(msgs),
 			attachmentIds: attachments.map((a) => a.attachmentId),
-			genui: args.genui,
 		});
 	} catch {
 		if (!controller.signal.aborted) {
@@ -132,11 +129,7 @@ function stopSession(
 	}
 }
 
-export function useChat(
-	sessionId: string,
-	agentClient: AgentClient,
-	genui?: GenuiStreamConfig
-) {
+export function useChat(sessionId: string, agentClient: AgentClient) {
 	// The stream + committed/draft live in a module-level per-session store, so
 	// navigating away neither aborts the turn nor loses the conversation —
 	// remounting resubscribes and the accumulated turns are still here.
@@ -170,7 +163,7 @@ export function useChat(
 	];
 
 	const send = (text: string, attachments: AttachmentRef[] = []) =>
-		sendMessage(text, attachments, { agentClient, sessionId, store, genui });
+		sendMessage(text, attachments, { agentClient, sessionId, store });
 
 	const stop = () => stopSession(store, sessionId, agentClient);
 
