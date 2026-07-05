@@ -47,3 +47,20 @@ Don't special-case claude. Define a capability model each adapter reports, and t
 
 ## Constraints
 No `any`; magic numbers named; files ≤299/functions ≤50; eslint + tailwind gates; conventional commits; trailer `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`; branch dev. Each phase ships independently and is testable (fake SDK query in unit tests; real-claude smoke by the user). Approvals already route via `canUseTool` (done).
+
+## Capability matrix (from pi/opencode research — drives Phase 0.5)
+| Capability | claude (SDK) | pi (`--mode rpc`) | opencode (`serve`+SDK) |
+|---|---|---|---|
+| reasoning | yes (thinking blocks) | yes (`thinking_delta`) | yes (part `type:"reasoning"`) |
+| session-list | yes | SDK-only (RPC none — enumerate files) | yes (`session.list`) |
+| session-resume | yes | yes (`switch_session`/`fork`) | yes (`session.get`) |
+| slash-commands | yes | yes (`get_commands`, `/name`) | yes |
+| skills | yes | yes (`/skill:name`) | yes |
+| usage/cost | stream | POLL (`get_session_stats`) | stream (msg `info`) |
+| context-usage | yes | on-demand | derivable |
+| tool-approval | yes (`canUseTool`) | NO native (extension only) | yes (`permission.updated`→POST) |
+| model-switch | yes | yes (`set_model`) | yes (per-prompt model) |
+| permission-mode | full set | {default,plan} (`--plan`) | {default,plan} |
+| interrupt | yes | yes (`abort`) | yes (`session.abort`) |
+
+Design: `AgentCapabilities` booleans + `usageMode: "stream"|"poll"`. Universal baseline (always-on): reasoning, session-resume, slash, skills, model-switch, interrupt. Gated: session-list (pi RPC no), tool-approval (pi no), live-usage (pi = poll), permission-mode (down-project to a small enum). codex: TBD when installed.
