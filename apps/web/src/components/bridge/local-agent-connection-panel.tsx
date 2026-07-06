@@ -1,5 +1,4 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
-import { DeleteConfirm } from "@/components/list/delete-confirm";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { localAgentDisplayName } from "./local-agent-format";
 import { bridgeCliCommand } from "./local-agent-join";
@@ -17,35 +16,23 @@ function CopyableCode({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function PanelHeader({
-	token,
-	onDelete,
-}: {
-	token: BridgeTokenRow;
-	onDelete: () => void;
-}) {
+function PanelHeader({ token }: { token: BridgeTokenRow }) {
 	return (
-		<div className="flex items-center justify-between gap-2">
-			<div className="flex min-w-0 items-center gap-2">
-				<AgentKindIcon
-					className="size-4 shrink-0 text-muted-foreground"
-					kind={token.agentKind}
-				/>
-				<span className="truncate font-medium text-sm">
-					{localAgentDisplayName({
-						latestSession: null,
-						status: "not-connected",
-						token,
-					})}
-				</span>
-				<span className="shrink-0 text-muted-foreground text-xs">
-					{AGENT_KIND_LABEL[token.agentKind]}
-				</span>
-			</div>
-			<DeleteConfirm
-				label="Delete this local agent? Its token and all sessions are removed."
-				onConfirm={onDelete}
+		<div className="flex min-w-0 items-center gap-2">
+			<AgentKindIcon
+				className="size-4 shrink-0 text-muted-foreground"
+				kind={token.agentKind}
 			/>
+			<span className="truncate font-medium text-sm">
+				{localAgentDisplayName({
+					latestSession: null,
+					status: "not-connected",
+					token,
+				})}
+			</span>
+			<span className="shrink-0 text-muted-foreground text-xs">
+				{AGENT_KIND_LABEL[token.agentKind]}
+			</span>
 		</div>
 	);
 }
@@ -80,23 +67,16 @@ function PanelBody({ token }: { token: BridgeTokenRow }) {
 
 /** The always-present header of a bound local agent's page: its name + agent
  * kind, its permanently-viewable bridge token (copyable) and the ready-to-run
- * CLI command, plus the delete-the-agent action. Legacy hash-only tokens have
- * no raw value to show, so they get a recreate hint instead. */
+ * CLI command. Legacy hash-only tokens have no raw value to show, so they get a
+ * recreate hint instead. Deleting a local agent lives on the list page. */
 export function LocalAgentConnectionPanel({
 	token,
-	onDelete,
-	deleting,
 }: {
 	token: BridgeTokenRow;
-	onDelete: () => void;
-	deleting: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4">
-			<PanelHeader onDelete={onDelete} token={token} />
-			{deleting ? (
-				<p className="text-muted-foreground text-xs">Deleting…</p>
-			) : null}
+			<PanelHeader token={token} />
 			<PanelBody token={token} />
 		</div>
 	);

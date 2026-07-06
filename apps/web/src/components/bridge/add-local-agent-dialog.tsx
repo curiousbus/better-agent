@@ -49,7 +49,7 @@ function AgentKindPicker({
 	onChange: (kind: AgentKind) => void;
 }) {
 	return (
-		<div className="flex flex-col gap-1">
+		<div className="flex flex-col gap-2">
 			<Label>Agent</Label>
 			<div className="grid grid-cols-2 gap-2">
 				{AGENT_KIND_OPTIONS.map((kind) => {
@@ -83,6 +83,7 @@ function AddLocalAgentForm({
 	kind,
 	onKind,
 	onSubmit,
+	onCancel,
 	pending,
 }: {
 	name: string;
@@ -90,18 +91,19 @@ function AddLocalAgentForm({
 	kind: AgentKind | null;
 	onKind: (value: AgentKind) => void;
 	onSubmit: () => void;
+	onCancel: () => void;
 	pending: boolean;
 }) {
 	return (
 		<form
-			className="flex flex-col gap-4"
+			className="flex flex-col gap-5"
 			onSubmit={(event) => {
 				event.preventDefault();
 				onSubmit();
 			}}
 		>
 			<AgentKindPicker onChange={onKind} value={kind} />
-			<div className="flex flex-col gap-1">
+			<div className="flex flex-col gap-2">
 				<Label htmlFor="local-agent-name">Name</Label>
 				<Input
 					id="local-agent-name"
@@ -110,13 +112,14 @@ function AddLocalAgentForm({
 					value={name}
 				/>
 			</div>
-			<Button
-				className="self-end"
-				disabled={pending || kind === null}
-				type="submit"
-			>
-				{pending ? "Creating…" : "Create"}
-			</Button>
+			<DialogFooter className="gap-2">
+				<Button onClick={onCancel} type="button" variant="outline">
+					Cancel
+				</Button>
+				<Button disabled={pending || kind === null} type="submit">
+					{pending ? "Creating…" : "Create"}
+				</Button>
+			</DialogFooter>
 		</form>
 	);
 }
@@ -153,7 +156,7 @@ export function AddLocalAgentDialog() {
 				Add local agent
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
+				<DialogHeader className="gap-1.5">
 					<DialogTitle>Add local agent</DialogTitle>
 					<DialogDescription>
 						Choose which agent this connection runs, then find its token and
@@ -163,6 +166,7 @@ export function AddLocalAgentDialog() {
 				<AddLocalAgentForm
 					kind={kind}
 					name={name}
+					onCancel={() => onOpenChange(false)}
 					onKind={setKind}
 					onName={setName}
 					onSubmit={() =>
@@ -171,7 +175,6 @@ export function AddLocalAgentDialog() {
 					}
 					pending={create.isPending}
 				/>
-				<DialogFooter showCloseButton />
 			</DialogContent>
 		</Dialog>
 	);

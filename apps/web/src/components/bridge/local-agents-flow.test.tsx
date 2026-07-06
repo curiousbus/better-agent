@@ -215,15 +215,18 @@ beforeEach(() => {
 	store.tokens = buildTokens();
 });
 
-it("shows one card per non-revoked token and opens its token-keyed detail", async () => {
+it("shows one table row per non-revoked token and opens its token-keyed detail", async () => {
 	const router = buildTestRouter();
 	const { view } = renderApp(router);
 
-	// One card for token-1 (its latest session), the revoked token has none.
+	// One row for token-1, the revoked token has none.
 	await waitFor(() => {
 		expect(view.getByText("alpha agent")).toBeDefined();
 	});
 	expect(view.queryByText("revoked agent")).toBeNull();
+	// Rendered as a real table with an Actions column.
+	expect(view.getByRole("table")).toBeDefined();
+	expect(view.getByRole("columnheader", { name: "Actions" })).toBeDefined();
 
 	fireEvent.click(view.getByText("alpha agent"));
 
@@ -239,7 +242,7 @@ it("shows one card per non-revoked token and opens its token-keyed detail", asyn
 	expect(view.getByText("Connecting…")).toBeDefined();
 });
 
-it("keeps the card when the token's only session has ended (keyed by token, not session)", async () => {
+it("keeps the row when the token has no session yet (keyed by token, not session)", async () => {
 	store.sessions = [];
 	const router = buildTestRouter();
 	const { view } = renderApp(router);
@@ -247,7 +250,8 @@ it("keeps the card when the token's only session has ended (keyed by token, not 
 	await waitFor(() => {
 		expect(view.getByText("alpha agent")).toBeDefined();
 	});
-	expect(view.getByText("Claude Code · not connected yet")).toBeDefined();
+	expect(view.getByText("Claude Code")).toBeDefined();
+	expect(view.getByText("Not connected")).toBeDefined();
 });
 
 it("remounts the terminal onto a newer session when the poll picks one up for the same token", async () => {

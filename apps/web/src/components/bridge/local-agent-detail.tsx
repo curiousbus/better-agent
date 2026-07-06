@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
@@ -10,6 +10,11 @@ import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { withSessionPolling } from "./local-agent-poll";
+import {
+	LocalAgentSessionPicker,
+	sortSessionsByRecency,
+	useSessionSelection,
+} from "./local-agent-session-picker";
 import { Terminal } from "./terminal";
 
 function useEndSession() {
@@ -20,24 +25,6 @@ function useEndSession() {
 				queryClient.invalidateQueries({
 					queryKey: orpc.bridge.listSessions.key(),
 				});
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-}
-
-function useDeleteAgent(onDeleted: () => void) {
-	const queryClient = useQueryClient();
-	return useMutation(
-		orpc.bridge.deleteToken.mutationOptions({
-			onSuccess: () => {
-				queryClient.invalidateQueries({
-					queryKey: orpc.bridge.listTokens.key(),
-				});
-				queryClient.invalidateQueries({
-					queryKey: orpc.bridge.listSessions.key(),
-				});
-				onDeleted();
 			},
 			onError: (error) => toast.error(error.message),
 		})
@@ -68,28 +55,60 @@ function NotFound() {
 	);
 }
 
+/** The picker + terminal for a token that has at least one session. The picker
+ * chooses which session the terminal follows (default: most recent); the
+ * terminal is keyed by session id so switching remounts it onto the chosen
+ * session instead of re-polling the previous one. */
+function SessionView({
+	sessions,
+	userAvatarUrl,
+}: {
+	sessions: BridgeSessionRow[];
+	userAvatarUrl: string | undefined;
+}) {
+	const endSession = useEndSession();
+	const transport = useMemo(() => createBridgeTransport(), []);
+	const { activeSession, select } = useSessionSelection(sessions);
+
+	if (!activeSession) {
+		return <WaitingForCli />;
+	}
+	return (
+		<div className="flex min-h-0 flex-1 flex-col gap-3">
+			<LocalAgentSessionPicker
+				activeId={activeSession.id}
+				onSelect={select}
+				sessions={sessions}
+			/>
+			<div className="flex min-h-0 flex-1 flex-col">
+				<Terminal
+					ending={endSession.isPending}
+					key={activeSession.id}
+					onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
+					session={activeSession}
+					transport={transport}
+					userAvatarUrl={userAvatarUrl}
+				/>
+			</div>
+		</div>
+	);
+}
+
 /**
  * The `/local-agents/$tokenId` body. One bridge token = one persistent local
- * agent; the view always follows that token's LATEST session. Joins the same
- * `listTokens` + `listSessions` queries the list page polls (shared cache),
- * then:
+ * agent. Joins the same `listTokens` + `listSessions` queries the list page
+ * polls (shared cache), then:
  *  - unknown/revoked token → not-found;
  *  - token with no session yet → waiting-for-CLI;
- *  - token with a session → header + `Terminal`, keyed by the session id so a
- *    newer session (the CLI relaunched) remounts the terminal onto it instead
- *    of polling the old, now-dead one — the whole "clicking into a dead
- *    session" fix.
+ *  - token with sessions → connection panel + a session picker over that
+ *    token's sessions, defaulting to the most recent, feeding the `Terminal`.
  */
 export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
-	const navigate = useNavigate();
 	const tokens = useQuery(orpc.bridge.listTokens.queryOptions());
 	const sessions = useQuery(
 		withSessionPolling(orpc.bridge.listSessions.queryOptions())
 	);
-	const endSession = useEndSession();
-	const deleteAgent = useDeleteAgent(() => navigate({ to: "/local-agents" }));
 	const { email } = useCurrentUser();
-	const transport = useMemo(() => createBridgeTransport(), []);
 
 	if (tokens.isPending || sessions.isPending) {
 		return <LocalAgentDetailSkeleton />;
@@ -100,31 +119,22 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 		sessions.data ?? []
 	);
 	const entry = entries.find((candidate) => candidate.token.id === tokenId);
-
 	if (!entry) {
 		return <NotFound />;
 	}
 
-	const session = entry.latestSession;
+	const tokenSessions = sortSessionsByRecency(
+		(sessions.data ?? []).filter((session) => session.tokenId === tokenId)
+	);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<LocalAgentConnectionPanel
-				deleting={deleteAgent.isPending}
-				onDelete={() => deleteAgent.mutate({ id: tokenId })}
-				token={entry.token}
-			/>
-			{session ? (
-				<div className="flex min-h-0 flex-1 flex-col">
-					<Terminal
-						ending={endSession.isPending}
-						key={session.id}
-						onEnd={() => endSession.mutate({ sessionId: session.id })}
-						session={session}
-						transport={transport}
-						userAvatarUrl={email ? userAvatar(email) : undefined}
-					/>
-				</div>
+			<LocalAgentConnectionPanel token={entry.token} />
+			{tokenSessions.length > 0 ? (
+				<SessionView
+					sessions={tokenSessions}
+					userAvatarUrl={email ? userAvatar(email) : undefined}
+				/>
 			) : (
 				<WaitingForCli />
 			)}

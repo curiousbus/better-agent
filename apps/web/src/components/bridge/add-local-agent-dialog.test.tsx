@@ -73,6 +73,9 @@ it("blocks Create until an agent kind is picked, then sends it", async () => {
 	);
 	expect(create).toHaveProperty("disabled", true);
 
+	// Cancel sits beside Create in the footer.
+	expect(view.getByRole("button", { name: "Cancel" })).toBeDefined();
+
 	fireEvent.click(view.getByRole("button", { name: "Codex" }));
 	expect(create).toHaveProperty("disabled", false);
 

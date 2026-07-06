@@ -22,15 +22,7 @@ function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 }
 
 function renderPanel(token: BridgeTokenRow) {
-	const { container } = render(
-		<LocalAgentConnectionPanel
-			deleting={false}
-			onDelete={() => {
-				// no-op
-			}}
-			token={token}
-		/>
-	);
+	const { container } = render(<LocalAgentConnectionPanel token={token} />);
 	return within(container);
 }
 
@@ -43,6 +35,8 @@ it("shows the raw token and a CLI command bound to its agent kind", () => {
 	expect(command.textContent).toContain("--token bt_secret");
 	expect(view.getByRole("button", { name: "Copy token" })).toBeDefined();
 	expect(view.getByRole("button", { name: "Copy command" })).toBeDefined();
+	// Deleting a local agent moved to the list page's Actions column.
+	expect(view.queryByRole("button", { name: "Delete" })).toBeNull();
 });
 
 it("shows a recreate hint for a legacy hash-only token", () => {
