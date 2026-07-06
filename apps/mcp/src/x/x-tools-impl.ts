@@ -180,7 +180,7 @@ async function userTimeline(
 	client: XClient,
 	screenName: string,
 	limit: number | undefined,
-	flagKey: "UserTweets" | "UserTweetsAndReplies" | "UserMedia" | "Likes",
+	flagKey: "UserTweets" | "UserTweetsAndReplies" | "UserMedia",
 	rawCall: RawTweetCall
 ): Promise<NormalizedTweet[]> {
 	const profile = await searchUsers(client, screenName);
@@ -231,16 +231,6 @@ export function userMedia(
 ): Promise<NormalizedTweet[]> {
 	return userTimeline(client, screenName, limit, "UserMedia", (api, a, o) =>
 		api.api.getUserMediaRaw(a as never, o as never)
-	);
-}
-
-export function userLikes(
-	client: XClient,
-	screenName: string,
-	limit?: number
-): Promise<NormalizedTweet[]> {
-	return userTimeline(client, screenName, limit, "Likes", (api, a, o) =>
-		api.api.getLikesRaw(a as never, o as never)
 	);
 }
 

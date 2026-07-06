@@ -119,7 +119,6 @@ const TWEET_LIST_TOOLS = [
 	"x_search_tweets",
 	"x_user_tweets",
 	"x_user_replies",
-	"x_user_likes",
 	"x_tweet_thread",
 	"x_user_media",
 ] as const;

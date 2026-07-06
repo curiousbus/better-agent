@@ -71,10 +71,6 @@ const TOOLS = [
 		"x_user_media",
 		"Fetch a user's recent media tweets (photos/videos), by @handle."
 	),
-	handleTool(
-		"x_user_likes",
-		"Fetch the tweets a user has recently liked, by @handle."
-	),
 	handleTool("x_followers", "List a user's followers (profiles), by @handle."),
 	handleTool(
 		"x_following",

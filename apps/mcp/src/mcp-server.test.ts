@@ -77,11 +77,12 @@ it("lists all the X tools", async () => {
 	expect(names).toContain("x_user_tweets");
 	expect(names).toContain("x_user_replies");
 	expect(names).toContain("x_user_media");
-	expect(names).toContain("x_user_likes");
 	expect(names).toContain("x_followers");
 	expect(names).toContain("x_following");
 	expect(names).toContain("x_tweet_thread");
-	expect(names.length).toBe(9);
+	// x_user_likes was removed: X made likes private in 2024, so it only ever
+	// returned empty. 8 tools remain.
+	expect(names.length).toBe(8);
 });
 
 it("returns a tool error when no auth_token is provided", async () => {

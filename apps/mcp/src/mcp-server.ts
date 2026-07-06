@@ -6,7 +6,6 @@ import {
 	searchTweets,
 	searchUsers,
 	tweetThread,
-	userLikes,
 	userMedia,
 	userReplies,
 	userTweets,
@@ -80,7 +79,6 @@ const HANDLE_TOOLS: Record<string, HandleTool> = {
 	x_user_tweets: userTweets,
 	x_user_replies: userReplies,
 	x_user_media: userMedia,
-	x_user_likes: userLikes,
 	x_followers: followers,
 	x_following: following,
 };
