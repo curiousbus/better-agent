@@ -7,6 +7,7 @@ import type { StreamEvent } from "./bridge-events";
 import type {
 	SessionReadyDetail,
 	TurnUsageDetail,
+	UsageUpdateDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
@@ -14,6 +15,7 @@ import { TerminalComposer } from "./terminal-composer";
 import { TerminalFeed } from "./terminal-feed";
 import { TerminalHeader } from "./terminal-header";
 import { TurnUsagePanel } from "./turn-usage-panel";
+import { UsageUpdateLine } from "./usage-update-line";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 
 export interface TerminalProps {
@@ -46,6 +48,7 @@ interface TerminalBodyProps {
 	turnInFlight: boolean;
 	turns: BridgeTurn[];
 	turnUsage: TurnUsageDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 interface BodyComposerProps {
@@ -113,7 +116,10 @@ function TerminalBody(props: TerminalBodyProps) {
 				turns={props.turns}
 			/>
 			{props.caps.usageMode === "stream" && (
-				<TurnUsagePanel detail={props.turnUsage} />
+				<>
+					<TurnUsagePanel detail={props.turnUsage} />
+					<UsageUpdateLine detail={props.usageUpdate} />
+				</>
 			)}
 			<BodyComposer
 				caps={props.caps}
@@ -239,6 +245,7 @@ export function Terminal({
 				turnInFlight={view.turnInFlight}
 				turns={view.turns}
 				turnUsage={view.turnUsage}
+				usageUpdate={view.usageUpdate}
 			/>
 		</div>
 	);

@@ -4,6 +4,7 @@ import {
 	latestSessionListDetail,
 	latestSessionReadyDetail,
 	latestTurnUsageDetail,
+	latestUsageUpdateDetail,
 } from "./bridge-session-status";
 
 const ev = (id: number, event: StreamEvent["event"]): StreamEvent => ({
@@ -61,7 +62,7 @@ it("parses the latest turn_usage detail", () => {
 				costUsd: 0.012_345,
 				numTurns: 2,
 				durationMs: 1000,
-				usage: { inputTokens: 100, outputTokens: 50 },
+				usage: { input_tokens: 100, output_tokens: 50 },
 				isError: false,
 			},
 		}),
@@ -147,5 +148,29 @@ it("drops a session_list entry missing its id, keeping well-formed ones", () => 
 	];
 	expect(latestSessionListDetail(events)).toEqual({
 		sessions: [{ id: "sess-2", title: "ok" }],
+	});
+});
+
+it("returns null when no usage_update event has arrived", () => {
+	expect(latestUsageUpdateDetail([])).toBeNull();
+});
+
+it("parses the latest usage_update detail (opencode's streamed context/cost)", () => {
+	const events: StreamEvent[] = [
+		ev(1, {
+			kind: "status",
+			status: "usage_update",
+			detail: {
+				sessionUpdate: "usage_update",
+				used: 48_000,
+				size: 200_000,
+				cost: { amount: 0.045, currency: "USD" },
+			},
+		}),
+	];
+	expect(latestUsageUpdateDetail(events)).toEqual({
+		used: 48_000,
+		size: 200_000,
+		cost: { amount: 0.045, currency: "USD" },
 	});
 });

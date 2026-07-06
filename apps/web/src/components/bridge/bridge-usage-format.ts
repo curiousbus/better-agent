@@ -38,6 +38,15 @@ export function formatDurationMs(durationMs: number): string {
 	return `${minutes}m ${seconds}s`;
 }
 
+/** opencode's streamed context window line: `48k/200k tok · 24%` — the % is
+ * derived client-side as used/size. */
+export function formatContextUsage(used: number, size: number): string {
+	const pct = size > 0 ? Math.round((used / size) * PERCENT_MULTIPLIER) : 0;
+	return `${formatTokenCount(used)}/${formatTokenCount(size)} tok · ${pct}%`;
+}
+
+const PERCENT_MULTIPLIER = 100;
+
 const CWD_MAX_LENGTH = 40;
 
 /** Truncates a long cwd path from the front (keeping the tail — the part

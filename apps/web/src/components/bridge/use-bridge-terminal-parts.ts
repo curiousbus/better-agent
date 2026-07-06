@@ -3,6 +3,7 @@ import type {
 	SessionListDetail,
 	SessionReadyDetail,
 	TurnUsageDetail,
+	UsageUpdateDetail,
 } from "./bridge-session-status";
 import type { ConnectionState } from "./terminal-connection";
 import type { FeedState } from "./use-bridge-feed";
@@ -79,6 +80,7 @@ export interface BuildResultArgs {
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
 	turnUsage: TurnUsageDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 /** Assembles the public hook result from the wired-up pieces — split out purely
@@ -104,5 +106,6 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		sessionReady: args.sessionReady,
 		sessionList: args.sessionList,
 		turnUsage: args.turnUsage,
+		usageUpdate: args.usageUpdate,
 	};
 }

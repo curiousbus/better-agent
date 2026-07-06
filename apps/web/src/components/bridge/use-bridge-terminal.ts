@@ -4,9 +4,11 @@ import {
 	latestSessionListDetail,
 	latestSessionReadyDetail,
 	latestTurnUsageDetail,
+	latestUsageUpdateDetail,
 	type SessionListDetail,
 	type SessionReadyDetail,
 	type TurnUsageDetail,
+	type UsageUpdateDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import {
@@ -72,6 +74,9 @@ export interface UseBridgeTerminalResult {
 	/** The latest `turn_usage` detail (cost/tokens/turns), or `null` before
 	 * any turn has completed. */
 	turnUsage: TurnUsageDetail | null;
+	/** The latest `usage_update` detail (opencode's streamed context/cost), or
+	 * `null` before one has arrived. */
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 function useSendInput(
@@ -103,6 +108,7 @@ interface LatestSessionStatus {
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
 	turnUsage: TurnUsageDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 /** Extracts the latest curated `session_ready`/`turn_usage`/`session_list`
@@ -116,8 +122,9 @@ function useLatestSessionStatus(events: StreamEvent[]): LatestSessionStatus {
 		[events]
 	);
 	const turnUsage = useMemo(() => latestTurnUsageDetail(events), [events]);
+	const usageUpdate = useMemo(() => latestUsageUpdateDetail(events), [events]);
 	const sessionList = useMemo(() => latestSessionListDetail(events), [events]);
-	return { sessionReady, turnUsage, sessionList };
+	return { sessionReady, turnUsage, usageUpdate, sessionList };
 }
 
 interface LiveConnectionArgs {
@@ -231,6 +238,7 @@ export function useBridgeTerminal(
 	const {
 		sessionReady,
 		turnUsage,
+		usageUpdate,
 		sessionList: feedSessionList,
 	} = useLatestSessionStatus(feed.events);
 	const {
@@ -258,5 +266,6 @@ export function useBridgeTerminal(
 		setModel,
 		setPermissionMode,
 		turnUsage,
+		usageUpdate,
 	});
 }

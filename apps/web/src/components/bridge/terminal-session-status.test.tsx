@@ -31,10 +31,12 @@ const TURN_USAGE_DETAIL = {
 	numTurns: 3,
 	durationMs: 4500,
 	usage: {
-		inputTokens: 1234,
-		outputTokens: 567,
-		cacheReadInputTokens: 8000,
-		cacheCreationInputTokens: 200,
+		// claude's SDK emits snake_case keys; the parser maps these to the
+		// camelCase interface (see bridge-session-status.ts's parseUsageTokens).
+		input_tokens: 1234,
+		output_tokens: 567,
+		cache_read_input_tokens: 8000,
+		cache_creation_input_tokens: 200,
 	},
 	isError: false,
 };

@@ -25,6 +25,10 @@ export const SESSION_LIST_STATUS = "session_list";
 /** opencode (ACP) emits its evolving task list as a `plan` status update whose
  * `detail` is the list of entries — rendered as a todolist, not a status line. */
 export const PLAN_STATUS = "plan";
+/** opencode (ACP) streams per-turn context/cost as a `usage_update`
+ * `session/update` (the normalize layer's default case passes it through as a
+ * `status` event). Rendered as a small, faded one-liner above the composer. */
+export const USAGE_UPDATE_STATUS = "usage_update";
 
 export interface McpServerStatus {
 	name: string;
@@ -79,6 +83,21 @@ export interface TurnUsageDetail {
 	isError?: boolean;
 	numTurns?: number;
 	usage?: TurnUsageTokens;
+}
+
+/** One entry in opencode's streamed `usage_update` cost figure. */
+export interface UsageUpdateCost {
+	amount?: number;
+	currency?: string;
+}
+
+/** opencode's per-turn context window + cost, streamed mid-turn as a
+ * `usage_update` status. `used`/`size` are token counts; the context % is
+ * derived client-side as used/size. */
+export interface UsageUpdateDetail {
+	cost?: UsageUpdateCost;
+	size?: number;
+	used?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -169,11 +188,17 @@ function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {
 		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
 		return undefined;
 	}
+	// claude's result line passes its SDK `usage` object through verbatim
+	// (see normalize/claude-code.ts's `normalizeClaudeResult`), whose keys are
+	// snake_case (`input_tokens`, `cache_read_input_tokens`, …) — NOT camelCase.
+	// Reading camelCase here left every token bucket permanently undefined.
 	return {
-		inputTokens: asOptionalNumber(value.inputTokens),
-		outputTokens: asOptionalNumber(value.outputTokens),
-		cacheReadInputTokens: asOptionalNumber(value.cacheReadInputTokens),
-		cacheCreationInputTokens: asOptionalNumber(value.cacheCreationInputTokens),
+		cacheCreationInputTokens: asOptionalNumber(
+			value.cache_creation_input_tokens
+		),
+		cacheReadInputTokens: asOptionalNumber(value.cache_read_input_tokens),
+		inputTokens: asOptionalNumber(value.input_tokens),
+		outputTokens: asOptionalNumber(value.output_tokens),
 	};
 }
 
@@ -187,6 +212,28 @@ function parseTurnUsageDetail(detail: unknown): TurnUsageDetail | null {
 		durationMs: asOptionalNumber(detail.durationMs),
 		usage: parseUsageTokens(detail.usage),
 		isError: typeof detail.isError === "boolean" ? detail.isError : undefined,
+	};
+}
+
+function parseUsageUpdateCost(value: unknown): UsageUpdateCost | undefined {
+	if (!isRecord(value)) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	return {
+		amount: asOptionalNumber(value.amount),
+		currency: asOptionalString(value.currency),
+	};
+}
+
+function parseUsageUpdateDetail(detail: unknown): UsageUpdateDetail | null {
+	if (!isRecord(detail)) {
+		return null;
+	}
+	return {
+		used: asOptionalNumber(detail.used),
+		size: asOptionalNumber(detail.size),
+		cost: parseUsageUpdateCost(detail.cost),
 	};
 }
 
@@ -221,6 +268,15 @@ export function latestTurnUsageDetail(
 ): TurnUsageDetail | null {
 	const detail = latestStatusDetail(events, TURN_USAGE_STATUS);
 	return detail === undefined ? null : parseTurnUsageDetail(detail);
+}
+
+/** The latest `usage_update` detail on the feed (opencode's streamed
+ * context/cost), or `null` if none has arrived yet (or it was malformed). */
+export function latestUsageUpdateDetail(
+	events: StreamEvent[]
+): UsageUpdateDetail | null {
+	const detail = latestStatusDetail(events, USAGE_UPDATE_STATUS);
+	return detail === undefined ? null : parseUsageUpdateDetail(detail);
 }
 
 /** The latest `session_list` detail on the feed — `null` before a `{

@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import {
+	formatContextUsage,
 	formatCostUsd,
 	formatDurationMs,
 	formatTokenCount,
@@ -40,4 +41,10 @@ it("truncates a long cwd from the front, keeping the tail", () => {
 	const result = truncateCwd(long);
 	expect(result.startsWith("…")).toBe(true);
 	expect(long.endsWith(result.slice(1))).toBe(true);
+});
+
+it("formats opencode's streamed context usage as used/size tok · pct", () => {
+	expect(formatContextUsage(48_000, 200_000)).toBe("48.0k/200.0k tok · 24%");
+	expect(formatContextUsage(847, 1000)).toBe("847/1.0k tok · 85%");
+	expect(formatContextUsage(0, 0)).toBe("0/0 tok · 0%");
 });
