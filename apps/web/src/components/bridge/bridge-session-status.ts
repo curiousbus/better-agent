@@ -22,6 +22,9 @@ export const TURN_END_STATUS = "turn_end";
  * command (see `apps/bridge-cli/src/adapters/claude-code.ts`'s
  * `makeListSessions`) — the "Past conversations" picker's data. */
 export const SESSION_LIST_STATUS = "session_list";
+/** opencode (ACP) emits its evolving task list as a `plan` status update whose
+ * `detail` is the list of entries — rendered as a todolist, not a status line. */
+export const PLAN_STATUS = "plan";
 
 export interface McpServerStatus {
 	name: string;

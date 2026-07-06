@@ -1,13 +1,9 @@
 import {
 	appendText,
-	type ChatBlock,
 	type ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
 import { isTaskToolInput } from "@/genui/tool-renderers";
 import type {
-	ApprovalEvent,
-	ErrorEvent,
-	FileEvent,
 	MessageEvent,
 	NormalizedEvent,
 	StatusEvent,
@@ -15,12 +11,27 @@ import type {
 	ToolEvent,
 } from "./bridge-events";
 import {
+	PLAN_STATUS,
 	SESSION_LIST_STATUS,
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
 } from "./bridge-session-status";
+import type { AssistantTurn, BridgeTurn, PlanTurn } from "./bridge-turn-types";
 import { stripTaskWrapper, type TaskInvocation } from "./task-card";
+import { parseTodoItems } from "./todo-list";
 import { flattenToolResult } from "./tool-result-text";
+
+export type {
+	ApprovalTurn,
+	AssistantTurn,
+	BridgeTurn,
+	ErrorTurn,
+	FileTurn,
+	PlanTurn,
+	StatusTurn,
+	TaskTurn,
+	UserTurn,
+} from "./bridge-turn-types";
 
 /** These curated status events carry session METADATA (capabilities,
  * cost/tokens, the past-conversations list) surfaced by dedicated header/chip
@@ -34,75 +45,31 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	SESSION_LIST_STATUS,
 ]);
 
-/**
- * One coherent turn folded out of the granular bridge event stream, ready to
- * render with the same components the normal chat uses. `message`/`output`/
- * `tool` events collapse into `user`/`assistant` bubbles; the remaining kinds
- * pass through as their own inline rows (a subtle status line, an error line,
- * a file line, or the bridge-specific approval card).
- */
-export interface AssistantTurn {
-	blocks: ChatBlock[];
-	id: number;
-	kind: "assistant";
-	/** Set only on the trailing still-open turn, so the streaming markdown
-	 * caret shows while output is arriving and stops at the next boundary. */
-	streaming: boolean;
-}
-
-export interface UserTurn {
-	id: number;
-	kind: "user";
-	text: string;
-}
-
-export interface StatusTurn {
-	event: StatusEvent;
-	id: number;
-	kind: "status";
-}
-
-export interface ErrorTurn {
-	event: ErrorEvent;
-	id: number;
-	kind: "error";
-}
-
-export interface FileTurn {
-	event: FileEvent;
-	id: number;
-	kind: "file";
-}
-
-export interface ApprovalTurn {
-	event: ApprovalEvent;
-	id: number;
-	kind: "approval";
-}
-
-/** A subagent "Task" tool call, folded out of the ordinary tool-block flow
- * into its own turn (like status/error/file lines) so it renders as a task
- * card instead of a generic tool row — see `isTaskToolInput`. */
-export interface TaskTurn {
-	id: number;
-	kind: "task";
-	task: TaskInvocation;
-}
-
-export type BridgeTurn =
-	| AssistantTurn
-	| UserTurn
-	| StatusTurn
-	| ErrorTurn
-	| FileTurn
-	| ApprovalTurn
-	| TaskTurn;
-
 interface FoldState {
 	current: AssistantTurn | null;
+	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
+	plan: PlanTurn | null;
 	tasksByCallId: Map<string, TaskInvocation>;
 	toolsByCallId: Map<string, ToolInvocation>;
 	turns: BridgeTurn[];
+}
+
+/** Folds a `plan` status update into the ONE plan turn: creates it on the first
+ * update (at its natural position), then replaces its items in place on later
+ * updates so the checklist fills in rather than stacking copies. An empty/
+ * unparseable payload is ignored. */
+function foldPlan(state: FoldState, id: number, event: StatusEvent): void {
+	const items = parseTodoItems(event.detail);
+	if (items.length === 0) {
+		return;
+	}
+	if (state.plan) {
+		state.plan.items = items;
+		return;
+	}
+	const turn: PlanTurn = { kind: "plan", id, items };
+	state.plan = turn;
+	state.turns.push(turn);
 }
 
 function toolStatusOf(status: ToolEvent["status"]): {
@@ -257,7 +224,9 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 			return;
 		case "status":
 			state.current = null;
-			if (!HIDDEN_STATUS_KINDS.has(event.status)) {
+			if (event.status === PLAN_STATUS) {
+				foldPlan(state, id, event);
+			} else if (!HIDDEN_STATUS_KINDS.has(event.status)) {
 				state.turns.push({ kind: "status", id, event });
 			}
 			return;
@@ -283,6 +252,7 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 export function foldEventsToTurns(events: StreamEvent[]): BridgeTurn[] {
 	const state: FoldState = {
 		current: null,
+		plan: null,
 		tasksByCallId: new Map(),
 		toolsByCallId: new Map(),
 		turns: [],
