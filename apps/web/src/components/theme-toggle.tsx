@@ -18,7 +18,7 @@ export function ThemeToggle() {
 	return (
 		<Button
 			aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-			className="shrink-0"
+			className="shrink-0 group-data-[collapsible=icon]:hidden"
 			onClick={handleClick}
 			size="icon-sm"
 			type="button"
