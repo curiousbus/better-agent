@@ -1,11 +1,22 @@
-import type { UsageUpdateDetail } from "./bridge-session-status";
-import { formatContextUsage, formatCostUsd } from "./bridge-usage-format";
+import type {
+	UsageUpdateCost,
+	UsageUpdateDetail,
+} from "./bridge-session-status";
+import { formatContextUsage, formatCostCompact } from "./bridge-usage-format";
 
-/** Cost figure from opencode's `usage_update` — `amount` + ISO `currency`. The
- * plan's example output (`$0.045`) treats it as USD; a non-USD currency falls
- * back to a plain `amount + code` so nothing is silently mislabeled. */
-function formatUsageCost(amount: number, currency: string): string {
-	return currency === "USD" ? formatCostUsd(amount) : `${amount} ${currency}`;
+/** Cost figure from opencode's `usage_update` — `amount` + ISO `currency`,
+ * which always travel together so this takes the whole `UsageUpdateCost`. USD
+ * uses the compact `$0.045` form; a non-USD currency falls back to a plain
+ * `amount + code` so nothing is silently mislabeled. Returns null when there's
+ * no amount to show. */
+function formatUsageCost(cost: UsageUpdateCost): string | null {
+	if (cost.amount === undefined) {
+		return null;
+	}
+	const currency = cost.currency ?? "USD";
+	return currency === "USD"
+		? formatCostCompact(cost.amount)
+		: `${cost.amount} ${currency}`;
 }
 
 export interface UsageUpdateLineProps {
@@ -30,9 +41,9 @@ export function UsageUpdateLine({ detail }: UsageUpdateLineProps) {
 	if (detail.used !== undefined && detail.size !== undefined) {
 		parts.push(formatContextUsage(detail.used, detail.size));
 	}
-	const amount = detail.cost?.amount;
-	if (amount !== undefined) {
-		parts.push(formatUsageCost(amount, detail.cost?.currency ?? "USD"));
+	const cost = detail.cost === undefined ? null : formatUsageCost(detail.cost);
+	if (cost !== null) {
+		parts.push(cost);
 	}
 	if (parts.length === 0) {
 		return null;

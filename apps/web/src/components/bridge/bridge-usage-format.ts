@@ -38,11 +38,36 @@ export function formatDurationMs(durationMs: number): string {
 	return `${minutes}m ${seconds}s`;
 }
 
+/** Whole-`k` token count for the minimal `usage_update` line: `847` stays,
+ * `48213` becomes `48k` (no decimal). Distinct from `formatTokenCount`'s
+ * one-decimal form, which the denser turn_usage grid uses — this line is meant
+ * to be glanceable, so `48k/200k` reads better than `48.2k/200.0k`. */
+export function formatTokensCompact(count: number): string {
+	if (count < TOKEN_COMPACT_THRESHOLD) {
+		return String(count);
+	}
+	return `${Math.round(count / TOKEN_COMPACT_DIVISOR)}k`;
+}
+
+const TRAILING_ZEROS_RE = /0+$/;
+const TRAILING_DOT_RE = /\.$/;
+
+/** Compact cost for the `usage_update` line: `$0.045`, trailing zeros trimmed
+ * (`0.0450` → `$0.045`, `1` → `$1`). The turn_usage grid keeps `formatCostUsd`'s
+ * fixed 4-decimal form; this line trades that precision for brevity. */
+export function formatCostCompact(amount: number): string {
+	const trimmed = amount
+		.toFixed(COST_DECIMAL_PLACES)
+		.replace(TRAILING_ZEROS_RE, "")
+		.replace(TRAILING_DOT_RE, "");
+	return `$${trimmed}`;
+}
+
 /** opencode's streamed context window line: `48k/200k tok · 24%` — the % is
- * derived client-side as used/size. */
+ * derived client-side as used/size, whole-`k` counts for a glanceable line. */
 export function formatContextUsage(used: number, size: number): string {
 	const pct = size > 0 ? Math.round((used / size) * PERCENT_MULTIPLIER) : 0;
-	return `${formatTokenCount(used)}/${formatTokenCount(size)} tok · ${pct}%`;
+	return `${formatTokensCompact(used)}/${formatTokensCompact(size)} tok · ${pct}%`;
 }
 
 const PERCENT_MULTIPLIER = 100;

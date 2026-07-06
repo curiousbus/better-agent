@@ -1,9 +1,11 @@
 import { expect, it } from "vitest";
 import {
 	formatContextUsage,
+	formatCostCompact,
 	formatCostUsd,
 	formatDurationMs,
 	formatTokenCount,
+	formatTokensCompact,
 	truncateCwd,
 } from "./bridge-usage-format";
 
@@ -43,8 +45,21 @@ it("truncates a long cwd from the front, keeping the tail", () => {
 	expect(long.endsWith(result.slice(1))).toBe(true);
 });
 
-it("formats opencode's streamed context usage as used/size tok · pct", () => {
-	expect(formatContextUsage(48_000, 200_000)).toBe("48.0k/200.0k tok · 24%");
-	expect(formatContextUsage(847, 1000)).toBe("847/1.0k tok · 85%");
+it("compacts token counts to whole k (no decimal) for the usage line", () => {
+	expect(formatTokensCompact(847)).toBe("847");
+	expect(formatTokensCompact(48_213)).toBe("48k");
+	expect(formatTokensCompact(200_000)).toBe("200k");
+});
+
+it("formats a compact cost with trailing zeros trimmed", () => {
+	expect(formatCostCompact(0.045)).toBe("$0.045");
+	expect(formatCostCompact(0.045_04)).toBe("$0.045");
+	expect(formatCostCompact(1)).toBe("$1");
+	expect(formatCostCompact(0.12)).toBe("$0.12");
+});
+
+it("formats opencode's streamed context usage as whole-k used/size tok · pct", () => {
+	expect(formatContextUsage(48_213, 200_000)).toBe("48k/200k tok · 24%");
+	expect(formatContextUsage(847, 1000)).toBe("847/1k tok · 85%");
 	expect(formatContextUsage(0, 0)).toBe("0/0 tok · 0%");
 });
