@@ -47,10 +47,10 @@ function normalizePiContentBlock(block: unknown): NormalizedEvent[] {
 		return NO_EVENTS;
 	}
 	if (block.type === "text") {
-		const text = asString(block.text);
-		return text === undefined
-			? NO_EVENTS
-			: [{ kind: "message", role: "assistant", text }];
+		// Already streamed live via `message_update` text_delta output — the
+		// final message repeats the whole text, so drop it here to avoid
+		// rendering the reply twice.
+		return NO_EVENTS;
 	}
 	if (block.type === "thinking") {
 		const text = asString(block.thinking);

@@ -59,12 +59,14 @@ function normalizeAcpUpdate(update: unknown): NormalizedEvent[] {
 			if (!isAcpTextContent(update.content)) {
 				return NO_EVENTS;
 			}
+			// These are streaming CHUNKS (deltas), not whole messages — emit them
+			// as `output` so the UI accumulates them into ONE bubble. Mapping each
+			// chunk to a `message` rendered every word as its own bubble.
 			return [
 				{
-					kind: "message",
-					role: "assistant",
+					kind: "output",
 					text: update.content.text,
-					thinking: update.sessionUpdate === "agent_thought_chunk",
+					reasoning: update.sessionUpdate === "agent_thought_chunk",
 				},
 			];
 		}

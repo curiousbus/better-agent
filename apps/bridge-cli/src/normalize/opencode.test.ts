@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeOpencode } from "./opencode";
 
 describe("normalizeOpencode - message chunks", () => {
-	it("maps an agent_message_chunk to a message event", () => {
+	it("maps an agent_message_chunk to an accumulating output event", () => {
 		const events = normalizeOpencode({
 			method: "session/update",
 			params: {
@@ -13,12 +13,12 @@ describe("normalizeOpencode - message chunks", () => {
 				},
 			},
 		});
-		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "hi", thinking: false },
-		]);
+		// output (not message) so the UI accumulates chunks into one bubble,
+		// instead of rendering each streamed word as its own message.
+		expect(events).toEqual([{ kind: "output", text: "hi", reasoning: false }]);
 	});
 
-	it("marks agent_thought_chunk as thinking", () => {
+	it("marks agent_thought_chunk as reasoning output", () => {
 		const events = normalizeOpencode({
 			method: "session/update",
 			params: {
@@ -28,9 +28,7 @@ describe("normalizeOpencode - message chunks", () => {
 				},
 			},
 		});
-		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "hmm", thinking: true },
-		]);
+		expect(events).toEqual([{ kind: "output", text: "hmm", reasoning: true }]);
 	});
 });
 

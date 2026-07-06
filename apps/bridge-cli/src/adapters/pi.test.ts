@@ -101,13 +101,13 @@ describe("piAdapter - stdout/stderr relay", () => {
 
 		pushLine(
 			JSON.stringify({
-				type: "message_end",
-				message: { role: "assistant", content: [{ type: "text", text: "hi" }] },
+				type: "message_update",
+				assistantMessageEvent: { type: "text_delta", delta: "hi" },
 			})
 		);
 
 		const { value: event } = await iterator.next();
-		expect(event).toEqual({ kind: "message", role: "assistant", text: "hi" });
+		expect(event).toEqual({ kind: "output", text: "hi" });
 	});
 
 	it("relays stderr lines as error events", async () => {

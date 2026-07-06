@@ -22,7 +22,7 @@ describe("normalizePi - message_update text_delta", () => {
 });
 
 describe("normalizePi - message_end", () => {
-	it("maps assistant text + thinking blocks to message events", () => {
+	it("drops the final text block (already streamed) but keeps thinking", () => {
 		const events = normalizePi({
 			type: "message_end",
 			message: {
@@ -34,8 +34,10 @@ describe("normalizePi - message_end", () => {
 				],
 			},
 		});
+		// The text streamed live via message_update text_delta, so the final
+		// text block is dropped to avoid rendering the reply twice; thinking
+		// (not streamed) is kept.
 		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "Done." },
 			{
 				kind: "message",
 				role: "assistant",
