@@ -27,6 +27,15 @@ it("applies startup config: appends to the system prompt and caps maxTurns", asy
 	});
 });
 
+it("applies effort + maxBudgetUsd from the persisted config", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", {
+		config: { effort: "xhigh", maxBudgetUsd: 2.5 },
+	});
+
+	expect(harness.options).toMatchObject({ effort: "xhigh", maxBudgetUsd: 2.5 });
+});
+
 it("omits systemPrompt when no appendSystemPrompt is configured", async () => {
 	const { harness } = mockQuery();
 	await claudeCodeAdapter.start("/tmp/project", { config: { maxTurns: 5 } });

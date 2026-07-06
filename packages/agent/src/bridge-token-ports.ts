@@ -6,11 +6,15 @@
 export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
 /** Persisted startup config for a local-agent bridge token (Phase 4):
- * `appendSystemPrompt` (claude SDK; other adapters best-effort) and `maxTurns`.
- * Richer per-agent options (tools, mcp, …) extend this same shape. Live
- * controls (model, permission/mode) stay in the composer, not here. */
+ * `appendSystemPrompt` (claude SDK; other adapters best-effort), `maxTurns`,
+ * `effort` (claude reasoning depth), and `maxBudgetUsd` (claude spend cap).
+ * Richer per-agent options (tools, mcp, per-agent modes — see
+ * docs/research/agent-config-*.md) extend this same shape. Live controls
+ * (model, permission/mode) stay in the composer, not here. */
 export interface BridgeTokenConfig {
 	appendSystemPrompt?: string;
+	effort?: "low" | "medium" | "high" | "xhigh" | "max";
+	maxBudgetUsd?: number;
 	maxTurns?: number;
 }
 

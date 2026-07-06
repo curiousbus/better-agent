@@ -118,6 +118,8 @@ export const bridgeRouter = {
 				id: z.uuid(),
 				config: z.object({
 					appendSystemPrompt: z.string().optional(),
+					effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+					maxBudgetUsd: z.number().positive().optional(),
 					maxTurns: z.number().int().positive().optional(),
 				}),
 			})

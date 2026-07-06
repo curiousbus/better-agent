@@ -120,6 +120,8 @@ export interface StartOptions {
  * runtime dep on `@better-agent/agent`). */
 export interface AgentStartConfig {
 	appendSystemPrompt?: string;
+	effort?: "low" | "medium" | "high" | "xhigh" | "max";
+	maxBudgetUsd?: number;
 	maxTurns?: number;
 }
 

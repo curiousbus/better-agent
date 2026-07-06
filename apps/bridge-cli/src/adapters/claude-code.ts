@@ -211,10 +211,8 @@ function makeListSessions(dir: string, events: EventSink): () => void {
 	};
 }
 
-/** Builds the SDK `systemPrompt` option from the persisted config: the
- * preset+append form keeps claude's default prompt and appends the user's
- * custom instructions (a bare string would REPLACE the default). Extracted
- * so `start` stays under the max-lines-per-function gate. */
+/** Builds the SDK `systemPrompt` option: preset+append keeps claude's default
+ * prompt and appends the user's instructions (a bare string would REPLACE it). */
 function claudeSystemPromptOption(
 	config: { appendSystemPrompt?: string } | undefined
 ) {
@@ -246,6 +244,8 @@ export const claudeCodeAdapter: Adapter = {
 				// Phase 4: apply persisted startup config from the bridge token.
 				systemPrompt: claudeSystemPromptOption(opts?.config),
 				maxTurns: opts?.config?.maxTurns,
+				maxBudgetUsd: opts?.config?.maxBudgetUsd,
+				effort: opts?.config?.effort,
 				// Extended thinking's reasoning text only streams as `thinking_delta`
 				// frames under includePartialMessages — which also streams the
 				// response text as `text_delta` frames, duplicating what later
