@@ -37,6 +37,21 @@ function toDraft(config: BridgeTokenRow["config"]): ConfigDraft {
 	};
 }
 
+/** Agent kinds whose bridge adapter actually reads + applies the persisted
+ * config today. Others persist it but silently ignore it, so their Config tab
+ * shows a "not yet configurable" note instead of fields that do nothing. */
+const CONFIGURABLE_AGENT_KINDS = new Set<BridgeTokenRow["agentKind"]>([
+	"claude-code",
+]);
+
+function agentAppliesConfig(kind: BridgeTokenRow["agentKind"]): boolean {
+	return CONFIGURABLE_AGENT_KINDS.has(kind);
+}
+
+function isValidMaxTurns(value: number): boolean {
+	return Number.isFinite(value) && value > 0;
+}
+
 /** Builds the persisted-config payload from the edit draft: drops blanks so an
  * empty field clears the value, and parses `maxTurns` back to a number.
  * Extracted so the dialog stays under the max-lines-per-function gate. */
@@ -48,7 +63,7 @@ function configFromDraft(draft: ConfigDraft): {
 	const maxTurns = maxTurnsRaw === "" ? undefined : Number(maxTurnsRaw);
 	return {
 		appendSystemPrompt: draft.appendSystemPrompt.trim() || undefined,
-		...(maxTurns !== undefined && Number.isFinite(maxTurns)
+		...(maxTurns !== undefined && isValidMaxTurns(maxTurns)
 			? { maxTurns }
 			: {}),
 	};
@@ -163,6 +178,37 @@ function AgentConfigForm({
 	);
 }
 
+/** The "Config" tab: the startup-config form for agents whose adapter actually
+ * applies it, or an honest note for those it doesn't (so no one saves settings
+ * that silently never take effect). Split out to keep the dialog under the
+ * max-lines-per-function gate. */
+function ConfigTab({
+	token,
+	draft,
+	onDraft,
+	onSubmit,
+	pending,
+}: AgentConfigFormProps & { token: BridgeTokenRow }) {
+	return (
+		<TabsContent value="config">
+			{agentAppliesConfig(token.agentKind) ? (
+				<AgentConfigForm
+					draft={draft}
+					onDraft={onDraft}
+					onSubmit={onSubmit}
+					pending={pending}
+				/>
+			) : (
+				<p className="text-muted-foreground text-sm">
+					{AGENT_KIND_LABEL[token.agentKind]} has no page-configurable startup
+					settings yet — its options aren't wired through the bridge. Only
+					claude-code is configurable for now.
+				</p>
+			)}
+		</TabsContent>
+	);
+}
+
 /**
  * Phase 4 Settings modal for a local agent: left tabs (General + the agent's
  * startup config), right content. Edits the token's persisted `config`
@@ -198,24 +244,23 @@ export function LocalAgentSettingsDialog({
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="sm:max-w-lg">
+			<DialogContent className="sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>Agent settings</DialogTitle>
 				</DialogHeader>
-				<Tabs defaultValue="general">
+				<Tabs defaultValue="general" orientation="vertical">
 					<TabsList>
 						<TabsTrigger value="general">General</TabsTrigger>
 						<TabsTrigger value="config">Config</TabsTrigger>
 					</TabsList>
 					<GeneralTab token={token} />
-					<TabsContent value="config">
-						<AgentConfigForm
-							draft={draft}
-							onDraft={setDraft}
-							onSubmit={submit}
-							pending={save.isPending}
-						/>
-					</TabsContent>
+					<ConfigTab
+						draft={draft}
+						onDraft={setDraft}
+						onSubmit={submit}
+						pending={save.isPending}
+						token={token}
+					/>
 				</Tabs>
 			</DialogContent>
 		</Dialog>
