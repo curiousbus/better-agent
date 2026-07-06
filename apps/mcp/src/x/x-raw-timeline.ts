@@ -157,6 +157,22 @@ export function parseSearchTimeline(json: unknown): RawTimelinePage {
 	return walkInstructions(searchInstructionsFrom(json));
 }
 
+// A tweet's conversation (TweetDetail) lives under a wholly different top-level
+// path than any user/search timeline:
+// data.threaded_conversation_with_injections_v2.instructions. Parsing it with
+// instructionsFrom (which walks data.user.result…) silently found nothing, so
+// x_tweet_thread always came back empty.
+function tweetDetailInstructionsFrom(json: unknown): unknown[] {
+	const conversation = asRecord(
+		asRecord(asRecord(json)?.data)?.threaded_conversation_with_injections_v2
+	);
+	return asArray(conversation?.instructions);
+}
+
+export function parseTweetDetailTimeline(json: unknown): RawTimelinePage {
+	return walkInstructions(tweetDetailInstructionsFrom(json));
+}
+
 // User-list timelines (followers/following/retweeters) carry TimelineUser
 // items whose user object lives at itemContent.user_results.result.
 function userFromItemContent(itemContent: unknown): unknown {
@@ -168,7 +184,24 @@ function userFromItemContent(itemContent: unknown): unknown {
 	return result && result.__typename === "User" ? result : null;
 }
 
+function collectUsersFromModule(items: unknown, out: unknown[]): void {
+	for (const moduleItem of asArray(items)) {
+		const itemContent = asRecord(asRecord(moduleItem)?.item)?.itemContent;
+		const user = userFromItemContent(itemContent);
+		if (user) {
+			out.push(user);
+		}
+	}
+}
+
+// Follower/following entries are usually bare TimelineTimelineItem rows, but X
+// also returns them grouped inside a TimelineTimelineModule (e.g. "People you
+// may know" style groupings) — handle both so the list isn't silently empty.
 function collectUsersFromInstruction(inst: AnyRecord, out: unknown[]): void {
+	if (inst.type === "TimelineAddToModule") {
+		collectUsersFromModule(inst.moduleItems, out);
+		return;
+	}
 	if (inst.type !== "TimelineAddEntries") {
 		return;
 	}
@@ -179,6 +212,8 @@ function collectUsersFromInstruction(inst: AnyRecord, out: unknown[]): void {
 			if (user) {
 				out.push(user);
 			}
+		} else if (content?.entryType === "TimelineTimelineModule") {
+			collectUsersFromModule(content.items, out);
 		}
 	}
 }

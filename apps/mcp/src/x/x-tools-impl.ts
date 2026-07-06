@@ -4,6 +4,7 @@ import { XError, XNotFoundError } from "./x-errors";
 import { normalizeProfile, normalizeTweet } from "./x-normalize";
 import {
 	parseSearchTimeline,
+	parseTweetDetailTimeline,
 	parseUserTweetsTimeline,
 	type RawTimelinePage,
 } from "./x-raw-timeline";
@@ -82,15 +83,9 @@ export async function readJson(raw: {
 	}
 }
 
-function normalizeTweets(
-	rawTweets: unknown[],
-	limit: number
-): NormalizedTweet[] {
+function normalizeTweets(rawTweets: unknown[]): NormalizedTweet[] {
 	const out: NormalizedTweet[] = [];
 	for (const raw of rawTweets) {
-		if (out.length >= limit) {
-			break;
-		}
 		try {
 			out.push(normalizeTweet(raw));
 		} catch {
@@ -117,21 +112,33 @@ export async function searchUsers(
 	return normalizeProfile(user);
 }
 
-// Runs a raw TweetApi timeline call and parses it into tweets. `run` returns the
-// raw JSON; `parse` extracts the raw tweet list.
+type RawTweetCall = (
+	api: TweetApi,
+	args: unknown,
+	overrides: unknown
+) => Promise<{ raw: { json(): Promise<unknown>; text?(): Promise<string> } }>;
+
+interface TweetTimelineParams {
+	// When set, keep only tweets authored by this user id. The replies timeline
+	// interleaves each reply with the (other-authored) tweet it answers; without
+	// this filter x_user_replies surfaced those replied-to originals instead of
+	// the user's own replies.
+	authorTwitterUserId?: string;
+	context: string;
+	flagKey: keyof TweetApi["flag"];
+	kwargs: Record<string, unknown>;
+	limit: number;
+	parse: (json: unknown) => RawTimelinePage;
+	rawCall: RawTweetCall;
+	tweetApi: TweetApi;
+}
+
+// Runs a raw TweetApi timeline call and parses it into tweets, filtering to a
+// single author when asked, then capping at `limit`.
 async function runTweetTimeline(
-	tweetApi: TweetApi,
-	flagKey: keyof TweetApi["flag"],
-	kwargs: Record<string, unknown>,
-	rawCall: (
-		api: TweetApi,
-		args: unknown,
-		overrides: unknown
-	) => Promise<{ raw: { json(): Promise<unknown>; text?(): Promise<string> } }>,
-	parse: (json: unknown) => RawTimelinePage,
-	context: string,
-	limit: number
+	params: TweetTimelineParams
 ): Promise<NormalizedTweet[]> {
+	const { tweetApi, flagKey, kwargs, rawCall, parse, context, limit } = params;
 	const flag = tweetApi.flag[flagKey];
 	if (!flag) {
 		throw new XError(`${String(flagKey)} flag missing from SDK`);
@@ -144,7 +151,11 @@ async function runTweetTimeline(
 	).catch((err: unknown) => {
 		throw mapError(err, context);
 	});
-	return normalizeTweets(parse(await readJson(resp.raw)).rawTweets, limit);
+	const all = normalizeTweets(parse(await readJson(resp.raw)).rawTweets);
+	const filtered = params.authorTwitterUserId
+		? all.filter((t) => t.authorTwitterUserId === params.authorTwitterUserId)
+		: all;
+	return filtered.slice(0, limit);
 }
 
 export function searchTweets(
@@ -153,16 +164,16 @@ export function searchTweets(
 	limit?: number,
 	product: "Latest" | "Top" = "Latest"
 ): Promise<NormalizedTweet[]> {
-	return runTweetTimeline(
-		client.getTweetApi(),
-		"SearchTimeline",
-		{ rawQuery: query, product, count: PAGE_COUNT },
-		(api, args, overrides) =>
+	return runTweetTimeline({
+		tweetApi: client.getTweetApi(),
+		flagKey: "SearchTimeline",
+		kwargs: { rawQuery: query, product, count: PAGE_COUNT },
+		rawCall: (api, args, overrides) =>
 			api.api.getSearchTimelineRaw(args as never, overrides as never),
-		parseSearchTimeline,
-		`searchTweets(${query})`,
-		clampLimit(limit)
-	);
+		parse: parseSearchTimeline,
+		context: `searchTweets(${query})`,
+		limit: clampLimit(limit),
+	});
 }
 
 async function userTimeline(
@@ -170,22 +181,23 @@ async function userTimeline(
 	screenName: string,
 	limit: number | undefined,
 	flagKey: "UserTweets" | "UserTweetsAndReplies" | "UserMedia" | "Likes",
-	rawCall: (
-		api: TweetApi,
-		args: unknown,
-		overrides: unknown
-	) => Promise<{ raw: { json(): Promise<unknown>; text?(): Promise<string> } }>
+	rawCall: RawTweetCall
 ): Promise<NormalizedTweet[]> {
 	const profile = await searchUsers(client, screenName);
-	return runTweetTimeline(
-		client.getTweetApi(),
+	// The replies timeline interleaves each reply with the (other-authored)
+	// tweet it answers; keep only the user's own posts so x_user_replies returns
+	// their replies, not the originals.
+	const filterToAuthor = flagKey === "UserTweetsAndReplies";
+	return runTweetTimeline({
+		tweetApi: client.getTweetApi(),
 		flagKey,
-		{ userId: profile.twitterUserId, count: PAGE_COUNT },
+		kwargs: { userId: profile.twitterUserId, count: PAGE_COUNT },
 		rawCall,
-		parseUserTweetsTimeline,
-		`${flagKey}(${screenName})`,
-		clampLimit(limit)
-	);
+		parse: parseUserTweetsTimeline,
+		context: `${flagKey}(${screenName})`,
+		limit: clampLimit(limit),
+		authorTwitterUserId: filterToAuthor ? profile.twitterUserId : undefined,
+	});
 }
 
 export function userTweets(
@@ -237,14 +249,14 @@ export function tweetThread(
 	tweetId: string,
 	limit?: number
 ): Promise<NormalizedTweet[]> {
-	return runTweetTimeline(
-		client.getTweetApi(),
-		"TweetDetail",
-		{ focalTweetId: tweetId },
-		(api, args, overrides) =>
+	return runTweetTimeline({
+		tweetApi: client.getTweetApi(),
+		flagKey: "TweetDetail",
+		kwargs: { focalTweetId: tweetId },
+		rawCall: (api, args, overrides) =>
 			api.api.getTweetDetailRaw(args as never, overrides as never),
-		parseUserTweetsTimeline,
-		`tweetDetail(${tweetId})`,
-		clampLimit(limit)
-	);
+		parse: parseTweetDetailTimeline,
+		context: `tweetDetail(${tweetId})`,
+		limit: clampLimit(limit),
+	});
 }
