@@ -1,6 +1,6 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
 import { useMemo } from "react";
-import type { BridgeSessionRow } from "@/utils/api-types";
+import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { type AgentCapabilities, capabilities } from "./agent-capabilities";
 import type { StreamEvent } from "./bridge-events";
@@ -19,13 +19,25 @@ import { UsageUpdateLine } from "./usage-update-line";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 
 export interface TerminalProps {
+	/** The bridge session id the terminal is currently showing — drives the
+	 * session picker's highlight when `sessions` is provided. */
+	activeSessionId?: string | null;
 	/** Whether an end-session request is in flight — disables the End button.
 	 * Only meaningful alongside `onEnd`. */
 	ending?: boolean;
 	/** Ends this session. Wired by the detail page; omitted (with the End
 	 * button then hidden) when there's no session to end, e.g. in unit tests. */
 	onEnd?: () => void;
+	/** Switches which of `sessions` the terminal follows — wired by the detail
+	 * page; when omitted the picker stays hidden. */
+	onSelectSession?: (sessionId: string) => void;
 	session: BridgeSessionRow;
+	/** This token's sibling sessions, listed in the header's picker when
+	 * `onSelectSession` is also wired (Phase 4 follow-up). */
+	sessions?: BridgeSessionRow[];
+	/** The bridge token this session belongs to — drives the header's Settings
+	 * dialog (edits the token's persisted config). */
+	token?: BridgeTokenRow;
 	transport: BridgeTransport;
 	/** Dicebear URL for the current user's bubbles; falls back to a role icon
 	 * when absent (e.g. the email hasn't loaded yet). */
@@ -192,7 +204,9 @@ function useTerminalView(
 		assistant: agentAvatar(session.tokenId),
 		user: userAvatarUrl,
 	};
-	return { ...bridge, turns, avatars, turnInFlight };
+	const caps = capabilities(session.agentKind);
+	const sessionId = bridge.sessionReady?.sessionId ?? session.id;
+	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight };
 }
 
 /**
@@ -203,50 +217,71 @@ function useTerminalView(
  * mirrors `Conversation`'s injected `AgentClient`.
  */
 export function Terminal({
+	activeSessionId,
 	ending = false,
 	onEnd,
+	onSelectSession,
 	session,
+	sessions,
+	token,
 	transport,
 	userAvatarUrl,
 }: TerminalProps) {
 	const view = useTerminalView(session, transport, userAvatarUrl);
-	const caps = capabilities(session.agentKind);
-	// The claude/agent session id when the CLI has reported one, else the
-	// bridge session id — never the (routinely "untitled") session label.
-	const sessionId = view.sessionReady?.sessionId ?? session.id;
+	const { caps, sessionId } = view;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<TerminalHeader
+				activeSessionId={activeSessionId ?? session.id}
 				agentKind={session.agentKind}
 				canSend={view.canSend}
 				caps={caps}
 				ending={ending}
 				listSessions={view.listSessions}
 				onEnd={onEnd}
+				onSelectSession={onSelectSession}
 				sessionId={sessionId}
 				sessionList={view.sessionList}
 				sessionReady={view.sessionReady}
+				sessions={sessions}
 				status={view.status}
+				token={token}
 			/>
-			<TerminalBody
-				answerApproval={view.answerApproval}
-				answered={view.answered}
-				avatars={view.avatars}
-				caps={caps}
-				disabled={!view.canSend}
-				ended={view.status === "ended"}
-				interrupt={view.interrupt}
-				onSend={view.sendInput}
-				sending={view.sending}
-				sessionReady={view.sessionReady}
-				setModel={view.setModel}
-				setPermissionMode={view.setPermissionMode}
-				turnInFlight={view.turnInFlight}
-				turns={view.turns}
-				turnUsage={view.turnUsage}
-				usageUpdate={view.usageUpdate}
-			/>
+			<BodyFromView caps={caps} view={view} />
 		</div>
+	);
+}
+
+type TerminalView = ReturnType<typeof useTerminalView>;
+
+/** The feed + usage + composer, built from the terminal hook's `view` — split
+ * out so `Terminal` itself stays under the max-lines-per-function gate. */
+function BodyFromView({
+	caps,
+	view,
+}: {
+	caps: AgentCapabilities;
+	view: TerminalView;
+}) {
+	return (
+		<TerminalBody
+			answerApproval={view.answerApproval}
+			answered={view.answered}
+			avatars={view.avatars}
+			caps={caps}
+			disabled={!view.canSend}
+			ended={view.status === "ended"}
+			interrupt={view.interrupt}
+			onSend={view.sendInput}
+			sending={view.sending}
+			sessionReady={view.sessionReady}
+			setModel={view.setModel}
+			setPermissionMode={view.setPermissionMode}
+			turnInFlight={view.turnInFlight}
+			turns={view.turns}
+			turnUsage={view.turnUsage}
+			usageUpdate={view.usageUpdate}
+		/>
 	);
 }

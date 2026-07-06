@@ -173,7 +173,7 @@ function ComposerBox({
 	toolbar,
 }: ComposerBoxProps) {
 	return (
-		<div className="relative mx-auto w-full max-w-3xl">
+		<div className="relative w-full">
 			{picker.open && (
 				<SlashPickerList
 					activeIndex={picker.activeIndex}
@@ -251,7 +251,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	);
 
 	return (
-		<div className="shrink-0 px-3 py-3 sm:px-4">
+		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 py-3 sm:px-4">
 			<ComposerBox
 				disabled={disabled}
 				picker={picker}

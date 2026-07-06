@@ -1,17 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import type { BridgeSessionRow } from "@/utils/api-types";
+import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
 import { createBridgeTransport } from "./bridge-transport";
-import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { withSessionPolling } from "./local-agent-poll";
 import {
-	LocalAgentSessionPicker,
 	sortSessionsByRecency,
 	useSessionSelection,
 } from "./local-agent-session-picker";
@@ -61,9 +59,11 @@ function NotFound() {
  * session instead of re-polling the previous one. */
 function SessionView({
 	sessions,
+	token,
 	userAvatarUrl,
 }: {
 	sessions: BridgeSessionRow[];
+	token: BridgeTokenRow;
 	userAvatarUrl: string | undefined;
 }) {
 	const endSession = useEndSession();
@@ -74,23 +74,18 @@ function SessionView({
 		return <WaitingForCli />;
 	}
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<LocalAgentSessionPicker
-				activeId={activeSession.id}
-				onSelect={select}
-				sessions={sessions}
-			/>
-			<div className="flex min-h-0 flex-1 flex-col">
-				<Terminal
-					ending={endSession.isPending}
-					key={activeSession.id}
-					onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
-					session={activeSession}
-					transport={transport}
-					userAvatarUrl={userAvatarUrl}
-				/>
-			</div>
-		</div>
+		<Terminal
+			activeSessionId={activeSession.id}
+			ending={endSession.isPending}
+			key={activeSession.id}
+			onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
+			onSelectSession={select}
+			session={activeSession}
+			sessions={sessions}
+			token={token}
+			transport={transport}
+			userAvatarUrl={userAvatarUrl}
+		/>
 	);
 }
 
@@ -127,17 +122,13 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 		(sessions.data ?? []).filter((session) => session.tokenId === tokenId)
 	);
 
-	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<LocalAgentConnectionPanel token={entry.token} />
-			{tokenSessions.length > 0 ? (
-				<SessionView
-					sessions={tokenSessions}
-					userAvatarUrl={email ? userAvatar(email) : undefined}
-				/>
-			) : (
-				<WaitingForCli />
-			)}
-		</div>
+	return tokenSessions.length > 0 ? (
+		<SessionView
+			sessions={tokenSessions}
+			token={entry.token}
+			userAvatarUrl={email ? userAvatar(email) : undefined}
+		/>
+	) : (
+		<WaitingForCli />
 	);
 }

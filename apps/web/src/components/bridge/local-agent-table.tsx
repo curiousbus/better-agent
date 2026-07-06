@@ -13,8 +13,9 @@ import { localAgentDisplayName } from "./local-agent-format";
 import type { LocalAgentEntry } from "./local-agent-join";
 import { AGENT_KIND_LABEL, AgentKindIcon } from "./local-agent-kind-icon";
 import { LocalAgentStatusChip } from "./local-agent-status-chip";
+import { LocalAgentTokenCell } from "./local-agent-token-cell";
 
-const COLUMN_COUNT = 5;
+const COLUMN_COUNT = 6;
 const ENTER_KEY = "Enter";
 
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
@@ -108,6 +109,9 @@ function AgentRow({
 			<TableCell className="text-muted-foreground tabular-nums">
 				{createdFormatter.format(new Date(entry.token.createdAt))}
 			</TableCell>
+			<TableCell>
+				<LocalAgentTokenCell token={entry.token} />
+			</TableCell>
 			<TableCell className="text-right">
 				<RowActions entry={entry} onDelete={onDelete} />
 			</TableCell>
@@ -134,6 +138,7 @@ export function LocalAgentTable({
 					<TableHead>Status</TableHead>
 					<TableHead>Sessions</TableHead>
 					<TableHead>Created</TableHead>
+					<TableHead>Token</TableHead>
 					<TableHead className="text-right">Actions</TableHead>
 				</TableRow>
 			</TableHeader>

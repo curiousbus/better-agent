@@ -7,17 +7,26 @@ import {
 } from "./slash-picker";
 
 it("recognizes a bare slash or a slash-prefixed query with no space yet", () => {
-	expect(parseSlashQuery("/")).toBe("");
-	expect(parseSlashQuery("/co")).toBe("co");
+	expect(parseSlashQuery("/")).toEqual({ prefix: "", query: "" });
+	expect(parseSlashQuery("/co")).toEqual({ prefix: "", query: "co" });
+});
+
+it("recognizes a slash token typed anywhere, preserving the preceding text", () => {
+	expect(parseSlashQuery("fix this /co")).toEqual({
+		prefix: "fix this ",
+		query: "co",
+	});
+	expect(parseSlashQuery("a /b")).toEqual({ prefix: "a ", query: "b" });
 });
 
 it("stops recognizing a query once a space follows the slash", () => {
 	expect(parseSlashQuery("/co ")).toBeNull();
 	expect(parseSlashQuery("/co bar")).toBeNull();
+	expect(parseSlashQuery("fix /co bar")).toBeNull();
 });
 
-it("does not treat a slash elsewhere in the text as a query", () => {
-	expect(parseSlashQuery("hello /foo")).toBeNull();
+it("does not treat a slash mid-word or plain text as a query", () => {
+	expect(parseSlashQuery("a/b")).toBeNull();
 	expect(parseSlashQuery("hello")).toBeNull();
 	expect(parseSlashQuery("")).toBeNull();
 });
@@ -56,13 +65,13 @@ it("contributes nothing for a capability list the session hasn't reported", () =
 	]);
 });
 
-it("fills the composer with the bare command, trailing space for args", () => {
+it("fills the composer with the command, trailing space for args, preserving prefix", () => {
 	expect(applySlashPickerSelection({ kind: "command", name: "compact" })).toBe(
 		"/compact "
 	);
-	expect(applySlashPickerSelection({ kind: "skill", name: "pdf" })).toBe(
-		"/pdf "
-	);
+	expect(
+		applySlashPickerSelection({ kind: "skill", name: "pdf" }, "fix this ")
+	).toBe("fix this /pdf ");
 });
 
 it("clamps and wraps the active index around the item count", () => {

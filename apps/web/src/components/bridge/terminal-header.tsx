@@ -1,11 +1,15 @@
 import { Button } from "@better-agent/ui/components/button";
-import type { BridgeSessionRow } from "@/utils/api-types";
+import { SettingsIcon } from "lucide-react";
+import { useState } from "react";
+import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
 import type {
 	SessionListDetail,
 	SessionReadyDetail,
 } from "./bridge-session-status";
 import { AgentKindIcon } from "./local-agent-kind-icon";
+import { LocalAgentSessionPicker } from "./local-agent-session-picker";
+import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
 import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
 import type { TerminalConnectionStatus } from "./terminal-status";
@@ -46,34 +50,98 @@ function SessionIdLabel({
 }
 
 interface TerminalHeaderActionsProps {
+	activeSessionId?: string | null;
 	canSend: boolean;
 	caps: AgentCapabilities;
 	ending: boolean;
 	listSessions: () => void;
 	onEnd?: () => void;
+	onSelectSession?: (sessionId: string) => void;
 	sessionList: SessionListDetail | null;
+	/** This token's sibling sessions — when present (with `onSelectSession`)
+	 * the header offers a session picker so the user can switch which
+	 * conversation the terminal follows (Phase 4 follow-up: the picker moved
+	 * out of a standalone bar above the terminal into the session chrome). */
+	sessions?: BridgeSessionRow[];
 	status: TerminalConnectionStatus;
+	/** The bridge token this session belongs to — drives the Settings dialog
+	 * (edits the token's persisted config). */
+	token?: BridgeTokenRow;
 }
 
-/** The header's right-hand action cluster: past conversations and the End
- * button — each gated on `caps` (End also hidden once the session has ended, or
- * when no `onEnd` is wired, e.g. in tests). Skills & commands are discoverable
- * by typing "/" in the composer (no redundant header button); the model /
- * permission-mode / interrupt controls live in the composer's bottom bar (see
- * terminal-composer.tsx). Split out purely to keep `TerminalHeader` under the
- * repo's max-lines-per-function gate. */
+/** The session picker + Settings entry — the detail-page-level controls that
+ * now live in the session's top-right (Phase 4 follow-up). Settings is
+ * lazy-mounted so the react-query wiring only spins up once opened. */
+function SessionControls({
+	activeSessionId,
+	onSelectSession,
+	sessions,
+	token,
+}: {
+	activeSessionId?: string | null;
+	onSelectSession?: (sessionId: string) => void;
+	sessions?: BridgeSessionRow[];
+	token?: BridgeTokenRow;
+}) {
+	const [settingsOpen, setSettingsOpen] = useState(false);
+	return (
+		<>
+			{sessions && onSelectSession && sessions.length > 0 && (
+				<LocalAgentSessionPicker
+					activeId={activeSessionId ?? null}
+					onSelect={onSelectSession}
+					sessions={sessions}
+				/>
+			)}
+			{token && (
+				<>
+					<Button
+						aria-label="Settings"
+						onClick={() => setSettingsOpen(true)}
+						size="icon-sm"
+						variant="ghost"
+					>
+						<SettingsIcon className="size-4" />
+					</Button>
+					{settingsOpen && (
+						<LocalAgentSettingsDialog
+							onOpenChange={setSettingsOpen}
+							open={settingsOpen}
+							token={token}
+						/>
+					)}
+				</>
+			)}
+		</>
+	);
+}
+
+/** The header's right-hand action cluster: session picker + Settings, past
+ * conversations and the End button — each gated on `caps`/props. Split out
+ * purely to keep `TerminalHeader` under the repo's max-lines-per-function
+ * gate. */
 function TerminalHeaderActions({
+	activeSessionId,
 	canSend,
 	caps,
 	ending,
 	listSessions,
 	onEnd,
+	onSelectSession,
 	sessionList,
+	sessions,
 	status,
+	token,
 }: TerminalHeaderActionsProps) {
 	const showEnd = status !== "ended" && onEnd !== undefined;
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
+			<SessionControls
+				activeSessionId={activeSessionId}
+				onSelectSession={onSelectSession}
+				sessions={sessions}
+				token={token}
+			/>
 			{caps.sessionList && (
 				<PastConversations
 					disabled={!canSend}

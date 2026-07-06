@@ -14,19 +14,30 @@ export interface SlashPickerItem {
 	name: string;
 }
 
-const SLASH_QUERY_PATTERN = /^\/(\S*)$/;
+/** A parsed in-progress slash command: the text before the token (preserved
+ * on selection) and the query typed after the slash. */
+export interface SlashQuery {
+	prefix: string;
+	query: string;
+}
+
+const TRAILING_SLASH_TOKEN = /(^|\s)(\/(\S*))$/;
 
 /**
- * Whether the composer's current text is "mid slash-command entry", and if
- * so, the query typed so far (without the leading slash). Only the very
- * start of the box counts — a "/" appearing mid-message (or once a space
- * follows it, meaning the user has moved on to typing an argument) does not
- * (re)open the picker, matching how the Claude Code CLI itself only offers
- * the picker for a slash at the start of an empty prompt.
+ * Parses the composer's text for a slash-command token currently being typed
+ * at the END — a `/<word>` with no space yet — ANYWHERE in the message, not
+ * only at the very start (so `fix this /comp` offers commands too). Returns
+ * the query plus the preceding `prefix` so a selection replaces just the
+ * token, leaving anything typed before it intact. A slash mid-word (a path
+ * like `a/b`) or a completed `/cmd arg` (a space already follows) doesn't match.
  */
-export function parseSlashQuery(text: string): string | null {
-	const match = SLASH_QUERY_PATTERN.exec(text);
-	return match ? match[1] : null;
+export function parseSlashQuery(text: string): SlashQuery | null {
+	const match = TRAILING_SLASH_TOKEN.exec(text);
+	if (!match) {
+		return null;
+	}
+	const slashIndex = match.index + match[1].length;
+	return { prefix: text.slice(0, slashIndex), query: match[3] };
 }
 
 function stripLeadingSlash(name: string): string {
@@ -65,11 +76,14 @@ export function buildSlashPickerItems(
 }
 
 /** The text the composer should be set to once `item` is selected — always
- * a bare insertion (never auto-sent), so the user can append arguments
- * before pressing Enter, or just press Enter immediately for an arg-less
- * command/skill. */
-export function applySlashPickerSelection(item: SlashPickerItem): string {
-	return `/${item.name} `;
+ * a bare insertion (never auto-sent) of `/<name> `, preserving any text typed
+ * before the slash token (`prefix`), so the user can append arguments before
+ * pressing Enter. */
+export function applySlashPickerSelection(
+	item: SlashPickerItem,
+	prefix = ""
+): string {
+	return `${prefix}/${item.name} `;
 }
 
 /** Wraps an index into `[0, itemCount)`, wrapping around at either end —

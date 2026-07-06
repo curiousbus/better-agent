@@ -39,9 +39,12 @@ function useSlashPickerItems(
 	commands: string[] | undefined,
 	skills: string[] | undefined
 ) {
-	const query = parseSlashQuery(text);
+	const parsed = parseSlashQuery(text);
+	const query = parsed?.query ?? null;
 	const items =
-		query === null ? [] : buildSlashPickerItems({ commands, skills }, query);
+		parsed === null
+			? []
+			: buildSlashPickerItems({ commands, skills }, parsed.query);
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [seenQuery, setSeenQuery] = useState(query);
 	if (query !== seenQuery) {
@@ -129,7 +132,8 @@ export function useSlashPicker({
 	const open = items.length > 0;
 
 	const select = (item: SlashPickerItem) => {
-		setText(applySlashPickerSelection(item));
+		const prefix = parseSlashQuery(text)?.prefix ?? "";
+		setText(applySlashPickerSelection(item, prefix));
 	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean =>
