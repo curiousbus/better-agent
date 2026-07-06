@@ -13,19 +13,14 @@ import { agentAvatar } from "@/utils/avatar";
 import { type AgentCapabilities, capabilities } from "./agent-capabilities";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type {
-	SessionListDetail,
 	SessionReadyDetail,
 	TurnUsageDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
-import { PastConversations } from "./past-conversations";
-import { SessionStatusHeader } from "./session-status-header";
 import { TerminalComposer } from "./terminal-composer";
-import { TerminalControls } from "./terminal-controls";
-import type { TerminalConnectionStatus } from "./terminal-status";
-import { TerminalStatus } from "./terminal-status";
-import { TurnUsageChip } from "./turn-usage-chip";
+import { TerminalHeader } from "./terminal-header";
+import { TurnUsagePanel } from "./turn-usage-panel";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 
 function EmptyTerminal() {
@@ -86,75 +81,17 @@ function TerminalFeed({
 }
 
 export interface TerminalProps {
+	/** Whether an end-session request is in flight — disables the End button.
+	 * Only meaningful alongside `onEnd`. */
+	ending?: boolean;
+	/** Ends this session. Wired by the detail page; omitted (with the End
+	 * button then hidden) when there's no session to end, e.g. in unit tests. */
+	onEnd?: () => void;
 	session: BridgeSessionRow;
 	transport: BridgeTransport;
 	/** Dicebear URL for the current user's bubbles; falls back to a role icon
 	 * when absent (e.g. the email hasn't loaded yet). */
 	userAvatarUrl?: string;
-}
-
-interface TerminalHeaderProps {
-	canSend: boolean;
-	caps: AgentCapabilities;
-	interrupt: () => void;
-	label: string;
-	listSessions: () => void;
-	sessionList: SessionListDetail | null;
-	sessionReady: SessionReadyDetail | null;
-	setModel: (model: string) => void;
-	setPermissionMode: (mode: string) => void;
-	status: TerminalConnectionStatus;
-}
-
-/** The session title/connection-status row, the capability summary, and the
- * session controls (Interrupt/model/permission mode/past conversations) —
- * each gated on `caps` (see agent-capabilities.ts) so a session only shows
- * the controls its running agent actually supports. Split out of `Terminal`
- * purely to keep that component under the repo's max-lines-per-function
- * gate. */
-function TerminalHeader({
-	caps,
-	canSend,
-	interrupt,
-	label,
-	listSessions,
-	sessionList,
-	sessionReady,
-	setModel,
-	setPermissionMode,
-	status,
-}: TerminalHeaderProps) {
-	return (
-		<div className="flex shrink-0 flex-col gap-1.5 border-b px-3 py-2">
-			<div className="flex items-center justify-between gap-2">
-				<span className="truncate font-medium text-sm">{label}</span>
-				<TerminalStatus status={status} />
-			</div>
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<SessionStatusHeader detail={sessionReady} />
-				<div className="flex flex-wrap items-center gap-1.5">
-					{caps.sessionList && (
-						<PastConversations
-							disabled={!canSend}
-							onRequestList={listSessions}
-							sessionList={sessionList}
-						/>
-					)}
-					<TerminalControls
-						disabled={!canSend}
-						model={sessionReady?.model}
-						onInterrupt={interrupt}
-						onSetModel={setModel}
-						onSetPermissionMode={setPermissionMode}
-						permissionMode={sessionReady?.permissionMode}
-						permissionModes={caps.permissionModes}
-						showInterrupt={caps.interrupt}
-						showModelPicker={caps.modelSwitch}
-					/>
-				</div>
-			</div>
-		</div>
-	);
 }
 
 interface TerminalBodyProps {
@@ -197,7 +134,7 @@ function TerminalBody({
 				sending={sending}
 				turns={turns}
 			/>
-			{caps.usageMode === "stream" && <TurnUsageChip detail={turnUsage} />}
+			{caps.usageMode === "stream" && <TurnUsagePanel detail={turnUsage} />}
 			<TerminalComposer
 				disabled={disabled}
 				onSend={onSend}
@@ -242,52 +179,48 @@ function useTerminalView(
  * (real one from bridge-transport.ts in the route, a fake in tests) —
  * mirrors `Conversation`'s injected `AgentClient`.
  */
-export function Terminal({ session, transport, userAvatarUrl }: TerminalProps) {
-	const {
-		status,
-		canSend,
-		sending,
-		sendInput,
-		answered,
-		answerApproval,
-		sessionReady,
-		sessionList,
-		turnUsage,
-		interrupt,
-		setModel,
-		setPermissionMode,
-		listSessions,
-		turns,
-		avatars,
-	} = useTerminalView(session, transport, userAvatarUrl);
+export function Terminal({
+	ending = false,
+	onEnd,
+	session,
+	transport,
+	userAvatarUrl,
+}: TerminalProps) {
+	const view = useTerminalView(session, transport, userAvatarUrl);
 	const caps = capabilities(session.agentKind);
+	// The claude/agent session id when the CLI has reported one, else the
+	// bridge session id — never the (routinely "untitled") session label.
+	const sessionId = view.sessionReady?.sessionId ?? session.id;
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col rounded-lg border">
+		<div className="flex min-h-0 flex-1 flex-col">
 			<TerminalHeader
-				canSend={canSend}
+				agentKind={session.agentKind}
+				canSend={view.canSend}
 				caps={caps}
-				interrupt={interrupt}
-				label={session.label ?? session.agentKind}
-				listSessions={listSessions}
-				sessionList={sessionList}
-				sessionReady={sessionReady}
-				setModel={setModel}
-				setPermissionMode={setPermissionMode}
-				status={status}
+				ending={ending}
+				interrupt={view.interrupt}
+				listSessions={view.listSessions}
+				onEnd={onEnd}
+				sessionId={sessionId}
+				sessionList={view.sessionList}
+				sessionReady={view.sessionReady}
+				setModel={view.setModel}
+				setPermissionMode={view.setPermissionMode}
+				status={view.status}
 			/>
 			<TerminalBody
-				answerApproval={answerApproval}
-				answered={answered}
-				avatars={avatars}
+				answerApproval={view.answerApproval}
+				answered={view.answered}
+				avatars={view.avatars}
 				caps={caps}
-				disabled={!canSend}
-				ended={status === "ended"}
-				onSend={sendInput}
-				sending={sending}
-				sessionReady={sessionReady}
-				turns={turns}
-				turnUsage={turnUsage}
+				disabled={!view.canSend}
+				ended={view.status === "ended"}
+				onSend={view.sendInput}
+				sending={view.sending}
+				sessionReady={view.sessionReady}
+				turns={view.turns}
+				turnUsage={view.turnUsage}
 			/>
 		</div>
 	);

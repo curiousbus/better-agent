@@ -7,7 +7,7 @@ import { makeControllableTransport, SESSION } from "./terminal-test-helpers";
 // Phase 2: the curated `session_ready` and `turn_usage` status events carry
 // session metadata (capabilities, cost/tokens) and must render as dedicated
 // header/chip UI — never as an inline chat row (see bridge-turns.ts,
-// session-status-header.tsx, turn-usage-chip.tsx). Seeded via
+// session-status-header.tsx, turn-usage-panel.tsx). Seeded via
 // `transport.history` (like terminal-history.test.tsx) since these render
 // as soon as the feed is seeded, with no live SSE interaction needed.
 
@@ -24,11 +24,18 @@ const SESSION_READY_DETAIL = {
 	],
 };
 
+const SESSION_LABEL_PATTERN = /Session:/;
+
 const TURN_USAGE_DETAIL = {
 	costUsd: 0.012_345,
 	numTurns: 3,
 	durationMs: 4500,
-	usage: { inputTokens: 1234, outputTokens: 567 },
+	usage: {
+		inputTokens: 1234,
+		outputTokens: 567,
+		cacheReadInputTokens: 8000,
+		cacheCreationInputTokens: 200,
+	},
 	isError: false,
 };
 
@@ -61,7 +68,7 @@ it("renders session_ready as the status header, not a chat row", async () => {
 	expect(view.queryByText("session_ready")).toBeNull();
 });
 
-it("shows the claude session id from session_ready in the status header", async () => {
+it("shows the claude session id prominently in the header, never the label", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
 		{
@@ -78,14 +85,31 @@ it("shows the claude session id from session_ready in the status header", async 
 	);
 	const view = within(container);
 
+	// The prominent `Session: <id>` header, with the full id in its tooltip —
+	// preferring the claude session id off `session_ready`.
 	await waitFor(() => {
-		expect(
-			view.getByTitle("claude session: claude-session-xyz123")
-		).toBeDefined();
+		expect(view.getByTitle("claude-session-xyz123")).toBeDefined();
 	});
+	expect(view.getByText(SESSION_LABEL_PATTERN)).toBeDefined();
+	// The bridge session `label` ("my-repo") must never surface as the title.
+	expect(view.queryByText("my-repo")).toBeNull();
 });
 
-it("renders turn_usage as the usage chip, not a chat row", async () => {
+it("falls back to the bridge session id in the header before session_ready arrives", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+
+	await waitFor(() => {
+		expect(view.getByTitle("session-1")).toBeDefined();
+	});
+	expect(view.queryByText("my-repo")).toBeNull();
+});
+
+it("renders turn_usage as the usage panel with cost + token breakdown, not a chat row", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
 		{
@@ -105,8 +129,14 @@ it("renders turn_usage as the usage chip, not a chat row", async () => {
 	await waitFor(() => {
 		expect(view.getByText("$0.0123")).toBeDefined();
 	});
-	expect(view.getByText("1.2k in / 567 out")).toBeDefined();
-	expect(view.getByText("3 turns")).toBeDefined();
+	// Each token bucket is its own labeled stat, not a single packed line.
+	expect(view.getByText("Input")).toBeDefined();
+	expect(view.getByText("1.2k")).toBeDefined();
+	expect(view.getByText("Output")).toBeDefined();
+	expect(view.getByText("567")).toBeDefined();
+	expect(view.getByText("Cache read")).toBeDefined();
+	expect(view.getByText("8.0k")).toBeDefined();
+	expect(view.getByText("4.5s")).toBeDefined();
 	expect(view.queryByText("turn_usage")).toBeNull();
 });
 

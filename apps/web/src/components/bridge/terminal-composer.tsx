@@ -136,7 +136,7 @@ export function TerminalComposer({
 	};
 
 	return (
-		<div className="shrink-0 border-t px-3 py-3 sm:px-4">
+		<div className="shrink-0 px-3 py-3 sm:px-4">
 			<ComposerBox
 				disabled={disabled}
 				picker={picker}

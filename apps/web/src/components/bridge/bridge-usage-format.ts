@@ -22,6 +22,22 @@ export function formatTokenCount(count: number): string {
 	return `${(count / TOKEN_COMPACT_DIVISOR).toFixed(TOKEN_COMPACT_DECIMALS)}k`;
 }
 
+const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+const DURATION_SECONDS_DECIMALS = 1;
+
+/** Human duration for a turn: `4.5s` under a minute, `1m 5s` past it. Sourced
+ * from `turn_usage`'s `durationMs`, so always a short, single-turn span. */
+export function formatDurationMs(durationMs: number): string {
+	const totalSeconds = durationMs / MS_PER_SECOND;
+	if (totalSeconds < SECONDS_PER_MINUTE) {
+		return `${totalSeconds.toFixed(DURATION_SECONDS_DECIMALS)}s`;
+	}
+	const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
+	const seconds = Math.round(totalSeconds % SECONDS_PER_MINUTE);
+	return `${minutes}m ${seconds}s`;
+}
+
 const CWD_MAX_LENGTH = 40;
 
 /** Truncates a long cwd path from the front (keeping the tail — the part

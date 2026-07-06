@@ -21,7 +21,7 @@ import {
 
 /** These curated status events carry session METADATA (capabilities,
  * cost/tokens, the past-conversations list) surfaced by dedicated header/chip
- * UI — see session-status-header.tsx, turn-usage-chip.tsx, and
+ * UI — see session-status-header.tsx, turn-usage-panel.tsx, and
  * past-conversations.tsx — never as an inline chat row. They still act as a
  * turn boundary (closing any open assistant accumulation) but are dropped
  * from the rendered turn list. */
