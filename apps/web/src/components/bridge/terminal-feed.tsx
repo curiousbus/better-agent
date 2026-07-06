@@ -7,13 +7,18 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import { Loader2Icon } from "lucide-react";
+import { cn } from "@better-agent/ui/lib/utils";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTurn } from "./bridge-turns";
 
 // The scrolling conversation surface for a Local Agent session, split out of
 // terminal.tsx to keep that file under the repo's max-lines-per-file gate: the
-// turn list plus the persistent "working" row (see `WorkingIndicator`).
+// turn list plus the persistent "working" row (see `WorkingSkeleton`).
+
+/** The shimmer lines' widths (varying, so the placeholder reads as prose rather
+ * than a progress bar) — static Tailwind classes so the sweep animation (see
+ * `.working-shimmer` in index.css) has real blocks to move across. */
+const SHIMMER_LINE_WIDTHS = ["w-4/5", "w-3/5", "w-2/5"] as const;
 
 function EmptyTerminal() {
 	return (
@@ -25,17 +30,30 @@ function EmptyTerminal() {
 	);
 }
 
-/** A persistent "the agent is working" row pinned to the bottom of the feed for
- * the WHOLE turn — from the user's send until the turn actually completes
- * (`turn_usage`/`turn_end`), NOT just until the first token. It previously
- * cleared on the first output, so a long tool run looked frozen. The label
- * still reads "Thinking…" during the pre-first-token wait, then "Working…" once
- * output is streaming, so both phases feel alive. */
-function WorkingIndicator({ label }: { label: string }) {
+/** A persistent assistant-message-shaped placeholder — an avatar dot plus a few
+ * shimmering lines — pinned to the bottom of the feed for the WHOLE in-flight
+ * turn (from the user's send until `turn_usage`/`turn_end`). The moving
+ * highlight sweep (`.working-shimmer`, index.css) makes it obvious the agent is
+ * still producing, so a long tool run never looks frozen; it replaces the old
+ * "Thinking…/Working…" text line. Respects `prefers-reduced-motion` (the sweep
+ * becomes a gentle opacity pulse). */
+function WorkingSkeleton() {
 	return (
-		<div className="flex items-center gap-2 px-1 py-2 text-muted-foreground text-sm">
-			<Loader2Icon className="size-4 animate-spin" />
-			<span className="animate-pulse">{label}</span>
+		<div
+			aria-label="Agent is working"
+			className="flex gap-3 px-1 py-3"
+			data-testid="working-skeleton"
+			role="status"
+		>
+			<div className="working-shimmer size-7 shrink-0 rounded-full" />
+			<div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
+				{SHIMMER_LINE_WIDTHS.map((width) => (
+					<div
+						className={cn("working-shimmer h-3 rounded", width)}
+						key={width}
+					/>
+				))}
+			</div>
 		</div>
 	);
 }
@@ -44,12 +62,9 @@ export interface TerminalFeedProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
-	/** True until the agent's first token of this turn — switches the working
-	 * indicator's wording from "Thinking…" to "Working…". */
-	awaitingFirstToken: boolean;
 	ended: boolean;
 	sending: boolean;
-	/** True for the entire in-flight turn — keeps the working indicator visible
+	/** True for the entire in-flight turn — keeps the working skeleton visible
 	 * throughout, not just before the first token. */
 	turnInFlight: boolean;
 	turns: BridgeTurn[];
@@ -59,7 +74,6 @@ export interface TerminalFeedProps {
 export function TerminalFeed({
 	answerApproval,
 	answered,
-	awaitingFirstToken,
 	avatars,
 	ended,
 	sending,
@@ -87,11 +101,7 @@ export function TerminalFeed({
 								</MessageScrollerItem>
 							))
 						)}
-						{turnInFlight && (
-							<WorkingIndicator
-								label={awaitingFirstToken ? "Thinking…" : "Working…"}
-							/>
-						)}
+						{turnInFlight && <WorkingSkeleton />}
 					</MessageScrollerContent>
 				</MessageScrollerViewport>
 				<MessageScrollerButton />

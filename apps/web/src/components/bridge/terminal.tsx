@@ -36,7 +36,6 @@ interface TerminalBodyProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
-	awaitingFirstToken: boolean;
 	caps: AgentCapabilities;
 	disabled: boolean;
 	ended: boolean;
@@ -110,7 +109,6 @@ function TerminalBody(props: TerminalBodyProps) {
 				answerApproval={props.answerApproval}
 				answered={props.answered}
 				avatars={props.avatars}
-				awaitingFirstToken={props.awaitingFirstToken}
 				ended={props.ended}
 				sending={props.sending}
 				turnInFlight={props.turnInFlight}
@@ -132,29 +130,6 @@ function TerminalBody(props: TerminalBodyProps) {
 			/>
 		</>
 	);
-}
-
-/** True after the user's latest turn until the agent produces ANY
- * output/reasoning — switches the working indicator's wording from "Thinking…"
- * to "Working…". Scanning tail-first: if the most recent message/output is the
- * user's line, the agent hasn't started replying yet. */
-function deriveAwaitingFirstToken(
-	events: StreamEvent[],
-	ended: boolean
-): boolean {
-	if (ended) {
-		return false;
-	}
-	for (let i = events.length - 1; i >= 0; i--) {
-		const event = events[i].event;
-		if (event.kind === "output") {
-			return false;
-		}
-		if (event.kind === "message") {
-			return event.role === "user";
-		}
-	}
-	return false;
 }
 
 /** True for the WHOLE in-flight turn: from the user's latest message until a
@@ -200,10 +175,6 @@ function useTerminalView(
 		() => foldEventsToTurns(bridge.events),
 		[bridge.events]
 	);
-	const awaitingFirstToken = useMemo(
-		() => deriveAwaitingFirstToken(bridge.events, ended),
-		[bridge.events, ended]
-	);
 	const turnInFlight = useMemo(
 		() => deriveTurnInFlight(bridge.events, ended),
 		[bridge.events, ended]
@@ -212,7 +183,7 @@ function useTerminalView(
 		assistant: agentAvatar(session.tokenId),
 		user: userAvatarUrl,
 	};
-	return { ...bridge, turns, avatars, awaitingFirstToken, turnInFlight };
+	return { ...bridge, turns, avatars, turnInFlight };
 }
 
 /**
@@ -253,7 +224,6 @@ export function Terminal({
 				answerApproval={view.answerApproval}
 				answered={view.answered}
 				avatars={view.avatars}
-				awaitingFirstToken={view.awaitingFirstToken}
 				caps={caps}
 				disabled={!view.canSend}
 				ended={view.status === "ended"}

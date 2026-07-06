@@ -97,7 +97,7 @@ it("echoes the user's own line into the feed immediately, before the CLI replies
 	});
 });
 
-it("keeps a working indicator up for the whole turn: Thinking… → Working… → gone on completion", async () => {
+it("keeps a shimmering working skeleton up for the whole turn, gone on completion", async () => {
 	const fake = makeControllableTransport();
 	fake.sendInput.mockReturnValue(new Promise(() => undefined));
 	const { container } = render(
@@ -112,24 +112,22 @@ it("keeps a working indicator up for the whole turn: Thinking… → Working… 
 	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
 	fireEvent.change(textarea, { target: { value: "hi" } });
 	fireEvent.click(view.getByRole("button", { name: "Send" }));
-	// Pre-first-token phase.
+	// A skeleton placeholder — not the words "Thinking…/Working…" — signals work.
 	await waitFor(() => {
-		expect(view.getByText("Thinking…")).toBeDefined();
+		expect(view.getByTestId("working-skeleton")).toBeDefined();
 	});
+	expect(view.queryByText("Working…")).toBeNull();
 
-	// First token streams in: the indicator must PERSIST (previously it cleared
-	// here, making a long tool run look frozen) — only the wording changes.
+	// First token streams in: the skeleton must PERSIST (previously the text
+	// indicator cleared here, making a long tool run look frozen).
 	await act(() => {
 		fake
 			.current()
 			?.onEvent({ id: 1, data: { kind: "output", text: "hello back" } });
 	});
-	await waitFor(() => {
-		expect(view.getByText("Working…")).toBeDefined();
-	});
-	expect(view.queryByText("Thinking…")).toBeNull();
+	expect(view.getByTestId("working-skeleton")).toBeDefined();
 
-	// The turn completes (claude's turn_usage) → the indicator finally clears.
+	// The turn completes (claude's turn_usage) → the skeleton finally clears.
 	await act(() => {
 		fake.current()?.onEvent({
 			id: 2,
@@ -137,7 +135,7 @@ it("keeps a working indicator up for the whole turn: Thinking… → Working… 
 		});
 	});
 	await waitFor(() => {
-		expect(view.queryByText("Working…")).toBeNull();
+		expect(view.queryByTestId("working-skeleton")).toBeNull();
 	});
 });
 
