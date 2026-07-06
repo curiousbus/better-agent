@@ -2,7 +2,7 @@ import {
 	normalizeOpencode,
 	normalizeOpencodeApprovalRequest,
 } from "../normalize/opencode";
-import type { NormalizedEvent } from "../normalize/types";
+import { isRecord, type NormalizedEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
@@ -12,6 +12,53 @@ import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
  * the ASSUMPTION note in normalize/opencode.ts about this shape. */
 function acpSelectedOutcome(optionId: string): unknown {
 	return { outcome: { optionId, outcome: "selected" } };
+}
+
+/** Merges the two pieces of context ACP's `available_commands_update`
+ * notification doesn't itself carry — the directory this adapter was started
+ * in and the session id `session/new` returned — into the `session_ready`
+ * event `normalizeOpencode` built from it. */
+function enrichOpencodeSessionReady(
+	event: Extract<NormalizedEvent, { kind: "status" }>,
+	dir: string,
+	sessionId: string | undefined
+): NormalizedEvent {
+	const detail = isRecord(event.detail) ? event.detail : {};
+	return {
+		kind: "status",
+		status: "session_ready",
+		detail: { ...detail, cwd: dir, sessionId },
+	};
+}
+
+/**
+ * Wires opencode's ACP `session/update` notification stream to `events`,
+ * folding its (at most one, per `normalize/opencode.ts`'s ASSUMPTION note on
+ * `normalizeAcpAvailableCommands`) `session_ready` event through
+ * `enrichOpencodeSessionReady` and a guard so a hypothetical duplicate
+ * `available_commands_update` can never re-emit it. `getSessionId` is read
+ * lazily (not captured at registration time) since this handler is wired up
+ * before `session/new` resolves with the session id it needs.
+ */
+function makeOpencodeNotificationHandler(
+	dir: string,
+	events: { push(event: NormalizedEvent): void },
+	getSessionId: () => string | undefined
+): (method: string, params: unknown) => void {
+	let sessionReadyEmitted = false;
+	return (method: string, params: unknown): void => {
+		for (const event of normalizeOpencode({ method, params })) {
+			if (event.kind === "status" && event.status === "session_ready") {
+				if (sessionReadyEmitted) {
+					continue;
+				}
+				sessionReadyEmitted = true;
+				events.push(enrichOpencodeSessionReady(event, dir, getSessionId()));
+				continue;
+			}
+			events.push(event);
+		}
+	};
 }
 
 /** Wires opencode's ACP `session/request_permission` requests to the shared
@@ -54,11 +101,10 @@ export const opencodeAdapter: Adapter = {
 			approvals.clear();
 		});
 
-		rpc.onNotification((method, params) => {
-			for (const event of normalizeOpencode({ method, params })) {
-				events.push(event);
-			}
-		});
+		let sessionId: string | undefined;
+		rpc.onNotification(
+			makeOpencodeNotificationHandler(dir, events, () => sessionId)
+		);
 		wireOpencodeApprovals(rpc, events, approvals);
 
 		await rpc.request("initialize", { protocolVersion: 1 });
@@ -66,9 +112,9 @@ export const opencodeAdapter: Adapter = {
 			cwd: dir,
 			mcpServers: [],
 		});
-		const sessionId =
-			session !== null && typeof session === "object" && "sessionId" in session
-				? (session as { sessionId: unknown }).sessionId
+		sessionId =
+			isRecord(session) && typeof session.sessionId === "string"
+				? session.sessionId
 				: undefined;
 
 		return {

@@ -7,22 +7,25 @@ import type { ProcessExitInfo } from "./process-io";
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
 
 type RequestHandler = (id: number, method: string, params: unknown) => void;
+type NotificationHandler = (method: string, params: unknown) => void;
 
-/** A fake `JsonRpcIo` whose exit (and server-initiated requests) can be
- * triggered on demand by the test, standing in for the real `opencode acp`
- * process opencode.ts spawns. */
+/** A fake `JsonRpcIo` whose exit, server-initiated requests, and notifications
+ * can be triggered on demand by the test, standing in for the real `opencode
+ * acp` process opencode.ts spawns. */
 function createFakeRpc(): {
 	rpc: JsonRpcIo;
 	triggerExit(info: ProcessExitInfo): void;
+	triggerNotification(method: string, params: unknown): void;
 	triggerRequest(id: number, method: string, params: unknown): void;
 } {
 	const exitHandlers: Array<(info: ProcessExitInfo) => void> = [];
 	const requestHandlers: RequestHandler[] = [];
+	const notificationHandlers: NotificationHandler[] = [];
 	return {
 		rpc: {
 			notify: vi.fn(),
 			onExit: (handler) => exitHandlers.push(handler),
-			onNotification: vi.fn(),
+			onNotification: (handler) => notificationHandlers.push(handler),
 			onRequest: (handler) => requestHandlers.push(handler),
 			respond: vi.fn(),
 			request: (method: string) => {
@@ -36,6 +39,11 @@ function createFakeRpc(): {
 		triggerExit(info: ProcessExitInfo): void {
 			for (const handler of exitHandlers) {
 				handler(info);
+			}
+		},
+		triggerNotification(method: string, params: unknown): void {
+			for (const handler of notificationHandlers) {
+				handler(method, params);
 			}
 		},
 		triggerRequest(id: number, method: string, params: unknown): void {
@@ -61,6 +69,70 @@ describe("opencodeAdapter", () => {
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);
+	});
+});
+
+describe("opencodeAdapter - session_ready", () => {
+	it("emits a session_ready event enriched with cwd/sessionId when available_commands_update arrives", async () => {
+		const { rpc, triggerNotification } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await opencodeAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerNotification("session/update", {
+			sessionId: "session_1",
+			update: {
+				sessionUpdate: "available_commands_update",
+				availableCommands: [
+					{ name: "explain", description: "Explain the codebase" },
+				],
+			},
+		});
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "session_ready",
+			detail: {
+				slashCommands: ["explain"],
+				cwd: "/tmp/project",
+				sessionId: "session_1",
+			},
+		});
+	});
+});
+
+describe("opencodeAdapter - session_ready emitted only once", () => {
+	it("never emits a second session_ready if available_commands_update arrives twice", async () => {
+		const { rpc, triggerNotification } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await opencodeAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		const notify = () =>
+			triggerNotification("session/update", {
+				sessionId: "session_1",
+				update: {
+					sessionUpdate: "available_commands_update",
+					availableCommands: [{ name: "explain" }],
+				},
+			});
+		notify();
+		await iterator.next();
+
+		notify();
+		triggerNotification("session/update", {
+			update: { sessionUpdate: "plan", entries: [{ content: "step 1" }] },
+		});
+
+		const { value: nextEvent } = await iterator.next();
+		expect(nextEvent).toEqual({
+			kind: "status",
+			status: "plan",
+			detail: [{ content: "step 1" }],
+		});
 	});
 });
 

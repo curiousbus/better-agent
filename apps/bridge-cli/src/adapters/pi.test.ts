@@ -85,9 +85,132 @@ describe("piAdapter - send()", () => {
 		const handle = await piAdapter.start("/tmp/project");
 		handle.send("hello");
 
-		expect(io.writeLine).toHaveBeenCalledExactlyOnceWith(
+		expect(io.writeLine).toHaveBeenCalledWith(
 			JSON.stringify({ type: "prompt", message: "hello" })
 		);
+	});
+});
+
+describe("piAdapter - session_ready", () => {
+	it("sends get_state and get_commands once, right at start", async () => {
+		const { io } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		await piAdapter.start("/tmp/project");
+
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "get_state" })
+		);
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "get_commands" })
+		);
+	});
+});
+
+describe("piAdapter - session_ready response parsing", () => {
+	it("emits a session_ready event with slashCommands/skills once the get_commands response arrives", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		pushLine(
+			JSON.stringify({
+				type: "response",
+				command: "get_commands",
+				success: true,
+				data: {
+					commands: [
+						{ name: "fix-tests", source: "prompt" },
+						{ name: "skill:brave-search", source: "skill" },
+					],
+				},
+			})
+		);
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "session_ready",
+			detail: {
+				model: undefined,
+				slashCommands: ["fix-tests", "skill:brave-search"],
+				skills: ["brave-search"],
+			},
+		});
+	});
+});
+
+describe("piAdapter - session_ready model merge", () => {
+	it("includes the model when get_state's response arrives before get_commands'", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		pushLine(
+			JSON.stringify({
+				type: "response",
+				command: "get_state",
+				success: true,
+				data: { model: { id: "claude-sonnet-4-20250514" } },
+			})
+		);
+		pushLine(
+			JSON.stringify({
+				type: "response",
+				command: "get_commands",
+				success: true,
+				data: { commands: [] },
+			})
+		);
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "session_ready",
+			detail: {
+				model: "claude-sonnet-4-20250514",
+				slashCommands: [],
+				skills: [],
+			},
+		});
+	});
+});
+
+describe("piAdapter - session_ready emitted only once", () => {
+	it("never emits a second session_ready even if get_commands responds twice", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		const commandsResponse = JSON.stringify({
+			type: "response",
+			command: "get_commands",
+			success: true,
+			data: { commands: [] },
+		});
+		pushLine(commandsResponse);
+		await iterator.next();
+
+		pushLine(commandsResponse);
+		pushLine(
+			JSON.stringify({
+				type: "message_end",
+				message: { role: "assistant", content: "after the second response" },
+			})
+		);
+
+		const { value: nextEvent } = await iterator.next();
+		expect(nextEvent).toEqual({
+			kind: "message",
+			role: "assistant",
+			text: "after the second response",
+		});
 	});
 });
 
@@ -139,6 +262,9 @@ describe("piAdapter - answerApproval has no protocol to wire into", () => {
 		const { io } = createFakeProcessIo();
 		vi.mocked(spawnProcessIo).mockResolvedValue(io);
 		const handle = await piAdapter.start("/tmp/project");
+		// `start` itself writes the get_state/get_commands frames — reset here so
+		// the assertion below only covers writes caused by `answerApproval`.
+		vi.mocked(io.writeLine).mockClear();
 
 		handle.answerApproval("anything", "allow");
 

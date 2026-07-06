@@ -1,4 +1,11 @@
-import { buildPiPromptCommand, normalizePi } from "../normalize/pi";
+import {
+	buildPiGetCommandsCommand,
+	buildPiGetStateCommand,
+	buildPiPromptCommand,
+	normalizePi,
+	normalizePiCommandsResponse,
+	normalizePiStateModel,
+} from "../normalize/pi";
 import type { NormalizedEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
@@ -21,6 +28,44 @@ function tryParseJson(line: string): unknown {
 }
 
 /**
+ * Tracks the two pieces `session_ready` is assembled from — `get_state`'s
+ * model (which may arrive before or after `get_commands`' response, since
+ * both are fired off at start with no ordering guarantee) and `get_commands`'
+ * slash commands/skills — and pushes exactly one `session_ready` event, the
+ * moment the commands list is known (using whatever model has arrived by
+ * then, if any).
+ */
+function makePiSessionReadyTracker(events: {
+	push(event: NormalizedEvent): void;
+}): {
+	onLine(raw: unknown): void;
+} {
+	let emitted = false;
+	let model: string | undefined;
+	return {
+		onLine(raw: unknown): void {
+			const nextModel = normalizePiStateModel(raw);
+			if (nextModel !== undefined) {
+				model = nextModel;
+			}
+			if (emitted) {
+				return;
+			}
+			const commands = normalizePiCommandsResponse(raw);
+			if (!commands) {
+				return;
+			}
+			emitted = true;
+			events.push({
+				kind: "status",
+				status: "session_ready",
+				detail: { model, ...commands },
+			});
+		},
+	};
+}
+
+/**
  * `pi --mode rpc` — Mario Zechner's `pi` coding agent's headless JSON-over-
  * stdio mode. Unlike codex/opencode/claude-code, pi has no per-tool-call
  * approval protocol at all (see normalize/pi.ts), so `answerApproval` is
@@ -38,9 +83,12 @@ export const piAdapter: Adapter = {
 			approvals.clear();
 		});
 
+		const sessionReady = makePiSessionReadyTracker(events);
 		(async () => {
 			for await (const line of io.lines) {
-				for (const event of normalizePi(tryParseJson(line))) {
+				const raw = tryParseJson(line);
+				sessionReady.onLine(raw);
+				for (const event of normalizePi(raw)) {
 					events.push(event);
 				}
 			}
@@ -51,6 +99,13 @@ export const piAdapter: Adapter = {
 				events.push({ kind: "error", message: line });
 			}
 		})();
+
+		// Fired off once, right at start — see the ASSUMPTION note on
+		// `normalizePiCommandsResponse`/`normalizePiStateModel` in normalize/pi.ts
+		// for the response shapes `sessionReady` parses out of whichever of
+		// these two lines comes back first.
+		io.writeLine(buildPiGetStateCommand());
+		io.writeLine(buildPiGetCommandsCommand());
 
 		return {
 			answerApproval(requestId: string, optionId: string): void {

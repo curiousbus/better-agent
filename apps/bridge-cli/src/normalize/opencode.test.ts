@@ -92,3 +92,36 @@ describe("normalizeOpencode - plan and edge cases", () => {
 		).toEqual([]);
 	});
 });
+
+describe("normalizeOpencode - available_commands_update", () => {
+	it("maps available_commands_update to a session_ready status event with slashCommands", () => {
+		const events = normalizeOpencode({
+			method: "session/update",
+			params: {
+				update: {
+					sessionUpdate: "available_commands_update",
+					availableCommands: [
+						{ name: "explain", description: "Explain the codebase" },
+						{ name: "fix-tests", description: "Fix failing tests" },
+					],
+				},
+			},
+		});
+		expect(events).toEqual([
+			{
+				kind: "status",
+				status: "session_ready",
+				detail: { slashCommands: ["explain", "fix-tests"] },
+			},
+		]);
+	});
+
+	it("ignores an available_commands_update with no availableCommands array", () => {
+		expect(
+			normalizeOpencode({
+				method: "session/update",
+				params: { update: { sessionUpdate: "available_commands_update" } },
+			})
+		).toEqual([]);
+	});
+});

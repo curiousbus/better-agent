@@ -76,9 +76,50 @@ function normalizeAcpUpdate(update: unknown): NormalizedEvent[] {
 			return normalizeAcpToolCall(update, "completed");
 		case "plan":
 			return [{ kind: "status", status: "plan", detail: update.entries }];
+		case "available_commands_update":
+			return normalizeAcpAvailableCommands(update);
 		default:
 			return [{ kind: "status", status: update.sessionUpdate, detail: update }];
 	}
+}
+
+// --- session_ready: available_commands_update -------------------------------
+//
+// Unlike claude-code's single init line, ACP has no dedicated "session ready"
+// event — but opencode's ACP layer (verified by reading
+// packages/opencode/src/acp/service.ts's `sendAvailableCommands` in the
+// anomalyco/opencode repo at HEAD, not merely assumed like the shapes above)
+// sends exactly one `available_commands_update` `session/update` notification
+// per `session/new`/`session/load` call, scheduled via a `setTimeout(0)`
+// fired after that call's response is already written — so by the time this
+// notification arrives, the adapter's `session/new` request has already
+// resolved and it can merge in the session id/cwd it already knows (see
+// opencode.ts). Skills are NOT distinguishable here: opencode's internal
+// command list tags skill-derived entries with `source: "skill"`, but
+// `sendAvailableCommands` strips every field down to just `{name,
+// description}` before it goes over the wire, so `skills` is deliberately
+// left unset rather than guessed at.
+
+interface AcpAvailableCommand {
+	name: string;
+}
+
+function isAcpAvailableCommand(value: unknown): value is AcpAvailableCommand {
+	return isRecord(value) && typeof value.name === "string";
+}
+
+function normalizeAcpAvailableCommands(
+	update: Record<string, unknown>
+): NormalizedEvent[] {
+	if (!Array.isArray(update.availableCommands)) {
+		return NO_EVENTS;
+	}
+	const slashCommands = update.availableCommands
+		.filter(isAcpAvailableCommand)
+		.map((command) => command.name);
+	return [
+		{ kind: "status", status: "session_ready", detail: { slashCommands } },
+	];
 }
 
 /** Maps one parsed line of `opencode acp`'s stdout (JSON-RPC over stdio). */
