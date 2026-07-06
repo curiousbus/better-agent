@@ -114,11 +114,17 @@ it("normalizes a thinking_delta stream_event into a reasoning-flagged output eve
 	});
 });
 
-it("streams a user turn into the SDK prompt on send", async () => {
+it("persists the user's turn AND forwards it to the SDK on send", async () => {
+	// The event keeps the user's input in history on reload; the prompt drives the agent.
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
 
 	handle.send("do the thing");
+	expect(await iterator.next()).toEqual({
+		done: false,
+		value: { kind: "message", role: "user", text: "do the thing" },
+	});
 	const { value } = await harness.prompt[Symbol.asyncIterator]().next();
 	expect(value).toEqual({
 		type: "user",

@@ -9,6 +9,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
+import { userMessageEvent } from "../normalize/types";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import type { Adapter, AgentHandle, StartOptions } from "./types";
 
@@ -200,6 +201,9 @@ export const claudeCodeAdapter: Adapter = {
 			},
 			listSessions: makeListSessions(dir, events),
 			send(text: string): void {
+				// Persist the user's own turn (see userMessageEvent) so it survives
+				// a page reload, THEN forward it to the agent.
+				events.push(userMessageEvent(text));
 				input.push(userTurn(text));
 			},
 			setModel(model: string): void {

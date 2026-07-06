@@ -6,7 +6,7 @@ import {
 	normalizePiCommandsResponse,
 	normalizePiStateModel,
 } from "../normalize/pi";
-import type { NormalizedEvent } from "../normalize/types";
+import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { spawnProcessIo } from "./process-io";
@@ -113,6 +113,7 @@ export const piAdapter: Adapter = {
 			},
 			events,
 			send(text: string): void {
+				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));
 			},
 			stop(): void {

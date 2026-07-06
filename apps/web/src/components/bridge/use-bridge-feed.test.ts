@@ -58,6 +58,41 @@ describe("feedReducer localEcho", () => {
 	});
 });
 
+const userMsgRaw = (id: number, text: string) => ({
+	id,
+	data: { kind: "message", role: "user", text },
+});
+
+describe("feedReducer echo dedupe", () => {
+	it("drops the optimistic echo once its server-persisted twin arrives", () => {
+		const echoed = feedReducer(initialFeedState, {
+			type: "localEcho",
+			text: "hello agent",
+		});
+		expect(echoed.events.map((e) => e.id)).toEqual([-1]);
+
+		// The CLI persists the same line; it comes back through history/live.
+		const merged = feedReducer(echoed, {
+			type: "events",
+			events: [userMsgRaw(1, "hello agent")],
+		});
+		// Only the server copy survives — no duplicate user line.
+		expect(merged.events.map((e) => e.id)).toEqual([1]);
+	});
+
+	it("keeps an echo that has no server twin yet", () => {
+		const echoed = feedReducer(initialFeedState, {
+			type: "localEcho",
+			text: "not acked",
+		});
+		const merged = feedReducer(echoed, {
+			type: "events",
+			events: [userMsgRaw(1, "a different line")],
+		});
+		expect(merged.events.map((e) => e.id)).toEqual([-1, 1]);
+	});
+});
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

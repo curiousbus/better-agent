@@ -2,7 +2,11 @@ import {
 	normalizeOpencode,
 	normalizeOpencodeApprovalRequest,
 } from "../normalize/opencode";
-import { isRecord, type NormalizedEvent } from "../normalize/types";
+import {
+	isRecord,
+	type NormalizedEvent,
+	userMessageEvent,
+} from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
@@ -123,6 +127,7 @@ export const opencodeAdapter: Adapter = {
 			},
 			events,
 			send(text: string): void {
+				events.push(userMessageEvent(text));
 				rpc
 					.request("session/prompt", {
 						sessionId,

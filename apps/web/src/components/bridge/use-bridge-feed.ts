@@ -33,6 +33,46 @@ export type FeedAction =
 	| { requestId: string; type: "unanswer" }
 	| { type: "reset" };
 
+function isUserMessage(entry: StreamEvent): entry is StreamEvent & {
+	event: { text: string };
+} {
+	const { event } = entry;
+	return (
+		event.kind === "message" &&
+		event.role === "user" &&
+		typeof event.text === "string"
+	);
+}
+
+/** Drops each optimistic echo (negative id) once its server-persisted twin
+ * (id ≥ 0, same text) has arrived, so the user's own line shows instantly on
+ * send AND isn't duplicated when the CLI's persisted copy comes back through
+ * history/live. One server copy cancels exactly one pending echo. */
+function stripAckedEchoes(events: StreamEvent[]): StreamEvent[] {
+	const serverTextCounts = new Map<string, number>();
+	for (const entry of events) {
+		if (entry.id >= 0 && isUserMessage(entry)) {
+			serverTextCounts.set(
+				entry.event.text,
+				(serverTextCounts.get(entry.event.text) ?? 0) + 1
+			);
+		}
+	}
+	if (serverTextCounts.size === 0) {
+		return events;
+	}
+	return events.filter((entry) => {
+		if (entry.id < 0 && isUserMessage(entry)) {
+			const remaining = serverTextCounts.get(entry.event.text) ?? 0;
+			if (remaining > 0) {
+				serverTextCounts.set(entry.event.text, remaining - 1);
+				return false;
+			}
+		}
+		return true;
+	});
+}
+
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 	switch (action.type) {
 		case "reset":
@@ -63,7 +103,11 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 		}
 		default: {
 			const result = mergeEvents(state.events, state.maxSeenId, action.events);
-			return { ...state, events: result.events, maxSeenId: result.maxSeenId };
+			return {
+				...state,
+				events: stripAckedEchoes(result.events),
+				maxSeenId: result.maxSeenId,
+			};
 		}
 	}
 }

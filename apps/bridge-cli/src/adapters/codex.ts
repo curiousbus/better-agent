@@ -2,7 +2,7 @@ import {
 	normalizeCodex,
 	normalizeCodexApprovalRequest,
 } from "../normalize/codex";
-import type { NormalizedEvent } from "../normalize/types";
+import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
@@ -89,6 +89,7 @@ export const codexAdapter: Adapter = {
 			},
 			events,
 			send(text: string): void {
+				events.push(userMessageEvent(text));
 				rpc
 					.request("turn/start", {
 						threadId,

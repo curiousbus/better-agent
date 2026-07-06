@@ -84,6 +84,13 @@ export type NormalizedEvent =
 
 export const NO_EVENTS: NormalizedEvent[] = [];
 
+/** The user's own turn, as an event on the events↑ stream. Adapters push this
+ * from `send()` so the user's input is persisted (bridge_messages) and shows up
+ * in history on reload — without it, only agent output survived a refresh. */
+export function userMessageEvent(text: string): MessageEvent {
+	return { kind: "message", role: "user", text };
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
