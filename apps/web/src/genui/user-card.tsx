@@ -1,5 +1,5 @@
 import { BadgeCheck } from "lucide-react";
-import { AuthorAvatar, compactNumber } from "./tweet-card-node";
+import { AuthorAvatar, compactNumber } from "./embedded-tweet-node";
 
 /** A profile from the X MCP tools' `NormalizedProfile` shape (see
  * apps/mcp/src/x/x-types.ts). */
