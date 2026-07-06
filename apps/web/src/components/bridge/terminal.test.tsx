@@ -97,6 +97,35 @@ it("echoes the user's own line into the feed immediately, before the CLI replies
 	});
 });
 
+it("shows a Thinking… indicator after send, cleared once the agent produces output", async () => {
+	const fake = makeControllableTransport();
+	fake.sendInput.mockReturnValue(new Promise(() => undefined));
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	await waitForConnect(fake);
+	await act(() => {
+		fake.current()?.onOpen();
+	});
+
+	const view = within(container);
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	fireEvent.change(textarea, { target: { value: "hi" } });
+	fireEvent.click(view.getByRole("button", { name: "Send" }));
+	await waitFor(() => {
+		expect(view.getByText("Thinking…")).toBeDefined();
+	});
+
+	await act(() => {
+		fake
+			.current()
+			?.onEvent({ id: 1, data: { kind: "output", text: "hello back" } });
+	});
+	await waitFor(() => {
+		expect(view.queryByText("Thinking…")).toBeNull();
+	});
+});
+
 it("can send input before the output stream has connected", async () => {
 	// Regression: input (sendInput RPC) and output (SSE observe) are independent
 	// channels. A failing/slow observe stream must NOT disable the composer —

@@ -7,6 +7,7 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
+import { Loader2Icon } from "lucide-react";
 import { useMemo } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
@@ -33,10 +34,24 @@ function EmptyTerminal() {
 	);
 }
 
+/** Shown after the user's turn while the agent hasn't produced any output yet —
+ * claude's first token can be several seconds out, and without this the UI
+ * looked frozen after sending. Clears itself the moment any output/reasoning
+ * streams in (see `awaitingResponse` in useTerminalView). */
+function ThinkingIndicator() {
+	return (
+		<div className="flex items-center gap-2 px-1 py-2 text-muted-foreground text-sm">
+			<Loader2Icon className="size-4 animate-spin" />
+			<span className="animate-pulse">Thinking…</span>
+		</div>
+	);
+}
+
 interface TerminalFeedProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
+	awaitingResponse: boolean;
 	ended: boolean;
 	sending: boolean;
 	turns: BridgeTurn[];
@@ -47,6 +62,7 @@ function TerminalFeed({
 	answerApproval,
 	answered,
 	avatars,
+	awaitingResponse,
 	ended,
 	sending,
 	turns,
@@ -56,7 +72,7 @@ function TerminalFeed({
 			<MessageScroller>
 				<MessageScrollerViewport>
 					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4">
-						{turns.length === 0 ? (
+						{turns.length === 0 && !awaitingResponse ? (
 							<EmptyTerminal />
 						) : (
 							turns.map((turn) => (
@@ -72,6 +88,7 @@ function TerminalFeed({
 								</MessageScrollerItem>
 							))
 						)}
+						{awaitingResponse && <ThinkingIndicator />}
 					</MessageScrollerContent>
 				</MessageScrollerViewport>
 				<MessageScrollerButton />
@@ -98,6 +115,7 @@ interface TerminalBodyProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
+	awaitingResponse: boolean;
 	caps: AgentCapabilities;
 	disabled: boolean;
 	ended: boolean;
@@ -115,6 +133,7 @@ function TerminalBody({
 	answerApproval,
 	answered,
 	avatars,
+	awaitingResponse,
 	caps,
 	disabled,
 	ended,
@@ -130,6 +149,7 @@ function TerminalBody({
 				answerApproval={answerApproval}
 				answered={answered}
 				avatars={avatars}
+				awaitingResponse={awaitingResponse}
 				ended={ended}
 				sending={sending}
 				turns={turns}
@@ -165,11 +185,29 @@ function useTerminalView(
 		() => foldEventsToTurns(bridge.events),
 		[bridge.events]
 	);
+	// True after the user's turn until the agent produces ANY output/reasoning —
+	// the "Thinking…" indicator's gate. Derived from the feed: if the most recent
+	// message/output is the user's line, the agent hasn't started replying yet.
+	const awaitingResponse = useMemo(() => {
+		if (session.status === "ended") {
+			return false;
+		}
+		for (let i = bridge.events.length - 1; i >= 0; i--) {
+			const event = bridge.events[i].event;
+			if (event.kind === "output") {
+				return false;
+			}
+			if (event.kind === "message") {
+				return event.role === "user";
+			}
+		}
+		return false;
+	}, [bridge.events, session.status]);
 	const avatars: ChatAvatars = {
 		assistant: agentAvatar(session.tokenId),
 		user: userAvatarUrl,
 	};
-	return { ...bridge, turns, avatars };
+	return { ...bridge, turns, avatars, awaitingResponse };
 }
 
 /**
@@ -213,6 +251,7 @@ export function Terminal({
 				answerApproval={view.answerApproval}
 				answered={view.answered}
 				avatars={view.avatars}
+				awaitingResponse={view.awaitingResponse}
 				caps={caps}
 				disabled={!view.canSend}
 				ended={view.status === "ended"}

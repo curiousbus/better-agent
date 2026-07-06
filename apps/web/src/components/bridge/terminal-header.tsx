@@ -8,6 +8,7 @@ import type {
 import { AgentKindIcon } from "./local-agent-kind-icon";
 import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
+import { SkillsCommandsPopover } from "./skills-commands-popover";
 import { TerminalControls } from "./terminal-controls";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
@@ -88,6 +89,13 @@ function TerminalHeaderActions({
 					sessionList={sessionList}
 				/>
 			)}
+			<SkillsCommandsPopover
+				disabled={!canSend}
+				skills={caps.skills ? sessionReady?.skills : undefined}
+				slashCommands={
+					caps.slashCommands ? sessionReady?.slashCommands : undefined
+				}
+			/>
 			<TerminalControls
 				disabled={!canSend}
 				model={sessionReady?.model}
