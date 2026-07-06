@@ -225,6 +225,13 @@
       "when": 1783270514623,
       "tag": "0031_yielding_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783311134801,
+      "tag": "0032_red_jazinda",
+      "breakpoints": true
     }
   ]
 }

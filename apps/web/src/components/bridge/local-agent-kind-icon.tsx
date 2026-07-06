@@ -14,6 +14,22 @@ export const AGENT_KIND_ICON: Record<AgentKind, typeof BotIcon> = {
 	pi: SparklesIcon,
 };
 
+/** Human-facing name per CLI kind, for the create selector and detail header. */
+export const AGENT_KIND_LABEL: Record<AgentKind, string> = {
+	"claude-code": "Claude Code",
+	codex: "Codex",
+	opencode: "opencode",
+	pi: "Pi",
+};
+
+/** The pickable agent kinds, in the order they're offered at creation. */
+export const AGENT_KIND_OPTIONS: readonly AgentKind[] = [
+	"claude-code",
+	"opencode",
+	"codex",
+	"pi",
+];
+
 /** Renders the icon for a bridge session's `agentKind`. Shared by
  * `LocalAgentCard` and the detail page header. */
 export function AgentKindIcon({

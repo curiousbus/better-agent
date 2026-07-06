@@ -10,6 +10,8 @@ function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 		id: "token-1",
 		userId: "user-1",
 		name: "My laptop",
+		agentKind: "claude-code",
+		token: "bt_token",
 		last4: "abcd",
 		createdAt: NOW,
 		revokedAt: null,

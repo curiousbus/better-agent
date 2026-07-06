@@ -1,15 +1,12 @@
-import { CopyAction } from "@better-agent/ui/components/actions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
-import {
-	bridgeCliCommand,
-	PLACEHOLDER_TOKEN,
-} from "./bridge-token-reveal-dialog";
 import { createBridgeTransport } from "./bridge-transport";
+import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { withSessionPolling } from "./local-agent-poll";
@@ -29,26 +26,35 @@ function useEndSession() {
 	);
 }
 
-/** Friendly state for a token whose CLI has never connected: the ready-to-run
- * command (with a placeholder token) instead of a terminal for a session that
- * doesn't exist yet. */
+function useDeleteAgent(onDeleted: () => void) {
+	const queryClient = useQueryClient();
+	return useMutation(
+		orpc.bridge.deleteToken.mutationOptions({
+			onSuccess: () => {
+				queryClient.invalidateQueries({
+					queryKey: orpc.bridge.listTokens.key(),
+				});
+				queryClient.invalidateQueries({
+					queryKey: orpc.bridge.listSessions.key(),
+				});
+				onDeleted();
+			},
+			onError: (error) => toast.error(error.message),
+		})
+	);
+}
+
+/** Friendly state for a token whose CLI has never connected: the command to
+ * run lives in the always-present connection panel above, so this is just the
+ * status note. */
 function WaitingForCli() {
-	const command = bridgeCliCommand(PLACEHOLDER_TOKEN);
 	return (
-		<div className="flex flex-col gap-3 rounded-lg bg-muted/40 p-6">
-			<div>
-				<p className="font-medium text-sm">Waiting for the CLI to connect</p>
-				<p className="text-muted-foreground text-sm">
-					Run this from your project directory (with your bridge token) to
-					connect this local agent.
-				</p>
-			</div>
-			<div className="flex items-center gap-1.5">
-				<code className="block w-full overflow-x-auto whitespace-nowrap rounded-md bg-muted px-2 py-1.5 font-mono text-xs">
-					{command}
-				</code>
-				<CopyAction label="Copy command" text={command} />
-			</div>
+		<div className="rounded-lg bg-muted/40 p-6">
+			<p className="font-medium text-sm">Waiting for the CLI to connect</p>
+			<p className="text-muted-foreground text-sm">
+				Run the command above from your project directory to connect this local
+				agent.
+			</p>
 		</div>
 	);
 }
@@ -75,11 +81,13 @@ function NotFound() {
  *    session" fix.
  */
 export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
+	const navigate = useNavigate();
 	const tokens = useQuery(orpc.bridge.listTokens.queryOptions());
 	const sessions = useQuery(
 		withSessionPolling(orpc.bridge.listSessions.queryOptions())
 	);
 	const endSession = useEndSession();
+	const deleteAgent = useDeleteAgent(() => navigate({ to: "/local-agents" }));
 	const { email } = useCurrentUser();
 	const transport = useMemo(() => createBridgeTransport(), []);
 
@@ -98,24 +106,28 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 	}
 
 	const session = entry.latestSession;
-	if (!session) {
-		return (
-			<div className="flex min-h-0 flex-1 flex-col gap-3">
-				<WaitingForCli />
-			</div>
-		);
-	}
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			<Terminal
-				ending={endSession.isPending}
-				key={session.id}
-				onEnd={() => endSession.mutate({ sessionId: session.id })}
-				session={session}
-				transport={transport}
-				userAvatarUrl={email ? userAvatar(email) : undefined}
+		<div className="flex min-h-0 flex-1 flex-col gap-3">
+			<LocalAgentConnectionPanel
+				deleting={deleteAgent.isPending}
+				onDelete={() => deleteAgent.mutate({ id: tokenId })}
+				token={entry.token}
 			/>
+			{session ? (
+				<div className="flex min-h-0 flex-1 flex-col">
+					<Terminal
+						ending={endSession.isPending}
+						key={session.id}
+						onEnd={() => endSession.mutate({ sessionId: session.id })}
+						session={session}
+						transport={transport}
+						userAvatarUrl={email ? userAvatar(email) : undefined}
+					/>
+				</div>
+			) : (
+				<WaitingForCli />
+			)}
 		</div>
 	);
 }

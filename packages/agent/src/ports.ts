@@ -183,13 +183,15 @@ export interface ComposioAccountStore {
 export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
 export type BridgeSessionStatus = "active" | "ended";
 
-/** A bridge token as exposed to clients: never includes the hash. */
+/** Owner-facing bridge token: raw `token` + bound `agentKind`, never the hash. */
 export interface BridgeTokenRow {
+	agentKind: BridgeAgentKind;
 	createdAt: Date;
 	id: string;
 	last4: string | null;
 	name: string | null;
 	revokedAt: Date | null;
+	token: string | null;
 	userId: string;
 }
 
@@ -197,22 +199,23 @@ export interface BridgeTokenStore {
 	create(input: {
 		userId: string;
 		name?: string;
+		agentKind: BridgeAgentKind;
+		token: string;
 		tokenHash: string;
 		last4?: string;
 	}): Promise<BridgeTokenRow>;
+	deleteAgent(id: string, userId: string): Promise<void>;
 	/** Looked up on every bridge request; null when the hash is unknown. */
 	findByHash(
 		tokenHash: string
 	): Promise<{ id: string; userId: string; revokedAt: Date | null } | null>;
+	getById(id: string, userId: string): Promise<BridgeTokenRow | null>;
 	listByUser(userId: string): Promise<BridgeTokenRow[]>;
-	revoke(id: string, userId: string): Promise<void>;
 }
 
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;
-	/** The underlying local agent's own conversation id (e.g. claude's
-	 * `session_id`) — null until its `session_ready` status event arrives, and
-	 * always null for an adapter that never reports one. */
+	/** Local agent's own conversation id; null until `session_ready` (or always). */
 	agentSessionId: string | null;
 	createdAt: Date;
 	id: string;
@@ -233,9 +236,6 @@ export interface BridgeSessionStore {
 	end(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<BridgeSessionRow | null>;
 	listByUser(userId: string): Promise<BridgeSessionRow[]>;
-	/** Records the underlying local agent's own conversation id, captured off
-	 * a `session_ready` status event (see `pushEvents` in
-	 * `packages/api/src/routers/bridge.ts`). */
 	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
 	/** Bumps lastSeenAt (bridge heartbeats while relaying output). */
 	touch(id: string): Promise<void>;

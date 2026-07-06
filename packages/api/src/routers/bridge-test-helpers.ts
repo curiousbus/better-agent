@@ -36,27 +36,54 @@ export const BOB = {
 };
 export const AGENT_KIND: BridgeAgentKind = "claude-code";
 
-function memoryBridgeTokenStore(): BridgeTokenStore {
-	const rows = new Map<string, BridgeTokenRow>();
-	const hashes = new Map<string, string>();
+type CreateTokenInput = Parameters<BridgeTokenStore["create"]>[0];
+
+function newTokenRow(input: CreateTokenInput): BridgeTokenRow {
 	return {
-		create({ userId, name, tokenHash, last4 }) {
-			const row: BridgeTokenRow = {
-				id: crypto.randomUUID(),
-				userId,
-				name: name ?? null,
-				last4: last4 ?? null,
-				createdAt: new Date(),
-				revokedAt: null,
-			};
+		id: crypto.randomUUID(),
+		userId: input.userId,
+		name: input.name ?? null,
+		agentKind: input.agentKind,
+		token: input.token,
+		last4: input.last4 ?? null,
+		createdAt: new Date(),
+		revokedAt: null,
+	};
+}
+
+function cascadeDeleteSessions(
+	sessionRows: Map<string, BridgeSessionRow>,
+	messageRowsBySession: Map<string, BridgeMessageRow[]>,
+	tokenId: string
+): void {
+	for (const [sessionId, session] of sessionRows) {
+		if (session.tokenId === tokenId) {
+			sessionRows.delete(sessionId);
+			messageRowsBySession.delete(sessionId);
+		}
+	}
+}
+
+function memoryBridgeTokenStore(
+	rows: Map<string, BridgeTokenRow>,
+	hashes: Map<string, string>,
+	onDeleteAgent: (tokenId: string) => void
+): BridgeTokenStore {
+	return {
+		create(input) {
+			const row = newTokenRow(input);
 			rows.set(row.id, row);
-			hashes.set(row.id, tokenHash);
+			hashes.set(row.id, input.tokenHash);
 			return Promise.resolve(row);
 		},
 		listByUser(userId) {
 			return Promise.resolve(
 				[...rows.values()].filter((row) => row.userId === userId)
 			);
+		},
+		getById(id, userId) {
+			const row = rows.get(id);
+			return Promise.resolve(row && row.userId === userId ? row : null);
 		},
 		findByHash(tokenHash) {
 			const found = [...hashes.entries()].find(
@@ -69,18 +96,21 @@ function memoryBridgeTokenStore(): BridgeTokenStore {
 					: null
 			);
 		},
-		revoke(id, userId) {
+		deleteAgent(id, userId) {
 			const row = rows.get(id);
 			if (row && row.userId === userId) {
-				rows.set(id, { ...row, revokedAt: new Date() });
+				rows.delete(id);
+				hashes.delete(id);
+				onDeleteAgent(id);
 			}
 			return Promise.resolve();
 		},
 	};
 }
 
-function memoryBridgeSessionStore(): BridgeSessionStore {
-	const rows = new Map<string, BridgeSessionRow>();
+function memoryBridgeSessionStore(
+	rows: Map<string, BridgeSessionRow>
+): BridgeSessionStore {
 	return {
 		create({ userId, tokenId, agentKind, label }) {
 			const row: BridgeSessionRow = {
@@ -129,8 +159,9 @@ function memoryBridgeSessionStore(): BridgeSessionStore {
 	};
 }
 
-function memoryBridgeMessageStore(): BridgeMessageStore {
-	const rowsBySession = new Map<string, BridgeMessageRow[]>();
+function memoryBridgeMessageStore(
+	rowsBySession: Map<string, BridgeMessageRow[]>
+): BridgeMessageStore {
 	return {
 		append(sessionId, seq, event) {
 			const rows = rowsBySession.get(sessionId) ?? [];
@@ -151,9 +182,18 @@ function memoryBridgeMessageStore(): BridgeMessageStore {
 }
 
 export function build() {
-	const bridgeToken = memoryBridgeTokenStore();
-	const bridgeSession = memoryBridgeSessionStore();
-	const bridgeMessage = memoryBridgeMessageStore();
+	const tokenRows = new Map<string, BridgeTokenRow>();
+	const tokenHashes = new Map<string, string>();
+	const sessionRows = new Map<string, BridgeSessionRow>();
+	const messageRowsBySession = new Map<string, BridgeMessageRow[]>();
+	const bridgeSession = memoryBridgeSessionStore(sessionRows);
+	const bridgeMessage = memoryBridgeMessageStore(messageRowsBySession);
+	const bridgeToken = memoryBridgeTokenStore(
+		tokenRows,
+		tokenHashes,
+		(tokenId) =>
+			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
+	);
 	const relayStore = createInMemoryRelayStore();
 	const services = {
 		relayStore,

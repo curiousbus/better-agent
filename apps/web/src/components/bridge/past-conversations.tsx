@@ -13,11 +13,8 @@ import type {
 	SessionListDetail,
 	SessionListItem,
 } from "./bridge-session-status";
-import {
-	bridgeResumeCliCommand,
-	PLACEHOLDER_TOKEN,
-} from "./bridge-token-reveal-dialog";
 import { formatSessionTimestamp } from "./local-agent-format";
+import { bridgeResumeCliCommand, PLACEHOLDER_TOKEN } from "./local-agent-join";
 
 // Read-only for now: this picker surfaces past claude conversations and gives
 // a copy-able `--resume` command, but doesn't itself relaunch the CLI —

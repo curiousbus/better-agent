@@ -14,8 +14,10 @@ import {
 import { users } from "./auth";
 
 // A long-lived credential the local bridge CLI uses to authenticate to the
-// server on behalf of a user. Only the sha256 hash is ever stored — the raw
-// `bt_`-prefixed token is shown once, at creation time.
+// server on behalf of a user. The sha256 `tokenHash` is what the CLI auths
+// against; the raw `bt_`-prefixed `token` is also stored so the owner can
+// re-view/copy it on the bound agent's page (owner-only exposure). `agentKind`
+// is chosen at creation and bound to the token for its whole life.
 export const bridgeTokens = pgTable(
 	"bridge_tokens",
 	{
@@ -24,7 +26,14 @@ export const bridgeTokens = pgTable(
 			.notNull()
 			.references(() => users.id),
 		name: text("name"),
+		agentKind: text("agent_kind")
+			.$type<BridgeAgentKind>()
+			.notNull()
+			.default("claude-code"),
 		tokenHash: text("token_hash").notNull().unique(),
+		// Raw token, retrievable by the owner. Nullable: legacy rows were
+		// hash-only (created before re-view support) and have no raw token.
+		token: text("token"),
 		last4: text("last4"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()

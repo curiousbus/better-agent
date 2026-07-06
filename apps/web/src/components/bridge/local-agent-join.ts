@@ -1,8 +1,36 @@
+import { env } from "@better-agent/env/web";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import {
 	deriveLocalAgentStatus,
 	type LocalAgentStatus,
 } from "./local-agent-status";
+
+type AgentKind = BridgeTokenRow["agentKind"];
+
+/** Stand-in used wherever the raw token isn't available (a legacy hash-only
+ * token, or the past-conversations resume hint built off a claude session
+ * rather than a specific bound token) — makes the missing `--token` explicit
+ * instead of silently omitting it. */
+export const PLACEHOLDER_TOKEN = "<your-bridge-token>";
+
+/** The ready-to-run CLI command that connects a local agent with `token`,
+ * bound to its own `agentKind`. Shared by the create flow and the bound
+ * agent's detail page so the two never render a different command. */
+export function bridgeCliCommand(agentKind: AgentKind, token: string): string {
+	return `better-agent-bridge --agent ${agentKind} --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
+}
+
+/** The ready-to-run CLI command to resume a specific past claude conversation
+ * (the "Past conversations" picker's copy-able hint). `dir` is the
+ * conversation's own recorded cwd when known, falling back to `.`. Resume is
+ * claude-only, so the agent kind is fixed here. */
+export function bridgeResumeCliCommand(
+	token: string,
+	dir: string | undefined,
+	resumeId: string
+): string {
+	return `better-agent-bridge --agent claude-code --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
+}
 
 /** A local agent's display status, extending `LocalAgentStatus` with the
  * case where its token has never had a session at all. */

@@ -10,44 +10,66 @@ import {
 } from "./bridge-test-helpers";
 import { appRouter } from "./index";
 
-it("createToken mints a one-time bt_ token; listTokens never exposes it again", async () => {
+it("createToken binds a chosen agentKind and the raw token stays owner-viewable", async () => {
 	const { userClientFor } = build();
 	const alice = userClientFor(ALICE);
-	const created = await alice.bridge.createToken({ name: "laptop" });
+	const created = await alice.bridge.createToken({ agentKind: "codex" });
 	expect(created.token.startsWith("bt_")).toBe(true);
-	expect(created.last4).toBe(created.token.slice(-4));
+	expect(created.id).toBeTruthy();
 
 	const tokens = await alice.bridge.listTokens();
 	expect(tokens).toHaveLength(1);
-	expect(tokens[0]).not.toHaveProperty("token");
+	expect(tokens[0]?.agentKind).toBe("codex");
+	expect(tokens[0]?.token).toBe(created.token);
 	expect(tokens[0]).not.toHaveProperty("tokenHash");
 	expect(tokens[0]?.last4).toBe(created.last4);
+
+	await expect(
+		userClientFor(BOB).bridge.createToken({ agentKind: "x" } as never)
+	).rejects.toBeDefined();
 });
 
-it("revokeToken only revokes the caller's own token", async () => {
-	const { userClientFor, bridgeToken } = build();
+it("getToken returns the caller's own raw token and rejects a non-owner", async () => {
+	const { userClientFor } = build();
 	const alice = userClientFor(ALICE);
 	const bob = userClientFor(BOB);
-	await alice.bridge.createToken({});
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	const tokens = await alice.bridge.listTokens();
+	const tokenId = tokens[0]?.id as string;
 
-	const tokenId = (await bridgeToken.listByUser(ALICE.id))[0]?.id as string;
-
-	await bob.bridge.revokeToken({ id: tokenId });
-	expect((await bridgeToken.listByUser(ALICE.id))[0]?.revokedAt).toBeNull();
-
-	await alice.bridge.revokeToken({ id: tokenId });
-	expect((await bridgeToken.listByUser(ALICE.id))[0]?.revokedAt).not.toBeNull();
+	const own = await alice.bridge.getToken({ id: tokenId });
+	expect(own?.token).toBe(created.token);
+	expect(own?.agentKind).toBe(AGENT_KIND);
+	expect(await bob.bridge.getToken({ id: tokenId })).toBeNull();
 });
 
-it("a revoked raw bridge token is rejected end-to-end by bridgeProcedure", async () => {
+it("deleteToken removes the token AND its sessions, owner-scoped", async () => {
+	const { userClientFor, bridgeClientFor, bridgeToken } = build();
+	const alice = userClientFor(ALICE);
+	const bob = userClientFor(BOB);
+	await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	const tokenId = (await bridgeToken.listByUser(ALICE.id))[0]?.id as string;
+
+	const cli = bridgeClientFor({ tokenId, userId: ALICE.id });
+	await cli.bridge.startSession({ agentKind: AGENT_KIND });
+	expect(await alice.bridge.listSessions()).toHaveLength(1);
+
+	await bob.bridge.deleteToken({ id: tokenId });
+	expect(await bridgeToken.listByUser(ALICE.id)).toHaveLength(1);
+
+	await alice.bridge.deleteToken({ id: tokenId });
+	expect(await bridgeToken.listByUser(ALICE.id)).toHaveLength(0);
+	expect(await alice.bridge.listSessions()).toHaveLength(0);
+});
+
+it("a deleted raw bridge token is rejected end-to-end by bridgeProcedure", async () => {
 	const { userClientFor, bridgeToken, services } = build();
 	const alice = userClientFor(ALICE);
-	const created = await alice.bridge.createToken({ name: "laptop" });
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
 	const tokenId = (await bridgeToken.listByUser(ALICE.id))[0]?.id as string;
-	await alice.bridge.revokeToken({ id: tokenId });
+	await alice.bridge.deleteToken({ id: tokenId });
 
-	// Re-derive the context from the raw revoked token via createContext, the
-	// same way the real HTTP layer would — end-to-end, not a store-level check.
+	// Re-derive the context from the raw deleted token, as the HTTP layer would.
 	const context = await createContext({
 		context: fakeHonoRequest(`Bearer ${created.token}`),
 		services: services as never,

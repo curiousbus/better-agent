@@ -6,6 +6,8 @@ import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
 import { createTestDb, type TestDb } from "../testing/test-db";
+import { createBridgeMessageStore } from "./bridge-message-store";
+import { createBridgeSessionStore } from "./bridge-session-store";
 import { createBridgeTokenStore } from "./bridge-token-store";
 
 let db: TestDb;
@@ -24,59 +26,80 @@ async function seedUser(email: string): Promise<string> {
 	return row?.id ?? "";
 }
 
-it("create returns a row with generated id, timestamps and no hash/plaintext", async () => {
-	const store = createBridgeTokenStore(db);
-	const userId = await seedUser("alice@x.com");
+function createInput(userId: string, name?: string) {
 	const token = generateToken("bt_");
-
-	const created = await store.create({
+	return {
 		userId,
-		name: "laptop",
+		name,
+		agentKind: "claude-code" as const,
+		token,
 		tokenHash: hashToken(token),
 		last4: token.slice(-4),
-	});
+	};
+}
+
+it("create persists agentKind + raw token and returns them without the hash", async () => {
+	const store = createBridgeTokenStore(db);
+	const userId = await seedUser("alice@x.com");
+	const input = createInput(userId, "laptop");
+
+	const created = await store.create(input);
 
 	expect(created.id).toBeTruthy();
 	expect(created.userId).toBe(userId);
 	expect(created.name).toBe("laptop");
-	expect(created.last4).toBe(token.slice(-4));
+	expect(created.agentKind).toBe("claude-code");
+	expect(created.token).toBe(input.token);
+	expect(created.last4).toBe(input.token.slice(-4));
 	expect(created.createdAt).toBeInstanceOf(Date);
 	expect(created.revokedAt).toBeNull();
 	expect(created).not.toHaveProperty("tokenHash");
 });
 
-it("findByHash resolves an active token and returns null for unknown/revoked hashes", async () => {
+it("create stores a chosen non-default agentKind", async () => {
 	const store = createBridgeTokenStore(db);
 	const userId = await seedUser("alice@x.com");
-	const token = generateToken("bt_");
-	const tokenHash = hashToken(token);
-	const created = await store.create({ userId, tokenHash });
 
-	const found = await store.findByHash(tokenHash);
+	const created = await store.create({
+		...createInput(userId),
+		agentKind: "codex",
+	});
+
+	expect(created.agentKind).toBe("codex");
+});
+
+it("getById returns the owner's raw token + agentKind, and null for others", async () => {
+	const store = createBridgeTokenStore(db);
+	const alice = await seedUser("alice@x.com");
+	const bob = await seedUser("bob@x.com");
+	const input = createInput(alice, "laptop");
+	const created = await store.create(input);
+
+	const found = await store.getById(created.id, alice);
+	expect(found?.token).toBe(input.token);
+	expect(found?.agentKind).toBe("claude-code");
+
+	expect(await store.getById(created.id, bob)).toBeNull();
+});
+
+it("findByHash resolves an active token and returns null for unknown hashes", async () => {
+	const store = createBridgeTokenStore(db);
+	const userId = await seedUser("alice@x.com");
+	const input = createInput(userId);
+	const created = await store.create(input);
+
+	const found = await store.findByHash(input.tokenHash);
 	expect(found).toEqual({ id: created.id, userId, revokedAt: null });
 	expect(await store.findByHash("nope")).toBeNull();
-
-	await store.revoke(created.id, userId);
-	const afterRevoke = await store.findByHash(tokenHash);
-	expect(afterRevoke?.revokedAt).toBeInstanceOf(Date);
 });
 
 it("listByUser scopes tokens per owner", async () => {
 	const store = createBridgeTokenStore(db);
 	const alice = await seedUser("alice@x.com");
 	const bob = await seedUser("bob@x.com");
-	await store.create({
-		userId: alice,
-		tokenHash: hashToken(generateToken("bt_")),
-	});
-	await store.create({
-		userId: alice,
-		tokenHash: hashToken(generateToken("bt_")),
-	});
-	await store.create({
-		userId: bob,
-		tokenHash: hashToken(generateToken("bt_")),
-	});
+	await store.create(createInput(alice));
+	await store.create(createInput(alice));
+	await store.create(createInput(bob));
 
 	const aliceTokens = await store.listByUser(alice);
 	expect(aliceTokens).toHaveLength(2);
@@ -84,24 +107,46 @@ it("listByUser scopes tokens per owner", async () => {
 	expect(await store.listByUser(bob)).toHaveLength(1);
 });
 
-it("revoke only affects the owner's own token", async () => {
+it("deleteAgent removes the token and all of its sessions + messages", async () => {
+	const store = createBridgeTokenStore(db);
+	const sessionStore = createBridgeSessionStore(db);
+	const messageStore = createBridgeMessageStore(db);
+	const userId = await seedUser("alice@x.com");
+	const token = await store.create(createInput(userId));
+	const session = await sessionStore.create({
+		userId,
+		tokenId: token.id,
+		agentKind: "claude-code",
+	});
+	const APPENDED_SEQ = 1;
+	await messageStore.append(session.id, APPENDED_SEQ, { type: "stdout" });
+
+	await store.deleteAgent(token.id, userId);
+
+	expect(await store.getById(token.id, userId)).toBeNull();
+	expect(await sessionStore.listByUser(userId)).toHaveLength(0);
+	expect(await sessionStore.get(session.id)).toBeNull();
+});
+
+it("deleteAgent only removes the caller's own token", async () => {
 	const store = createBridgeTokenStore(db);
 	const alice = await seedUser("alice@x.com");
 	const bob = await seedUser("bob@x.com");
-	const tokenHash = hashToken(generateToken("bt_"));
-	const created = await store.create({ userId: alice, tokenHash });
+	const token = await store.create(createInput(alice));
 
-	await store.revoke(created.id, bob);
-	expect((await store.findByHash(tokenHash))?.revokedAt).toBeNull();
+	await store.deleteAgent(token.id, bob);
+	expect(await store.getById(token.id, alice)).not.toBeNull();
 
-	await store.revoke(created.id, alice);
-	expect((await store.findByHash(tokenHash))?.revokedAt).toBeInstanceOf(Date);
+	await store.deleteAgent(token.id, alice);
+	expect(await store.getById(token.id, alice)).toBeNull();
 });
 
 it("create rejects a duplicate token hash", async () => {
 	const store = createBridgeTokenStore(db);
 	const userId = await seedUser("alice@x.com");
-	const tokenHash = hashToken(generateToken("bt_"));
-	await store.create({ userId, tokenHash });
-	await expect(store.create({ userId, tokenHash })).rejects.toThrow();
+	const input = createInput(userId);
+	await store.create(input);
+	await expect(
+		store.create({ ...createInput(userId), tokenHash: input.tokenHash })
+	).rejects.toThrow();
 });

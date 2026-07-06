@@ -2,31 +2,99 @@ import type {
 	BridgeTokenRow,
 	BridgeTokenStore,
 } from "@better-agent/agent/ports";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
 
 // Driver-agnostic db type: satisfied by node-postgres (production) and PGlite (tests).
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 function toRow(row: typeof schema.bridgeTokens.$inferSelect): BridgeTokenRow {
 	return {
 		id: row.id,
 		userId: row.userId,
 		name: row.name ?? null,
+		agentKind: row.agentKind,
+		token: row.token ?? null,
 		last4: row.last4 ?? null,
 		createdAt: row.createdAt,
 		revokedAt: row.revokedAt ?? null,
 	};
 }
 
+/** Deletes every session (and its messages) belonging to `tokenId`, within the
+ * caller's transaction, so the token can then be removed without violating the
+ * bridge_sessions → bridge_tokens FK. */
+async function deleteSessionsForToken(tx: Tx, tokenId: string): Promise<void> {
+	const sessions = await tx
+		.select({ id: schema.bridgeSessions.id })
+		.from(schema.bridgeSessions)
+		.where(eq(schema.bridgeSessions.tokenId, tokenId));
+	const sessionIds = sessions.map((session) => session.id);
+	if (sessionIds.length === 0) {
+		return;
+	}
+	await tx
+		.delete(schema.bridgeMessages)
+		.where(inArray(schema.bridgeMessages.sessionId, sessionIds));
+	await tx
+		.delete(schema.bridgeSessions)
+		.where(inArray(schema.bridgeSessions.id, sessionIds));
+}
+
+/** Hard-deletes `id` (and all of its sessions + messages) if it belongs to
+ * `userId`, in one transaction. A no-op when the token isn't the caller's. */
+async function deleteAgentAndSessions(
+	db: Db,
+	id: string,
+	userId: string
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const owned = await tx
+			.select({ id: schema.bridgeTokens.id })
+			.from(schema.bridgeTokens)
+			.where(
+				and(
+					eq(schema.bridgeTokens.id, id),
+					eq(schema.bridgeTokens.userId, userId)
+				)
+			)
+			.limit(1);
+		if (owned.length === 0) {
+			return;
+		}
+		await deleteSessionsForToken(tx, id);
+		await tx.delete(schema.bridgeTokens).where(eq(schema.bridgeTokens.id, id));
+	});
+}
+
+async function getTokenById(
+	db: Db,
+	id: string,
+	userId: string
+): Promise<BridgeTokenRow | null> {
+	const rows = await db
+		.select()
+		.from(schema.bridgeTokens)
+		.where(
+			and(
+				eq(schema.bridgeTokens.id, id),
+				eq(schema.bridgeTokens.userId, userId)
+			)
+		)
+		.limit(1);
+	const row = rows[0];
+	return row ? toRow(row) : null;
+}
+
 export function createBridgeTokenStore(db: Db): BridgeTokenStore {
 	return {
-		async create({ userId, name, tokenHash, last4 }) {
+		async create({ userId, name, agentKind, token, tokenHash, last4 }) {
 			const rows = await db
 				.insert(schema.bridgeTokens)
-				.values({ userId, name, tokenHash, last4 })
+				.values({ userId, name, agentKind, token, tokenHash, last4 })
 				.returning();
 			const row = rows[0];
 			if (!row) {
@@ -41,6 +109,9 @@ export function createBridgeTokenStore(db: Db): BridgeTokenStore {
 				.where(eq(schema.bridgeTokens.userId, userId));
 			return rows.map(toRow);
 		},
+		getById(id, userId) {
+			return getTokenById(db, id, userId);
+		},
 		async findByHash(tokenHash) {
 			const rows = await db
 				.select({
@@ -54,16 +125,8 @@ export function createBridgeTokenStore(db: Db): BridgeTokenStore {
 			const row = rows[0];
 			return row ? { ...row, revokedAt: row.revokedAt ?? null } : null;
 		},
-		async revoke(id, userId) {
-			await db
-				.update(schema.bridgeTokens)
-				.set({ revokedAt: new Date() })
-				.where(
-					and(
-						eq(schema.bridgeTokens.id, id),
-						eq(schema.bridgeTokens.userId, userId)
-					)
-				);
+		deleteAgent(id, userId) {
+			return deleteAgentAndSessions(db, id, userId);
 		},
 	};
 }

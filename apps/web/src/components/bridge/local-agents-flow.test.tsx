@@ -25,11 +25,13 @@ interface SessionRow {
 	userId: string;
 }
 interface TokenRow {
+	agentKind: string;
 	createdAt: Date;
 	id: string;
 	last4: string;
 	name: string;
 	revokedAt: Date | null;
+	token: string | null;
 	userId: string;
 }
 
@@ -90,6 +92,8 @@ function buildTokens(): TokenRow[] {
 			id: "token-1",
 			userId: "user-1",
 			name: "alpha agent",
+			agentKind: "claude-code",
+			token: "bt_alpha",
 			last4: "1234",
 			createdAt: at(0),
 			revokedAt: null,
@@ -98,6 +102,8 @@ function buildTokens(): TokenRow[] {
 			id: "token-2",
 			userId: "user-1",
 			name: "revoked agent",
+			agentKind: "claude-code",
+			token: "bt_revoked",
 			last4: "9999",
 			createdAt: at(0),
 			revokedAt: at(0),
@@ -135,6 +141,12 @@ vi.mock("@/utils/orpc", () => {
 					key: () => listTokensKey,
 				},
 				endSession: {
+					mutationOptions: (opts: Record<string, unknown>) => ({
+						mutationFn: () => Promise.resolve({ ok: true }),
+						...opts,
+					}),
+				},
+				deleteToken: {
 					mutationOptions: (opts: Record<string, unknown>) => ({
 						mutationFn: () => Promise.resolve({ ok: true }),
 						...opts,
@@ -235,7 +247,7 @@ it("keeps the card when the token's only session has ended (keyed by token, not 
 	await waitFor(() => {
 		expect(view.getByText("alpha agent")).toBeDefined();
 	});
-	expect(view.getByText("Not connected yet")).toBeDefined();
+	expect(view.getByText("Claude Code · not connected yet")).toBeDefined();
 });
 
 it("remounts the terminal onto a newer session when the poll picks one up for the same token", async () => {

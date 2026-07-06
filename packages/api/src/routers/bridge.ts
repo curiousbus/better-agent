@@ -103,28 +103,46 @@ async function persistEventBestEffort(
 }
 
 export const bridgeRouter = {
-	// --- user-facing bridge-token management ---
+	// --- user-facing bridge-token management (owner-scoped) ---
+	// Token is bound to a chosen agentKind at creation, stored so the owner can re-view it.
 	createToken: userProcedure
-		.input(z.object({ name: z.string().min(1).optional() }))
+		.input(
+			z.object({
+				agentKind: z.enum(AGENT_KINDS),
+				name: z.string().min(1).optional(),
+			})
+		)
 		.handler(async ({ input, context }) => {
 			const token = generateToken(TOKEN_PREFIX);
-			await context.services.stores.bridgeToken.create({
+			const created = await context.services.stores.bridgeToken.create({
 				userId: context.authedUser.id,
 				name: input.name,
+				agentKind: input.agentKind,
+				token,
 				tokenHash: hashToken(token),
 				last4: token.slice(-LAST4),
 			});
-			return { token, last4: token.slice(-LAST4) };
+			return { id: created.id, token, last4: token.slice(-LAST4) };
 		}),
 
 	listTokens: userProcedure.handler(({ context }) =>
 		context.services.stores.bridgeToken.listByUser(context.authedUser.id)
 	),
 
-	revokeToken: userProcedure
+	getToken: userProcedure
+		.input(idInput)
+		.handler(({ input, context }) =>
+			context.services.stores.bridgeToken.getById(
+				input.id,
+				context.authedUser.id
+			)
+		),
+
+	// The only delete: removing a local agent removes its token + sessions + messages.
+	deleteToken: userProcedure
 		.input(idInput)
 		.handler(async ({ input, context }) => {
-			await context.services.stores.bridgeToken.revoke(
+			await context.services.stores.bridgeToken.deleteAgent(
 				input.id,
 				context.authedUser.id
 			);
