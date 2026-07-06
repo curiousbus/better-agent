@@ -137,7 +137,66 @@ function extractMedia(legacy: AnyRecord | null): NormalizedMedia[] {
 	return out;
 }
 
-export function normalizeTweet(raw: unknown): NormalizedTweet {
+interface AuthorFields {
+	authorAvatarUrl: string | null;
+	authorName: string;
+	authorScreenName: string;
+	authorTwitterUserId: string;
+}
+
+function extractAuthor(rec: AnyRecord | null): AuthorFields {
+	const user = "core.user_results.result";
+	return {
+		authorTwitterUserId: asString(readPath(rec, `${user}.rest_id`)) ?? "",
+		authorScreenName:
+			asString(readPath(rec, `${user}.legacy.screen_name`)) ?? "",
+		authorName: asString(readPath(rec, `${user}.legacy.name`)) ?? "",
+		authorAvatarUrl: asString(
+			readPath(rec, `${user}.legacy.profile_image_url_https`)
+		),
+	};
+}
+
+/** Normalize an embedded original tweet (a retweet's or quote's source) without
+ * recursing further — its own embeds are dropped so a cycle can't run away. */
+function embedTweet(raw: unknown): NormalizedTweet | null {
+	const rec = asRecord(raw);
+	if (!rec) {
+		return null;
+	}
+	try {
+		return normalizeTweetInternal(rec, false);
+	} catch {
+		return null;
+	}
+}
+
+function extractEmbeds(
+	rec: AnyRecord | null,
+	legacy: AnyRecord | null,
+	allowEmbed: boolean
+): {
+	quotedTweet: NormalizedTweet | null;
+	retweetedTweet: NormalizedTweet | null;
+} {
+	if (!allowEmbed) {
+		return { quotedTweet: null, retweetedTweet: null };
+	}
+	const quotedRaw =
+		readPath(rec, "quoted_status_result.result") ??
+		readPath(legacy, "quoted_status_result.result");
+	return {
+		retweetedTweet: embedTweet(
+			readPath(legacy, "retweeted_status_result.result")
+		),
+		quotedTweet: embedTweet(quotedRaw),
+	};
+}
+
+function normalizeTweetInternal(
+	raw: unknown,
+	allowEmbed: boolean
+): NormalizedTweet {
 	const rec = asRecord(raw);
 	const legacy = asRecord(readPath(rec, "legacy"));
 
@@ -156,11 +215,7 @@ export function normalizeTweet(raw: unknown): NormalizedTweet {
 
 	return {
 		tweetId,
-		authorTwitterUserId:
-			asString(readPath(rec, "core.user_results.result.rest_id")) ?? "",
-		authorScreenName:
-			asString(readPath(rec, "core.user_results.result.legacy.screen_name")) ??
-			"",
+		...extractAuthor(rec),
 		fullText,
 		lang: asString(readPath(legacy, "lang")),
 		kind: pickKind(rel.retweetedTweetId, rel.quotedTweetId, rel.replyToTweetId),
@@ -168,10 +223,15 @@ export function normalizeTweet(raw: unknown): NormalizedTweet {
 		replyToScreenName: rel.replyToScreenName,
 		quotedTweetId: rel.quotedTweetId,
 		retweetedTweetId: rel.retweetedTweetId,
+		...extractEmbeds(rec, legacy, allowEmbed),
 		...extractCounts(rec, legacy),
 		postedAt: extractPostedAt(legacy),
 		media: extractMedia(legacy),
 	};
+}
+
+export function normalizeTweet(raw: unknown): NormalizedTweet {
+	return normalizeTweetInternal(raw, true);
 }
 
 // ---------------------------------------------------------------------------

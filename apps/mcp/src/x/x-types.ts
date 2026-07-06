@@ -12,6 +12,8 @@ export interface NormalizedMedia {
 }
 
 export interface NormalizedTweet {
+	authorAvatarUrl: string | null;
+	authorName: string;
 	authorScreenName: string;
 	authorTwitterUserId: string;
 	fullText: string;
@@ -21,11 +23,17 @@ export interface NormalizedTweet {
 	media: NormalizedMedia[];
 	postedAt: Date;
 	quoteCount: number;
+	/** The full quoted tweet, embedded one level deep (its own
+	 * quotedTweet/retweetedTweet are always null to bound recursion). */
+	quotedTweet: NormalizedTweet | null;
 	quotedTweetId: string | null;
 	replyCount: number;
 	replyToScreenName: string | null;
 	replyToTweetId: string | null;
 	retweetCount: number;
+	/** The full reposted tweet, embedded one level deep (its own
+	 * quotedTweet/retweetedTweet are always null to bound recursion). */
+	retweetedTweet: NormalizedTweet | null;
 	retweetedTweetId: string | null;
 	tweetId: string;
 	viewCount: number;
