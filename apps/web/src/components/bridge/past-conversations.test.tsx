@@ -7,7 +7,7 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import { act } from "react";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { Terminal } from "./terminal";
 import {
 	makeControllableTransport,
@@ -87,6 +87,32 @@ it("renders the session_list detail's items with a resume hint once it arrives",
 	expect(
 		screen.getByText(RESUME_COMMAND_PATTERN, { selector: "code" })
 	).toBeDefined();
+});
+
+it("stops spinning and shows an empty state after the timeout when no session_list ever arrives", async () => {
+	// Agents whose adapter can't answer `listSessions` would otherwise leave the
+	// popover on "Loading…" forever — a timeout surfaces an empty list instead.
+	vi.useFakeTimers();
+	try {
+		const fake = makeControllableTransport();
+		render(<Terminal session={SESSION} transport={fake.transport} />);
+		await act(() => {
+			fireEvent.click(
+				screen.getByRole("button", { name: "Past conversations" })
+			);
+		});
+		expect(screen.getByText("Loading past conversations…")).toBeDefined();
+
+		await act(() => {
+			vi.advanceTimersByTime(6000);
+		});
+
+		expect(
+			screen.getByText("No past conversations found for this directory.")
+		).toBeDefined();
+	} finally {
+		vi.useRealTimers();
+	}
 });
 
 it("shows an empty state when the session_list detail has no sessions", async () => {

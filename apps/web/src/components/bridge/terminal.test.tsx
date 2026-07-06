@@ -97,7 +97,7 @@ it("echoes the user's own line into the feed immediately, before the CLI replies
 	});
 });
 
-it("shows a Thinking… indicator after send, cleared once the agent produces output", async () => {
+it("keeps a working indicator up for the whole turn: Thinking… → Working… → gone on completion", async () => {
 	const fake = makeControllableTransport();
 	fake.sendInput.mockReturnValue(new Promise(() => undefined));
 	const { container } = render(
@@ -112,17 +112,32 @@ it("shows a Thinking… indicator after send, cleared once the agent produces ou
 	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
 	fireEvent.change(textarea, { target: { value: "hi" } });
 	fireEvent.click(view.getByRole("button", { name: "Send" }));
+	// Pre-first-token phase.
 	await waitFor(() => {
 		expect(view.getByText("Thinking…")).toBeDefined();
 	});
 
+	// First token streams in: the indicator must PERSIST (previously it cleared
+	// here, making a long tool run look frozen) — only the wording changes.
 	await act(() => {
 		fake
 			.current()
 			?.onEvent({ id: 1, data: { kind: "output", text: "hello back" } });
 	});
 	await waitFor(() => {
-		expect(view.queryByText("Thinking…")).toBeNull();
+		expect(view.getByText("Working…")).toBeDefined();
+	});
+	expect(view.queryByText("Thinking…")).toBeNull();
+
+	// The turn completes (claude's turn_usage) → the indicator finally clears.
+	await act(() => {
+		fake.current()?.onEvent({
+			id: 2,
+			data: { kind: "status", status: "turn_usage", detail: { numTurns: 1 } },
+		});
+	});
+	await waitFor(() => {
+		expect(view.queryByText("Working…")).toBeNull();
 	});
 });
 

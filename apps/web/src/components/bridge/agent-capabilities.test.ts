@@ -42,9 +42,11 @@ it("gives pi no session-list or tool-approval, a poll usage mode, and a default/
 	expect(pi.interrupt).toBe(true);
 });
 
-it("gives opencode session-list and tool-approval, a stream usage mode, and a default/plan-only permission set", () => {
+it("gives opencode tool-approval and a stream usage mode, but no session-list until its adapter implements the control", () => {
 	const opencode = capabilities("opencode");
-	expect(opencode.sessionList).toBe(true);
+	// The opencode CLI adapter doesn't push a `session_list` reply yet, so the
+	// "Past conversations" button must stay hidden (else it spins forever).
+	expect(opencode.sessionList).toBe(false);
 	expect(opencode.toolApproval).toBe(true);
 	expect(opencode.usageMode).toBe("stream");
 	expect(opencode.permissionModes).toEqual(["default", "plan"]);

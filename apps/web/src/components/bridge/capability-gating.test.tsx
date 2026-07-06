@@ -66,7 +66,9 @@ it("hides Past conversations for a pi session (no session-list capability)", asy
 	).toBeNull();
 });
 
-it("still shows Interrupt and the model picker for a pi session (both supported)", async () => {
+it("hides the model menu for a pi session that reports no models", async () => {
+	// pi's wired RPC surface doesn't expose a model list, so the composer's
+	// model menu stays hidden — the picker lists exactly what the agent reports.
 	const fake = makeControllableTransport();
 	const { container } = render(
 		<Terminal session={PI_SESSION} transport={fake.transport} />
@@ -76,9 +78,9 @@ it("still shows Interrupt and the model picker for a pi session (both supported)
 		fake.current()?.onOpen();
 	});
 
-	const view = within(container);
-	expect(view.getByRole("button", { name: "Interrupt" })).toBeDefined();
-	expect(view.getByRole("combobox", { name: "Model" })).toBeDefined();
+	expect(
+		within(container).queryByRole("combobox", { name: "Model" })
+	).toBeNull();
 });
 
 it("restricts the permission-mode dropdown to pi's default/plan set", async () => {
@@ -144,6 +146,6 @@ it("hides Past conversations, the model picker, and the permission-mode dropdown
 	expect(view.queryByRole("button", { name: "Past conversations" })).toBeNull();
 	expect(view.queryByRole("combobox", { name: "Model" })).toBeNull();
 	expect(view.queryByRole("combobox", { name: "Permission mode" })).toBeNull();
-	// Still on for codex per the conservative matrix.
-	expect(view.getByRole("button", { name: "Interrupt" })).toBeDefined();
+	// No standalone Interrupt control anymore — Stop only appears in-flight.
+	expect(view.queryByRole("button", { name: "Interrupt" })).toBeNull();
 });

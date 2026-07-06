@@ -1,4 +1,3 @@
-import { Button } from "@better-agent/ui/components/button";
 import {
 	Select,
 	SelectContent,
@@ -6,41 +5,36 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@better-agent/ui/components/select";
-import { OctagonXIcon } from "lucide-react";
 
-// Gated per adapter capability (plan Phase 0.5, see agent-capabilities.ts):
-// Interrupt only for `interrupt`-capable agents, the model picker only for
-// `modelSwitch`-capable agents, and the permission-mode dropdown restricted
-// to (and hidden entirely absent) the agent's own `permissionModes` list —
-// see apps/bridge-cli/src/adapters/claude-code.ts for claude's full set.
+// The composer's bottom-bar control menus (Phase 5, relocated out of the
+// header per the owner's feedback): a model menu and a permission-mode menu,
+// each populated from what the running agent actually reports and hidden when
+// it reports nothing. Deliberately quiet — small, borderless, secondary
+// triggers that sit in the toolbar's left cluster next to Send/Stop, matching
+// a modern chat composer rather than a hardcoded control strip.
 
 interface PickerOption {
 	label: string;
 	value: string;
 }
 
-/** A small preset list, not `supportedModels()` — the SDK only exposes that
- * via an async control request on the running query, which isn't threaded
- * through `session_ready` yet. These are the aliases the SDK itself resolves
- * (see `ModelInfo.resolvedModel` in the SDK's typings), so a preset always
- * means something even without the live list. */
-const MODEL_PRESETS: readonly PickerOption[] = [
-	{ label: "Default", value: "default" },
-	{ label: "Opus", value: "opus" },
-	{ label: "Sonnet", value: "sonnet" },
-	{ label: "Haiku", value: "haiku" },
-];
+/** Human labels for the SDK's `PermissionMode` values (mirrors
+ * `PERMISSION_MODES` in `apps/bridge-cli/src/adapters/claude-code.ts`); any
+ * mode not listed falls back to its raw wire value. */
+const PERMISSION_MODE_LABELS: Record<string, string> = {
+	default: "Default",
+	acceptEdits: "Accept edits",
+	bypassPermissions: "Bypass permissions",
+	plan: "Plan",
+	dontAsk: "Don't ask",
+	auto: "Auto",
+};
 
-/** The SDK's full `PermissionMode` enum (mirrors
- * apps/bridge-cli/src/adapters/claude-code.ts's `PERMISSION_MODES`). */
-const PERMISSION_MODE_OPTIONS: readonly PickerOption[] = [
-	{ label: "Default", value: "default" },
-	{ label: "Accept edits", value: "acceptEdits" },
-	{ label: "Bypass permissions", value: "bypassPermissions" },
-	{ label: "Plan", value: "plan" },
-	{ label: "Don't ask", value: "dontAsk" },
-	{ label: "Auto", value: "auto" },
-];
+/** Borderless, compact trigger so the menus read as secondary composer
+ * controls rather than form fields; capped width so a long model id truncates
+ * instead of overflowing the toolbar on narrow viewports. */
+const CONTROL_TRIGGER_CLASS =
+	"h-7 max-w-40 border-0 bg-transparent px-2 text-muted-foreground shadow-none hover:bg-muted hover:text-foreground";
 
 function firstStringValue(next: string | string[] | null): string | undefined {
 	if (typeof next === "string") {
@@ -57,9 +51,9 @@ interface ControlSelectProps {
 	value?: string;
 }
 
-/** One small preset dropdown shared by the model picker and the
- * permission-mode picker — split out so `TerminalControls` itself stays
- * under the repo's max-lines-per-function gate. */
+/** One compact composer menu, shared by the model and permission-mode
+ * pickers — split out so `ComposerControls` stays under the repo's
+ * max-lines-per-function gate. */
 function ControlSelect({
 	disabled,
 	label,
@@ -78,7 +72,11 @@ function ControlSelect({
 			}}
 			value={value}
 		>
-			<SelectTrigger aria-label={label} className="h-6" size="sm">
+			<SelectTrigger
+				aria-label={label}
+				className={CONTROL_TRIGGER_CLASS}
+				size="sm"
+			>
 				<SelectValue placeholder={label} />
 			</SelectTrigger>
 			<SelectContent>
@@ -92,91 +90,66 @@ function ControlSelect({
 	);
 }
 
-export interface TerminalControlsProps {
-	/** Disables every control — mirrors the composer's `disabled` (no live
-	 * session to send these to). */
+export interface ComposerControlsProps {
+	/** Disables both menus — mirrors the composer's `disabled` (no live session
+	 * to relay a control command to). */
 	disabled: boolean;
-	/** The session's currently-reported model (from `session_ready`), so the
-	 * picker shows what's actually active instead of resetting to a
-	 * placeholder every render. */
+	/** The session's currently-active model (from `session_ready`), highlighted
+	 * in the menu. */
 	model?: string;
-	onInterrupt: () => void;
+	/** The model ids the agent reports it can switch between (`session_ready`'s
+	 * `models`). The menu lists exactly these and is hidden when empty/absent. */
+	models?: string[];
 	onSetModel: (model: string) => void;
 	onSetPermissionMode: (mode: string) => void;
-	/** The session's currently-reported permission mode (from
-	 * `session_ready`) — same "shows what's active" contract as `model`. */
+	/** The session's currently-active permission mode (from `session_ready`). */
 	permissionMode?: string;
-	/** The agent's own accepted permission-mode values (its capability's
-	 * `permissionModes`) — the dropdown offers only these, and renders nothing
-	 * at all when empty (the agent has no such concept). */
+	/** The permission-mode values this agent accepts (its capability's
+	 * `permissionModes`); the menu is hidden entirely when empty. */
 	permissionModes: readonly string[];
-	/** Whether this agent supports `interrupt` — hides the button entirely
-	 * when it doesn't, instead of showing a control that would just no-op. */
-	showInterrupt: boolean;
-	/** Whether this agent supports `modelSwitch` — hides the picker entirely
-	 * when it doesn't. */
-	showModelPicker: boolean;
 }
 
 /**
- * The Local Agent detail page's session controls: a Stop/Interrupt button
- * that cancels the in-flight turn without ending the session, a model
- * picker, and a permission-mode dropdown — all routed through
- * `useBridgeTerminal`'s `interrupt`/`setModel`/`setPermissionMode`, which relay
- * `{ type: "control", ... }` commands the same way approvals do (see
- * use-bridge-terminal.ts). Each control is individually gated on the running
- * agent's capabilities (see agent-capabilities.ts) — a picker or button for a
- * control the agent doesn't support would just no-op, so it isn't shown at
- * all rather than shown disabled. Deliberately unobtrusive otherwise: small
- * controls, no confirmation dialogs — Interrupt/model/mode are all reversible
- * mid-session.
+ * The composer toolbar's left-cluster menus: a model menu (from the agent's
+ * reported `models`) and a permission-mode menu (from the agent's accepted
+ * `permissionModes`). Each renders nothing when its source list is empty, so a
+ * session only ever shows a menu it can actually act on — no hardcoded model
+ * list, no control for a concept the agent doesn't have.
  */
-export function TerminalControls({
+export function ComposerControls({
 	disabled,
-	onInterrupt,
+	model,
+	models,
 	onSetModel,
 	onSetPermissionMode,
 	permissionMode,
 	permissionModes,
-	model,
-	showInterrupt,
-	showModelPicker,
-}: TerminalControlsProps) {
-	const permissionModeOptions = PERMISSION_MODE_OPTIONS.filter((option) =>
-		permissionModes.includes(option.value)
-	);
+}: ComposerControlsProps) {
+	const modelOptions = (models ?? []).map((id) => ({ label: id, value: id }));
+	const permissionOptions = permissionModes.map((mode) => ({
+		label: PERMISSION_MODE_LABELS[mode] ?? mode,
+		value: mode,
+	}));
 	return (
-		<div className="flex flex-wrap items-center gap-1.5">
-			{showInterrupt && (
-				<Button
-					aria-label="Interrupt"
-					disabled={disabled}
-					onClick={onInterrupt}
-					size="xs"
-					variant="outline"
-				>
-					<OctagonXIcon />
-					Interrupt
-				</Button>
-			)}
-			{showModelPicker && (
+		<>
+			{modelOptions.length > 0 && (
 				<ControlSelect
 					disabled={disabled}
 					label="Model"
 					onChange={onSetModel}
-					options={MODEL_PRESETS}
+					options={modelOptions}
 					value={model}
 				/>
 			)}
-			{permissionModeOptions.length > 0 && (
+			{permissionOptions.length > 0 && (
 				<ControlSelect
 					disabled={disabled}
 					label="Permission mode"
 					onChange={onSetPermissionMode}
-					options={permissionModeOptions}
+					options={permissionOptions}
 					value={permissionMode}
 				/>
 			)}
-		</div>
+		</>
 	);
 }

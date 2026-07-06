@@ -12,6 +12,12 @@ import type { StreamEvent } from "./bridge-events";
  * `latest*` finders below to pick them back out of the raw feed. */
 export const SESSION_READY_STATUS = "session_ready";
 export const TURN_USAGE_STATUS = "turn_usage";
+/** Emitted by pi/opencode's normalize layer at the end of an assistant turn
+ * (see `apps/bridge-cli/src/normalize/pi.ts`'s `PI_STATUS_TYPES` and opencode's
+ * generic `sessionUpdate` passthrough). Paired with claude's `turn_usage`, it's
+ * how the terminal knows a turn has completed and the working indicator can
+ * clear (see `terminal.tsx`). */
+export const TURN_END_STATUS = "turn_end";
 /** Pushed by the claude adapter in reply to a `{ control: listSessions }`
  * command (see `apps/bridge-cli/src/adapters/claude-code.ts`'s
  * `makeListSessions`) — the "Past conversations" picker's data. */
@@ -26,6 +32,10 @@ export interface SessionReadyDetail {
 	cwd?: string;
 	mcpServers?: McpServerStatus[];
 	model?: string;
+	/** The model ids this agent reports it can switch between (claude's SDK
+	 * `supportedModels()`; other agents leave it unset). The composer's model
+	 * menu lists exactly these and is hidden when absent/empty. */
+	models?: string[];
 	permissionMode?: string;
 	/** Claude's own conversation id for this session (its `session_id`),
 	 * captured off the SDK's init event — also persisted server-side onto the
@@ -110,6 +120,7 @@ function parseSessionReadyDetail(detail: unknown): SessionReadyDetail | null {
 	}
 	return {
 		model: asOptionalString(detail.model),
+		models: asOptionalStringArray(detail.models),
 		cwd: asOptionalString(detail.cwd),
 		permissionMode: asOptionalString(detail.permissionMode),
 		sessionId: asOptionalString(detail.sessionId),

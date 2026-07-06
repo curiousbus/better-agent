@@ -1,101 +1,22 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
-import {
-	MessageScroller,
-	MessageScrollerButton,
-	MessageScrollerContent,
-	MessageScrollerItem,
-	MessageScrollerProvider,
-	MessageScrollerViewport,
-} from "@better-agent/ui/components/message-scroller";
-import { Loader2Icon } from "lucide-react";
 import { useMemo } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { type AgentCapabilities, capabilities } from "./agent-capabilities";
-import { BridgeChatRow } from "./bridge-chat-row";
-import type {
-	SessionReadyDetail,
-	TurnUsageDetail,
+import type { StreamEvent } from "./bridge-events";
+import {
+	type SessionReadyDetail,
+	TURN_END_STATUS,
+	TURN_USAGE_STATUS,
+	type TurnUsageDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
 import { TerminalComposer } from "./terminal-composer";
+import { TerminalFeed } from "./terminal-feed";
 import { TerminalHeader } from "./terminal-header";
 import { TurnUsagePanel } from "./turn-usage-panel";
 import { useBridgeTerminal } from "./use-bridge-terminal";
-
-function EmptyTerminal() {
-	return (
-		<div className="flex flex-1 items-center justify-center py-24 text-center">
-			<p className="text-muted-foreground text-sm">
-				No output yet — waiting for the agent…
-			</p>
-		</div>
-	);
-}
-
-/** Shown after the user's turn while the agent hasn't produced any output yet —
- * claude's first token can be several seconds out, and without this the UI
- * looked frozen after sending. Clears itself the moment any output/reasoning
- * streams in (see `awaitingResponse` in useTerminalView). */
-function ThinkingIndicator() {
-	return (
-		<div className="flex items-center gap-2 px-1 py-2 text-muted-foreground text-sm">
-			<Loader2Icon className="size-4 animate-spin" />
-			<span className="animate-pulse">Thinking…</span>
-		</div>
-	);
-}
-
-interface TerminalFeedProps {
-	answerApproval: (requestId: string, optionId: string) => Promise<void>;
-	answered: Record<string, string>;
-	avatars: ChatAvatars;
-	awaitingResponse: boolean;
-	ended: boolean;
-	sending: boolean;
-	turns: BridgeTurn[];
-}
-
-/** The scrolling conversation: bridge turns rendered as chat bubbles/lines. */
-function TerminalFeed({
-	answerApproval,
-	answered,
-	avatars,
-	awaitingResponse,
-	ended,
-	sending,
-	turns,
-}: TerminalFeedProps) {
-	return (
-		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
-			<MessageScroller>
-				<MessageScrollerViewport>
-					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4">
-						{turns.length === 0 && !awaitingResponse ? (
-							<EmptyTerminal />
-						) : (
-							turns.map((turn) => (
-								<MessageScrollerItem key={turn.id}>
-									<BridgeChatRow
-										answered={answered}
-										avatars={avatars}
-										ended={ended}
-										onAnswerApproval={answerApproval}
-										sending={sending}
-										turn={turn}
-									/>
-								</MessageScrollerItem>
-							))
-						)}
-						{awaitingResponse && <ThinkingIndicator />}
-					</MessageScrollerContent>
-				</MessageScrollerViewport>
-				<MessageScrollerButton />
-			</MessageScroller>
-		</MessageScrollerProvider>
-	);
-}
 
 export interface TerminalProps {
 	/** Whether an end-session request is in flight — disables the End button.
@@ -115,57 +36,150 @@ interface TerminalBodyProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
-	awaitingResponse: boolean;
+	awaitingFirstToken: boolean;
 	caps: AgentCapabilities;
 	disabled: boolean;
 	ended: boolean;
+	interrupt: () => void;
 	onSend: (text: string) => Promise<void>;
 	sending: boolean;
 	sessionReady: SessionReadyDetail | null;
+	setModel: (model: string) => void;
+	setPermissionMode: (mode: string) => void;
+	turnInFlight: boolean;
 	turns: BridgeTurn[];
 	turnUsage: TurnUsageDetail | null;
 }
 
-/** The feed, the (capability-gated) usage chip, and the composer — split out
- * of `Terminal` purely to keep that component under the repo's
- * max-lines-per-function gate. */
-function TerminalBody({
-	answerApproval,
-	answered,
-	avatars,
-	awaitingResponse,
+interface BodyComposerProps {
+	caps: AgentCapabilities;
+	disabled: boolean;
+	interrupt: () => void;
+	onSend: (text: string) => Promise<void>;
+	sending: boolean;
+	sessionReady: SessionReadyDetail | null;
+	setModel: (model: string) => void;
+	setPermissionMode: (mode: string) => void;
+	turnInFlight: boolean;
+}
+
+/** The composer with its capability-gated control menus fed from the session's
+ * reported model/permission values — split out of `TerminalBody` purely to keep
+ * that component under the repo's max-lines-per-function gate. */
+function BodyComposer({
 	caps,
 	disabled,
-	ended,
+	interrupt,
 	onSend,
 	sending,
 	sessionReady,
-	turns,
-	turnUsage,
-}: TerminalBodyProps) {
+	setModel,
+	setPermissionMode,
+	turnInFlight,
+}: BodyComposerProps) {
+	return (
+		<TerminalComposer
+			canInterrupt={caps.interrupt}
+			disabled={disabled}
+			model={sessionReady?.model}
+			models={sessionReady?.models}
+			onInterrupt={interrupt}
+			onSend={onSend}
+			onSetModel={setModel}
+			onSetPermissionMode={setPermissionMode}
+			permissionMode={sessionReady?.permissionMode}
+			permissionModes={caps.permissionModes}
+			sending={sending}
+			skills={caps.skills ? sessionReady?.skills : undefined}
+			slashCommands={
+				caps.slashCommands ? sessionReady?.slashCommands : undefined
+			}
+			turnInFlight={turnInFlight}
+		/>
+	);
+}
+
+/** The feed, the (capability-gated) usage chip, and the composer — split out
+ * of `Terminal` purely to keep that component under the repo's
+ * max-lines-per-function gate. The composer now carries the model /
+ * permission-mode menus and the Stop button (see terminal-composer.tsx). */
+function TerminalBody(props: TerminalBodyProps) {
 	return (
 		<>
 			<TerminalFeed
-				answerApproval={answerApproval}
-				answered={answered}
-				avatars={avatars}
-				awaitingResponse={awaitingResponse}
-				ended={ended}
-				sending={sending}
-				turns={turns}
+				answerApproval={props.answerApproval}
+				answered={props.answered}
+				avatars={props.avatars}
+				awaitingFirstToken={props.awaitingFirstToken}
+				ended={props.ended}
+				sending={props.sending}
+				turnInFlight={props.turnInFlight}
+				turns={props.turns}
 			/>
-			{caps.usageMode === "stream" && <TurnUsagePanel detail={turnUsage} />}
-			<TerminalComposer
-				disabled={disabled}
-				onSend={onSend}
-				sending={sending}
-				skills={caps.skills ? sessionReady?.skills : undefined}
-				slashCommands={
-					caps.slashCommands ? sessionReady?.slashCommands : undefined
-				}
+			{props.caps.usageMode === "stream" && (
+				<TurnUsagePanel detail={props.turnUsage} />
+			)}
+			<BodyComposer
+				caps={props.caps}
+				disabled={props.disabled}
+				interrupt={props.interrupt}
+				onSend={props.onSend}
+				sending={props.sending}
+				sessionReady={props.sessionReady}
+				setModel={props.setModel}
+				setPermissionMode={props.setPermissionMode}
+				turnInFlight={props.turnInFlight}
 			/>
 		</>
 	);
+}
+
+/** True after the user's latest turn until the agent produces ANY
+ * output/reasoning — switches the working indicator's wording from "Thinking…"
+ * to "Working…". Scanning tail-first: if the most recent message/output is the
+ * user's line, the agent hasn't started replying yet. */
+function deriveAwaitingFirstToken(
+	events: StreamEvent[],
+	ended: boolean
+): boolean {
+	if (ended) {
+		return false;
+	}
+	for (let i = events.length - 1; i >= 0; i--) {
+		const event = events[i].event;
+		if (event.kind === "output") {
+			return false;
+		}
+		if (event.kind === "message") {
+			return event.role === "user";
+		}
+	}
+	return false;
+}
+
+/** True for the WHOLE in-flight turn: from the user's latest message until a
+ * turn-completion status (claude → `turn_usage`, pi/opencode → `turn_end`).
+ * Scanning tail-first, a completion before any user message means the last turn
+ * already finished; a user message first means we're mid-turn. This — not
+ * `awaitingFirstToken` — gates the persistent working indicator, so a long tool
+ * run no longer looks frozen after the first token. */
+function deriveTurnInFlight(events: StreamEvent[], ended: boolean): boolean {
+	if (ended) {
+		return false;
+	}
+	for (let i = events.length - 1; i >= 0; i--) {
+		const event = events[i].event;
+		if (
+			event.kind === "status" &&
+			(event.status === TURN_USAGE_STATUS || event.status === TURN_END_STATUS)
+		) {
+			return false;
+		}
+		if (event.kind === "message" && event.role === "user") {
+			return true;
+		}
+	}
+	return false;
 }
 
 /** Wires `useBridgeTerminal` to this session plus the derived turns/avatars —
@@ -181,33 +195,24 @@ function useTerminalView(
 		transport,
 		session.status === "ended"
 	);
+	const ended = session.status === "ended";
 	const turns = useMemo(
 		() => foldEventsToTurns(bridge.events),
 		[bridge.events]
 	);
-	// True after the user's turn until the agent produces ANY output/reasoning —
-	// the "Thinking…" indicator's gate. Derived from the feed: if the most recent
-	// message/output is the user's line, the agent hasn't started replying yet.
-	const awaitingResponse = useMemo(() => {
-		if (session.status === "ended") {
-			return false;
-		}
-		for (let i = bridge.events.length - 1; i >= 0; i--) {
-			const event = bridge.events[i].event;
-			if (event.kind === "output") {
-				return false;
-			}
-			if (event.kind === "message") {
-				return event.role === "user";
-			}
-		}
-		return false;
-	}, [bridge.events, session.status]);
+	const awaitingFirstToken = useMemo(
+		() => deriveAwaitingFirstToken(bridge.events, ended),
+		[bridge.events, ended]
+	);
+	const turnInFlight = useMemo(
+		() => deriveTurnInFlight(bridge.events, ended),
+		[bridge.events, ended]
+	);
 	const avatars: ChatAvatars = {
 		assistant: agentAvatar(session.tokenId),
 		user: userAvatarUrl,
 	};
-	return { ...bridge, turns, avatars, awaitingResponse };
+	return { ...bridge, turns, avatars, awaitingFirstToken, turnInFlight };
 }
 
 /**
@@ -237,27 +242,28 @@ export function Terminal({
 				canSend={view.canSend}
 				caps={caps}
 				ending={ending}
-				interrupt={view.interrupt}
 				listSessions={view.listSessions}
 				onEnd={onEnd}
 				sessionId={sessionId}
 				sessionList={view.sessionList}
 				sessionReady={view.sessionReady}
-				setModel={view.setModel}
-				setPermissionMode={view.setPermissionMode}
 				status={view.status}
 			/>
 			<TerminalBody
 				answerApproval={view.answerApproval}
 				answered={view.answered}
 				avatars={view.avatars}
-				awaitingResponse={view.awaitingResponse}
+				awaitingFirstToken={view.awaitingFirstToken}
 				caps={caps}
 				disabled={!view.canSend}
 				ended={view.status === "ended"}
+				interrupt={view.interrupt}
 				onSend={view.sendInput}
 				sending={view.sending}
 				sessionReady={view.sessionReady}
+				setModel={view.setModel}
+				setPermissionMode={view.setPermissionMode}
+				turnInFlight={view.turnInFlight}
 				turns={view.turns}
 				turnUsage={view.turnUsage}
 			/>

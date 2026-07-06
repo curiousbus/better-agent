@@ -9,7 +9,6 @@ import { AgentKindIcon } from "./local-agent-kind-icon";
 import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
 import { SkillsCommandsPopover } from "./skills-commands-popover";
-import { TerminalControls } from "./terminal-controls";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
 
@@ -51,32 +50,27 @@ interface TerminalHeaderActionsProps {
 	canSend: boolean;
 	caps: AgentCapabilities;
 	ending: boolean;
-	interrupt: () => void;
 	listSessions: () => void;
 	onEnd?: () => void;
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
-	setModel: (model: string) => void;
-	setPermissionMode: (mode: string) => void;
 	status: TerminalConnectionStatus;
 }
 
-/** The header's right-hand action cluster: past conversations, the
- * Interrupt/model/permission-mode controls, and the End button — each gated on
- * `caps` (End also hidden once the session has ended, or when no `onEnd` is
- * wired, e.g. in tests). Split out purely to keep `TerminalHeader` under the
- * repo's max-lines-per-function gate. */
+/** The header's right-hand action cluster: past conversations, skills &
+ * commands, and the End button — each gated on `caps` (End also hidden once the
+ * session has ended, or when no `onEnd` is wired, e.g. in tests). The model /
+ * permission-mode / interrupt controls now live in the composer's bottom bar
+ * (see terminal-composer.tsx), not here. Split out purely to keep
+ * `TerminalHeader` under the repo's max-lines-per-function gate. */
 function TerminalHeaderActions({
 	canSend,
 	caps,
 	ending,
-	interrupt,
 	listSessions,
 	onEnd,
 	sessionList,
 	sessionReady,
-	setModel,
-	setPermissionMode,
 	status,
 }: TerminalHeaderActionsProps) {
 	const showEnd = status !== "ended" && onEnd !== undefined;
@@ -95,17 +89,6 @@ function TerminalHeaderActions({
 				slashCommands={
 					caps.slashCommands ? sessionReady?.slashCommands : undefined
 				}
-			/>
-			<TerminalControls
-				disabled={!canSend}
-				model={sessionReady?.model}
-				onInterrupt={interrupt}
-				onSetModel={setModel}
-				onSetPermissionMode={setPermissionMode}
-				permissionMode={sessionReady?.permissionMode}
-				permissionModes={caps.permissionModes}
-				showInterrupt={caps.interrupt}
-				showModelPicker={caps.modelSwitch}
 			/>
 			{showEnd && (
 				<Button disabled={ending} onClick={onEnd} size="xs" variant="outline">

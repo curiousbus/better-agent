@@ -33,8 +33,11 @@ export interface AgentCapabilities {
 	/** Extended-thinking/reasoning blocks are streamed and worth rendering as a
 	 * collapsible "Thinking" section (Phase 1). */
 	reasoning: boolean;
-	/** The agent can enumerate the user's past local conversations for this
-	 * directory — gates the "Past conversations" button (Phase 3). */
+	/** The agent's CLI adapter actually implements the `listSessions` control —
+	 * gates the "Past conversations" button. Set true ONLY where the adapter
+	 * pushes a `session_list` reply (currently just claude-code, see
+	 * `apps/bridge-cli/src/adapters/claude-code.ts`'s `makeListSessions`);
+	 * otherwise the button would spin forever with no responder. */
 	sessionList: boolean;
 	/** The agent supports reopening a prior conversation with full context
 	 * (claude's `resume`, pi's `switch_session`/`fork`, opencode's
@@ -100,9 +103,13 @@ const PI_CAPABILITIES: AgentCapabilities = {
 	permissionModes: PLAN_ONLY_PERMISSION_MODES,
 };
 
+// opencode's ACP layer can enumerate past sessions, but the CLI adapter here
+// doesn't implement the `listSessions` control yet (no `session_list` reply is
+// pushed), so the "Past conversations" button stays hidden rather than
+// spinning forever. Flip to true once opencode.ts wires that control up.
 const OPENCODE_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
-	sessionList: true,
+	sessionList: false,
 	sessionResume: true,
 	slashCommands: true,
 	skills: true,

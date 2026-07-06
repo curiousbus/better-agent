@@ -33,6 +33,10 @@ import {
 	makeAnswerApproval,
 	useSessionControls,
 } from "./use-bridge-terminal-actions";
+import {
+	buildResult,
+	useListSessionsWithTimeout,
+} from "./use-bridge-terminal-parts";
 
 export interface UseBridgeTerminalResult {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
@@ -177,11 +181,19 @@ function useLiveConnection({
  * reported `status` becomes `"ended"` regardless of whatever transient
  * connection state came before, with sending disabled to match.
  */
-export function useBridgeTerminal(
+/** Sets up the feed/connection reducers and the SSE-first/poll-fallback
+ * pipeline (reset on session change, then the live connection) — split out
+ * purely to keep `useBridgeTerminal` under the repo's max-lines-per-function
+ * gate. */
+function useFeedPipeline(
 	sessionId: string,
 	transport: BridgeTransport,
 	ended: boolean
-): UseBridgeTerminalResult {
+): {
+	conn: ConnectionState;
+	dispatchFeed: Dispatch<FeedAction>;
+	feed: FeedState;
+} {
 	const [feed, dispatchFeed] = useReducer(feedReducer, initialFeedState);
 	const [conn, dispatchConn] = useReducer(
 		connectionReducer,
@@ -197,37 +209,54 @@ export function useBridgeTerminal(
 		sessionId,
 		transport,
 	});
+	return { conn, dispatchFeed, feed };
+}
+
+export function useBridgeTerminal(
+	sessionId: string,
+	transport: BridgeTransport,
+	ended: boolean
+): UseBridgeTerminalResult {
+	const { conn, dispatchFeed, feed } = useFeedPipeline(
+		sessionId,
+		transport,
+		ended
+	);
 	const { sending, sendInput, sendRaw } = useSendInput(
 		sessionId,
 		transport,
 		dispatchFeed
 	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
-	const { sessionReady, turnUsage, sessionList } = useLatestSessionStatus(
-		feed.events
-	);
-	const { interrupt, setModel, setPermissionMode, listSessions } =
-		useSessionControls(sendRaw);
-
-	return {
-		events: feed.events,
-		status: ended ? "ended" : conn.status,
-		// Input (sendInput RPC → commands↓) and output (the SSE observe stream)
-		// are INDEPENDENT channels: the CLI polls commands regardless of any SSE.
-		// Gating send on `everConnected` (the OUTPUT stream having opened) meant a
-		// failing/slow observe stream also silenced the input — the user could
-		// neither send nor see anything. Send whenever the session is live.
-		canSend: !ended,
-		sending,
-		sendInput,
-		answered: feed.answered,
-		answerApproval,
+	const {
+		sessionReady,
+		turnUsage,
+		sessionList: feedSessionList,
+	} = useLatestSessionStatus(feed.events);
+	const {
 		interrupt,
 		setModel,
 		setPermissionMode,
+		listSessions: requestSessions,
+	} = useSessionControls(sendRaw);
+	const { listSessions, sessionList } = useListSessionsWithTimeout(
+		requestSessions,
+		feedSessionList
+	);
+
+	return buildResult({
+		answerApproval,
+		conn,
+		ended,
+		feed,
+		interrupt,
 		listSessions,
-		sessionReady,
+		sendInput,
+		sending,
 		sessionList,
+		sessionReady,
+		setModel,
+		setPermissionMode,
 		turnUsage,
-	};
+	});
 }

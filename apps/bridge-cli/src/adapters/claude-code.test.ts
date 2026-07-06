@@ -2,65 +2,15 @@ import {
 	type CanUseTool,
 	listSessions,
 	query,
-	type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { expect, it, vi } from "vitest";
-import type { NormalizedEvent } from "../normalize/types";
-import { createAsyncQueue } from "./async-queue";
 import { claudeCodeAdapter } from "./claude-code";
+import { mockQuery, nextEvent } from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
 	listSessions: vi.fn(),
 }));
-
-interface QueryHarness {
-	canUseTool: CanUseTool;
-	endOutput(): void;
-	interrupt: ReturnType<typeof vi.fn>;
-	prompt: AsyncIterable<SDKUserMessage>;
-	setModel: ReturnType<typeof vi.fn>;
-	setPermissionMode: ReturnType<typeof vi.fn>;
-	/** Feed an SDK message to the query's output stream. */
-	yieldMessage(message: unknown): void;
-}
-
-/** Mocks `query()` so a test controls what the SDK yields and can capture the
- * streaming prompt + canUseTool the adapter wires up. */
-function mockQuery(): { harness: QueryHarness } {
-	const output = createAsyncQueue<unknown>();
-	const interrupt = vi.fn(() => Promise.resolve());
-	const setModel = vi.fn(() => Promise.resolve());
-	const setPermissionMode = vi.fn(() => Promise.resolve());
-	const harness = {} as QueryHarness;
-	vi.mocked(query).mockImplementation((params) => {
-		harness.prompt = params.prompt as AsyncIterable<SDKUserMessage>;
-		harness.canUseTool = params.options?.canUseTool as CanUseTool;
-		harness.yieldMessage = (message: unknown) => output.push(message);
-		harness.endOutput = () => output.close();
-		harness.interrupt = interrupt;
-		harness.setModel = setModel;
-		harness.setPermissionMode = setPermissionMode;
-		const iterable = {
-			[Symbol.asyncIterator]: () => output[Symbol.asyncIterator](),
-			interrupt,
-			setModel,
-			setPermissionMode,
-		};
-		// The adapter only touches the async-iterable + interrupt/setModel/
-		// setPermissionMode; the rest of the real Query surface is irrelevant to
-		// these tests.
-		return iterable as unknown as ReturnType<typeof query>;
-	});
-	return { harness };
-}
-
-async function nextEvent(
-	iterator: AsyncIterator<NormalizedEvent>
-): Promise<NormalizedEvent | undefined> {
-	const { value, done } = await iterator.next();
-	return done ? undefined : value;
-}
 
 it("streams the reply as output once and drops the duplicate final text block", async () => {
 	const { harness } = mockQuery();
@@ -232,6 +182,52 @@ it("start(dir) without resume leaves options.resume undefined", async () => {
 			options: expect.objectContaining({ resume: undefined }),
 		})
 	);
+});
+
+it("merges the agent's supportedModels() ids into the session_ready event", async () => {
+	// The web model picker lists exactly what the agent reports — sourced from
+	// the SDK control channel, not the raw init line, so merged in the adapter.
+	const { harness } = mockQuery([
+		{ value: "claude-opus-4" },
+		{ value: "claude-sonnet-4" },
+	]);
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	harness.yieldMessage({
+		type: "system",
+		subtype: "init",
+		session_id: "sess-1",
+		model: "claude-opus-4",
+	});
+
+	expect(await nextEvent(iterator)).toMatchObject({
+		kind: "status",
+		status: "session_ready",
+		detail: {
+			model: "claude-opus-4",
+			models: ["claude-opus-4", "claude-sonnet-4"],
+		},
+	});
+});
+
+it("omits models from session_ready when the agent reports none", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	harness.yieldMessage({
+		type: "system",
+		subtype: "init",
+		session_id: "sess-1",
+		model: "claude-opus-4",
+	});
+
+	const event = await nextEvent(iterator);
+	expect(event).toMatchObject({ kind: "status", status: "session_ready" });
+	expect(
+		(event as { detail: Record<string, unknown> }).detail.models
+	).toBeUndefined();
 });
 
 it("listSessions() pushes a session_list status event with the fetched sessions", async () => {
