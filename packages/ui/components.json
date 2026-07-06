@@ -11,14 +11,16 @@
     "prefix": ""
   },
   "iconLibrary": "lucide",
+  "menuColor": "default",
+  "menuAccent": "subtle",
   "aliases": {
     "components": "@better-agent/ui/components",
     "utils": "@better-agent/ui/lib/utils",
-    "hooks": "@better-agent/ui/hooks",
+    "ui": "@better-agent/ui/components",
     "lib": "@better-agent/ui/lib",
-    "ui": "@better-agent/ui/components"
+    "hooks": "@better-agent/ui/hooks"
   },
-  "menuColor": "default",
-  "menuAccent": "subtle",
-  "registries": {}
+  "registries": {
+    "@lucide-animated": "https://lucide-animated.com/r/{name}.json"
+  }
 }

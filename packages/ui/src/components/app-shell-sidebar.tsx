@@ -8,6 +8,7 @@ import {
 	type NavChild,
 	type NavSection,
 } from "@better-agent/ui/components/app-shell-nav";
+import { ArrowBigRightDashIcon } from "@better-agent/ui/components/arrow-big-right-dash";
 import {
 	Sidebar,
 	SidebarContent,
@@ -24,7 +25,6 @@ import {
 	useSidebar,
 } from "@better-agent/ui/components/sidebar";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { PanelLeftOpen } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type {
@@ -98,7 +98,11 @@ function SidebarBrand({ brand }: { brand: BrandConfig }) {
 				type="button"
 			>
 				<Icon className="size-4 transition-opacity group-hover/brand:opacity-0" />
-				<PanelLeftOpen className="absolute size-4 opacity-0 transition-opacity group-hover/brand:opacity-100" />
+				{/* Animated expand icon — fades in on hover and plays its arrow animation. */}
+				<ArrowBigRightDashIcon
+					className="absolute opacity-0 transition-opacity group-hover/brand:opacity-100"
+					size={16}
+				/>
 			</button>
 		);
 	}
