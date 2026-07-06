@@ -28,12 +28,13 @@ it("gives claude the full matrix — every optional surface on, the full permiss
 	]);
 });
 
-it("gives pi no session-list or tool-approval, a poll usage mode, and a default/plan-only permission set", () => {
+it("gives pi no session-list or tool-approval, a poll usage mode, and no permission menu (pi has no approval concept)", () => {
 	const pi = capabilities("pi");
 	expect(pi.sessionList).toBe(false);
 	expect(pi.toolApproval).toBe(false);
 	expect(pi.usageMode).toBe("poll");
-	expect(pi.permissionModes).toEqual(["default", "plan"]);
+	// pi explicitly has NO permission/approval flow (§2) — the menu stays hidden.
+	expect(pi.permissionModes).toEqual([]);
 	// Still supports these, per the research matrix.
 	expect(pi.sessionResume).toBe(true);
 	expect(pi.slashCommands).toBe(true);
@@ -42,17 +43,18 @@ it("gives pi no session-list or tool-approval, a poll usage mode, and a default/
 	expect(pi.interrupt).toBe(true);
 });
 
-it("gives opencode tool-approval and a stream usage mode, but no session-list until its adapter implements the control", () => {
+it("gives opencode tool-approval and a stream usage mode, with build/plan permission modes (§2)", () => {
 	const opencode = capabilities("opencode");
 	// The opencode CLI adapter doesn't push a `session_list` reply yet, so the
 	// "Past conversations" button must stay hidden (else it spins forever).
 	expect(opencode.sessionList).toBe(false);
 	expect(opencode.toolApproval).toBe(true);
 	expect(opencode.usageMode).toBe("stream");
-	expect(opencode.permissionModes).toEqual(["default", "plan"]);
+	// §2 correction: opencode's real ACP modes are build/plan, not default/plan.
+	expect(opencode.permissionModes).toEqual(["build", "plan"]);
 });
 
-it("keeps codex conservative — everything off except reasoning and interrupt", () => {
+it("keeps codex conservative — everything off except reasoning and interrupt; permission menu hidden (§2 approval_policy is launch-only)", () => {
 	const codex = capabilities("codex");
 	expect(codex.reasoning).toBe(true);
 	expect(codex.interrupt).toBe(true);
@@ -64,6 +66,8 @@ it("keeps codex conservative — everything off except reasoning and interrupt",
 	expect(codex.toolApproval).toBe(false);
 	expect(codex.modelSwitch).toBe(false);
 	expect(codex.usageMode).toBe("none");
+	// §2 lists three approval_policy values, but codex sets them at launch —
+	// no verified real-time switch, so the menu stays hidden for now.
 	expect(codex.permissionModes).toEqual([]);
 });
 

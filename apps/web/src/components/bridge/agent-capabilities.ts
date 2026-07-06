@@ -69,8 +69,17 @@ const CLAUDE_PERMISSION_MODES = [
 	"auto",
 ];
 
-/** pi (`--plan`) and opencode both only accept a default/plan toggle. */
-const PLAN_ONLY_PERMISSION_MODES = ["default", "plan"];
+/** opencode's ACP modes — `build` (the default acting mode) and `plan`
+ * (read-only planning). Per the §2 research these are the real values, not the
+ * earlier-guessed `default`/`plan`; ideally sourced dynamically from ACP
+ * `availableModes` later, but hardcoded here until that call is wired. */
+const OPENCODE_PERMISSION_MODES = ["build", "plan"];
+
+/** pi has NO permission/approval concept at all ("No permission popups. Run
+ * in a container, or build your own confirmation flow...", per its docs) — its
+ * menu must stay hidden, so this is empty rather than the earlier-guessed
+ * default/plan pair. */
+const NO_PERMISSION_MODES: string[] = [];
 
 const CLAUDE_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
@@ -100,7 +109,7 @@ const PI_CAPABILITIES: AgentCapabilities = {
 	modelSwitch: true,
 	interrupt: true,
 	usageMode: "poll",
-	permissionModes: PLAN_ONLY_PERMISSION_MODES,
+	permissionModes: NO_PERMISSION_MODES,
 };
 
 // opencode's ACP layer can enumerate past sessions, but the CLI adapter here
@@ -118,14 +127,17 @@ const OPENCODE_CAPABILITIES: AgentCapabilities = {
 	modelSwitch: true,
 	interrupt: true,
 	usageMode: "stream",
-	permissionModes: PLAN_ONLY_PERMISSION_MODES,
+	permissionModes: OPENCODE_PERMISSION_MODES,
 };
 
 /** codex isn't installed/verified yet — conservative until confirmed:
  * everything off except reasoning (the normalize layer already treats
  * thinking-shaped output generically) and interrupt (cancelling a subprocess
- * turn is assumed universal). TODO: replace with the real matrix once codex
- * is wired up and its control surface is verified against the running CLI. */
+ * turn is assumed universal). §2 documents three `approval_policy` values
+ * (untrusted / on-request / never), but codex applies them at LAUNCH via
+ * `-a`/`-s` flags — there's no verified real-time control — so the menu stays
+ * hidden rather than offering a mode it can't actually switch. TODO: surface
+ * them once codex's control surface is verified against the running CLI. */
 const CODEX_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: false,
@@ -137,7 +149,7 @@ const CODEX_CAPABILITIES: AgentCapabilities = {
 	modelSwitch: false,
 	interrupt: true,
 	usageMode: "none",
-	permissionModes: [],
+	permissionModes: NO_PERMISSION_MODES,
 };
 
 /** The capability matrix from the pi/opencode research (see plan Phase 0.5) —

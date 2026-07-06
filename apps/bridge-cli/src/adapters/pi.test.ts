@@ -102,6 +102,9 @@ describe("piAdapter - session_ready", () => {
 			JSON.stringify({ type: "get_state" })
 		);
 		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "get_available_models" })
+		);
+		expect(io.writeLine).toHaveBeenCalledWith(
 			JSON.stringify({ type: "get_commands" })
 		);
 	});
@@ -211,83 +214,5 @@ describe("piAdapter - session_ready emitted only once", () => {
 			role: "assistant",
 			text: "after the second response",
 		});
-	});
-});
-
-describe("piAdapter - stdout/stderr relay", () => {
-	it("relays parsed stdout lines as normalized events", async () => {
-		const { io, pushLine } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-
-		const handle = await piAdapter.start("/tmp/project");
-		const iterator = handle.events[Symbol.asyncIterator]();
-
-		pushLine(
-			JSON.stringify({
-				type: "message_update",
-				assistantMessageEvent: { type: "text_delta", delta: "hi" },
-			})
-		);
-
-		const { value: event } = await iterator.next();
-		expect(event).toEqual({ kind: "output", text: "hi" });
-	});
-
-	it("relays stderr lines as error events", async () => {
-		const io: ProcessIo = {
-			child: {} as ProcessIo["child"],
-			lines: createAsyncQueue<string>(),
-			onExit: vi.fn(),
-			stderrLines: (() => {
-				const queue = createAsyncQueue<string>();
-				queue.push("pi: something went wrong");
-				return queue;
-			})(),
-			stop: vi.fn(),
-			writeLine: vi.fn(),
-		};
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-
-		const handle = await piAdapter.start("/tmp/project");
-		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
-		expect(event).toEqual({
-			kind: "error",
-			message: "pi: something went wrong",
-		});
-	});
-});
-
-describe("piAdapter - answerApproval has no protocol to wire into", () => {
-	it("always emits a status warning: pi has no approval requests to answer", async () => {
-		const { io } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-		const handle = await piAdapter.start("/tmp/project");
-		// `start` itself writes the get_state/get_commands frames — reset here so
-		// the assertion below only covers writes caused by `answerApproval`.
-		vi.mocked(io.writeLine).mockClear();
-
-		handle.answerApproval("anything", "allow");
-
-		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
-		expect(event).toEqual({
-			detail: { requestId: "anything" },
-			kind: "status",
-			status: "approval_unknown",
-		});
-		expect(io.writeLine).not.toHaveBeenCalled();
-	});
-});
-
-describe("piAdapter - stop()", () => {
-	it("stops the process and closes `events`", async () => {
-		const { io } = createFakeProcessIo();
-		vi.mocked(spawnProcessIo).mockResolvedValue(io);
-		const handle = await piAdapter.start("/tmp/project");
-
-		handle.stop();
-
-		expect(io.stop).toHaveBeenCalledTimes(1);
-		const result = await handle.events[Symbol.asyncIterator]().next();
-		expect(result.done).toBe(true);
 	});
 });

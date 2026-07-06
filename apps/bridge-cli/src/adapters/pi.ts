@@ -1,11 +1,14 @@
+import { normalizePi } from "../normalize/pi";
 import {
+	buildPiGetAvailableModelsCommand,
 	buildPiGetCommandsCommand,
 	buildPiGetStateCommand,
 	buildPiPromptCommand,
-	normalizePi,
+	buildPiSetModelCommand,
+	normalizePiAvailableModels,
 	normalizePiCommandsResponse,
 	normalizePiStateModel,
-} from "../normalize/pi";
+} from "../normalize/pi-commands";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
@@ -28,12 +31,10 @@ function tryParseJson(line: string): unknown {
 }
 
 /**
- * Tracks the two pieces `session_ready` is assembled from — `get_state`'s
- * model (which may arrive before or after `get_commands`' response, since
- * both are fired off at start with no ordering guarantee) and `get_commands`'
- * slash commands/skills — and pushes exactly one `session_ready` event, the
- * moment the commands list is known (using whatever model has arrived by
- * then, if any).
+ * Tracks the three pieces `session_ready` is assembled from — `get_state`'s
+ * model, `get_available_models`' list, and `get_commands`' slash commands/skills
+ * — and pushes exactly one `session_ready` event, the moment the commands list
+ * is known (using whatever model/models have arrived by then, if any).
  */
 function makePiSessionReadyTracker(events: {
 	push(event: NormalizedEvent): void;
@@ -42,11 +43,16 @@ function makePiSessionReadyTracker(events: {
 } {
 	let emitted = false;
 	let model: string | undefined;
+	let models: string[] | undefined;
 	return {
 		onLine(raw: unknown): void {
 			const nextModel = normalizePiStateModel(raw);
 			if (nextModel !== undefined) {
 				model = nextModel;
+			}
+			const nextModels = normalizePiAvailableModels(raw);
+			if (nextModels !== undefined) {
+				models = nextModels;
 			}
 			if (emitted) {
 				return;
@@ -59,7 +65,7 @@ function makePiSessionReadyTracker(events: {
 			events.push({
 				kind: "status",
 				status: "session_ready",
-				detail: { model, ...commands },
+				detail: { model, models, ...commands },
 			});
 		},
 	};
@@ -103,8 +109,9 @@ export const piAdapter: Adapter = {
 		// Fired off once, right at start — see the ASSUMPTION note on
 		// `normalizePiCommandsResponse`/`normalizePiStateModel` in normalize/pi.ts
 		// for the response shapes `sessionReady` parses out of whichever of
-		// these two lines comes back first.
+		// these comes back first.
 		io.writeLine(buildPiGetStateCommand());
+		io.writeLine(buildPiGetAvailableModelsCommand());
 		io.writeLine(buildPiGetCommandsCommand());
 
 		return {
@@ -115,6 +122,9 @@ export const piAdapter: Adapter = {
 			send(text: string): void {
 				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));
+			},
+			setModel(model: string): void {
+				io.writeLine(buildPiSetModelCommand(model));
 			},
 			stop(): void {
 				io.stop();

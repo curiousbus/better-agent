@@ -61,9 +61,10 @@ function resolveModelControl(
 	return { hasList: false, options: [], title: NO_MODEL_REPORTED_TITLE };
 }
 
-/** Human labels for the SDK's `PermissionMode` values (mirrors
- * `PERMISSION_MODES` in `apps/bridge-cli/src/adapters/claude-code.ts`); any
- * mode not listed falls back to its raw wire value. */
+/** Human labels for the wire `permissionMode` values across agents —
+ * claude's SDK `PermissionMode` enum plus opencode's ACP `build`/`plan`
+ * (codex's launch-only approval_policy isn't surfaced as a menu, see
+ * agent-capabilities.ts). Any mode not listed falls back to its raw value. */
 const PERMISSION_MODE_LABELS: Record<string, string> = {
 	default: "Default",
 	acceptEdits: "Accept edits",
@@ -71,6 +72,7 @@ const PERMISSION_MODE_LABELS: Record<string, string> = {
 	plan: "Plan",
 	dontAsk: "Don't ask",
 	auto: "Auto",
+	build: "Build",
 };
 
 /** Borderless, compact trigger so the menus read as secondary composer

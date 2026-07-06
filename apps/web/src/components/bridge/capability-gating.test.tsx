@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import {
 	cleanup,
-	fireEvent,
 	render,
 	screen,
 	waitFor,
@@ -31,25 +30,6 @@ const COST_TEXT_PATTERN = /\$0\.05/;
 afterEach(() => {
 	cleanup();
 });
-
-/** Opens a base-ui `Select` — mirrors the sequence in
- * terminal-controls.test.tsx, needed here only to inspect which options a
- * gated dropdown actually offers. */
-async function openSelect(
-	container: HTMLElement,
-	triggerLabel: string
-): Promise<void> {
-	const trigger = within(container).getByRole("combobox", {
-		name: triggerLabel,
-	});
-	await act(() => {
-		fireEvent.pointerDown(trigger, { button: 0, pointerId: 1 });
-		fireEvent.click(trigger);
-	});
-	await waitFor(() => {
-		expect(within(document.body).getByRole("listbox")).toBeDefined();
-	});
-}
 
 it("hides Past conversations for a pi session (no session-list capability)", async () => {
 	const fake = makeControllableTransport();
@@ -84,7 +64,7 @@ it("shows a disabled Model affordance for a pi session that reports no models", 
 	expect(trigger.disabled).toBe(true);
 });
 
-it("restricts the permission-mode dropdown to pi's default/plan set", async () => {
+it("hides the permission-mode menu for a pi session (pi has no approval concept — §2)", async () => {
 	const fake = makeControllableTransport();
 	const { container } = render(
 		<Terminal session={PI_SESSION} transport={fake.transport} />
@@ -94,13 +74,10 @@ it("restricts the permission-mode dropdown to pi's default/plan set", async () =
 		fake.current()?.onOpen();
 	});
 
-	await openSelect(container, "Permission mode");
-
-	const body = within(document.body);
-	expect(body.getByRole("option", { name: "Default" })).toBeDefined();
-	expect(body.getByRole("option", { name: "Plan" })).toBeDefined();
-	expect(body.queryByRole("option", { name: "Accept edits" })).toBeNull();
-	expect(body.queryByRole("option", { name: "Bypass permissions" })).toBeNull();
+	// pi explicitly has NO permission/approval flow — the menu must not render.
+	expect(
+		within(container).queryByRole("combobox", { name: "Permission mode" })
+	).toBeNull();
 });
 
 it("skips the turn-usage chip for a pi session (usageMode is poll, not stream)", async () => {

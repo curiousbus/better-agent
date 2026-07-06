@@ -93,6 +93,57 @@ function wireOpencodeApprovals(
 	});
 }
 
+// ASSUMPTION (unverified, no `opencode` binary in this sandbox; method names
+// per the plan's §2 research): the model menu's pick maps to ACP
+// `unstable_setSessionModel`, the build/plan mode menu to `session/set_mode`.
+// Both are fire-and-forget; a failure is swallowed rather than surfaced,
+// matching claude-code's `.catch(() => undefined)`. Extracted to a helper so
+// the `start` method stays under the max-lines-per-function gate.
+function opencodeModeControls(
+	rpc: JsonRpcIo,
+	getSessionId: () => string | undefined
+): Pick<AgentHandle, "setModel" | "setPermissionMode"> {
+	return {
+		setModel(model: string): void {
+			rpc
+				.request("unstable_setSessionModel", {
+					sessionId: getSessionId(),
+					model,
+				})
+				.catch(() => undefined);
+		},
+		setPermissionMode(mode: string): void {
+			rpc
+				.request("session/set_mode", { sessionId: getSessionId(), mode })
+				.catch(() => undefined);
+		},
+	};
+}
+
+/** The `send` control — echoes the user's line and issues `session/prompt`.
+ * Extracted so `start` stays under the max-lines-per-function gate. */
+function opencodeSend(
+	rpc: JsonRpcIo,
+	events: { push(event: NormalizedEvent): void },
+	getSessionId: () => string | undefined
+): (text: string) => void {
+	return (text: string) => {
+		events.push(userMessageEvent(text));
+		rpc
+			.request("session/prompt", {
+				sessionId: getSessionId(),
+				prompt: [{ type: "text", text }],
+			})
+			.catch((error: unknown) => {
+				events.push({
+					kind: "error",
+					message: "opencode session/prompt failed",
+					detail: error,
+				});
+			});
+	};
+}
+
 /** `opencode acp` — the Agent Client Protocol server built into opencode. */
 export const opencodeAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
@@ -126,21 +177,8 @@ export const opencodeAdapter: Adapter = {
 				approvals.answer(requestId, optionId);
 			},
 			events,
-			send(text: string): void {
-				events.push(userMessageEvent(text));
-				rpc
-					.request("session/prompt", {
-						sessionId,
-						prompt: [{ type: "text", text }],
-					})
-					.catch((error: unknown) => {
-						events.push({
-							kind: "error",
-							message: "opencode session/prompt failed",
-							detail: error,
-						});
-					});
-			},
+			send: opencodeSend(rpc, events, () => sessionId),
+			...opencodeModeControls(rpc, () => sessionId),
 			stop(): void {
 				rpc.stop();
 				events.close();

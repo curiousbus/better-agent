@@ -28,12 +28,12 @@ function createFakeRpc(): {
 			onNotification: (handler) => notificationHandlers.push(handler),
 			onRequest: (handler) => requestHandlers.push(handler),
 			respond: vi.fn(),
-			request: (method: string) => {
+			request: vi.fn((method: string) => {
 				if (method === "session/new") {
 					return Promise.resolve({ sessionId: "session_1" });
 				}
 				return Promise.resolve({});
-			},
+			}),
 			stop: vi.fn(),
 		},
 		triggerExit(info: ProcessExitInfo): void {
@@ -189,5 +189,33 @@ describe("opencodeAdapter - approvals", () => {
 			status: "approval_unknown",
 		});
 		expect(rpc.respond).not.toHaveBeenCalled();
+	});
+});
+
+describe("opencodeAdapter - model & permission controls", () => {
+	it("dispatches setModel to the ACP unstable_setSessionModel method", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await opencodeAdapter.start("/tmp/project");
+
+		handle.setModel?.("anthropic/claude-sonnet-4");
+
+		expect(rpc.request).toHaveBeenCalledWith("unstable_setSessionModel", {
+			sessionId: "session_1",
+			model: "anthropic/claude-sonnet-4",
+		});
+	});
+
+	it("dispatches setPermissionMode to the ACP session/set_mode method", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await opencodeAdapter.start("/tmp/project");
+
+		handle.setPermissionMode?.("plan");
+
+		expect(rpc.request).toHaveBeenCalledWith("session/set_mode", {
+			sessionId: "session_1",
+			mode: "plan",
+		});
 	});
 });
