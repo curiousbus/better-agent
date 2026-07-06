@@ -188,6 +188,98 @@ it("hides session_ready and turn_usage from the turn list but still closes the a
 	]);
 });
 
+it("flattens an opencode content-array tool output instead of rendering it empty", () => {
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "tool", id: "t1", name: "shell", status: "started" }),
+		ev(2, {
+			kind: "tool",
+			id: "t1",
+			name: "shell",
+			output: [
+				{
+					content: { text: "listed the directory", type: "text" },
+					type: "content",
+				},
+			],
+			status: "completed",
+		}),
+	]);
+	const [block] = asAssistant(turns[0]).blocks;
+	if (block.kind === "tool") {
+		expect(block.tool.result).toBe("listed the directory");
+	} else {
+		throw new Error("expected a tool block");
+	}
+});
+
+it("folds a subagent Task call (input has subagent_type) into its own task turn", () => {
+	const turns = foldEventsToTurns([
+		ev(1, {
+			kind: "tool",
+			id: "call_1",
+			input: {
+				description: "Explore project structure",
+				prompt: "Explore the project at ...",
+				subagent_type: "explore",
+			},
+			name: "Explore project structure",
+			status: "started",
+		}),
+		ev(2, {
+			kind: "tool",
+			id: "call_1",
+			name: "Explore project structure",
+			output: [
+				{
+					content: {
+						text: '<task id="ses_1" state="completed">\n<task_result>\nsummary text\n</task_result>\n</task>',
+						type: "text",
+					},
+					type: "content",
+				},
+			],
+			status: "completed",
+		}),
+	]);
+	expect(turns.map((t) => t.kind)).toEqual(["task"]);
+	const [task] = turns;
+	if (task.kind !== "task") {
+		throw new Error("expected a task turn");
+	}
+	expect(task.task).toMatchObject({
+		resultText: "summary text",
+		status: "complete",
+		title: "Explore project structure",
+	});
+});
+
+it("keeps a Task call whose input only has description+prompt as a task turn too", () => {
+	const turns = foldEventsToTurns([
+		ev(1, {
+			kind: "tool",
+			id: "call_1",
+			input: { description: "Run tests", prompt: "Run the test suite" },
+			name: "Task",
+			status: "started",
+		}),
+		ev(2, {
+			kind: "tool",
+			id: "call_1",
+			name: "Task",
+			output: "all tests passed",
+			status: "completed",
+		}),
+	]);
+	expect(turns.map((t) => t.kind)).toEqual(["task"]);
+	const [task] = turns;
+	if (task.kind !== "task") {
+		throw new Error("expected a task turn");
+	}
+	// Claude's Task result is a plain string with no XML wrapper — it passes
+	// through unchanged.
+	expect(task.task.resultText).toBe("all tests passed");
+});
+
 it("dedupes replayed ids so the assistant text is never doubled", () => {
 	const window = [
 		{ id: 1, data: { kind: "output", text: "abc" } },

@@ -3,6 +3,7 @@ import {
 	type ChatBlock,
 	type ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
+import { isTaskToolInput } from "@/genui/tool-renderers";
 import type {
 	ApprovalEvent,
 	ErrorEvent,
@@ -18,6 +19,8 @@ import {
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
 } from "./bridge-session-status";
+import { stripTaskWrapper, type TaskInvocation } from "./task-card";
+import { flattenToolResult } from "./tool-result-text";
 
 /** These curated status events carry session METADATA (capabilities,
  * cost/tokens, the past-conversations list) surfaced by dedicated header/chip
@@ -77,16 +80,27 @@ export interface ApprovalTurn {
 	kind: "approval";
 }
 
+/** A subagent "Task" tool call, folded out of the ordinary tool-block flow
+ * into its own turn (like status/error/file lines) so it renders as a task
+ * card instead of a generic tool row — see `isTaskToolInput`. */
+export interface TaskTurn {
+	id: number;
+	kind: "task";
+	task: TaskInvocation;
+}
+
 export type BridgeTurn =
 	| AssistantTurn
 	| UserTurn
 	| StatusTurn
 	| ErrorTurn
 	| FileTurn
-	| ApprovalTurn;
+	| ApprovalTurn
+	| TaskTurn;
 
 interface FoldState {
 	current: AssistantTurn | null;
+	tasksByCallId: Map<string, TaskInvocation>;
 	toolsByCallId: Map<string, ToolInvocation>;
 	turns: BridgeTurn[];
 }
@@ -109,7 +123,50 @@ function applyToolResult(tool: ToolInvocation, event: ToolEvent): void {
 	tool.status = status;
 	tool.isError = isError;
 	if (event.output !== undefined) {
-		tool.result = event.output;
+		tool.result = flattenToolResult(event.output);
+	}
+}
+
+/** A task's title is its `description` input when present (opencode names
+ * the call after it already, but Claude's fixed-name "Task" tool doesn't),
+ * falling back to the raw tool name otherwise. */
+function taskTitle(event: ToolEvent): string {
+	const input = event.input as { description?: unknown } | null | undefined;
+	if (input && typeof input.description === "string" && input.description) {
+		return input.description;
+	}
+	return event.name;
+}
+
+function createTaskInvocation(event: ToolEvent): TaskInvocation {
+	return {
+		callId: event.id,
+		resultText: "",
+		status: "running",
+		title: taskTitle(event),
+	};
+}
+
+function updateTaskInvocation(task: TaskInvocation, event: ToolEvent): void {
+	const { status } = toolStatusOf(event.status);
+	task.status = status;
+	if (event.output !== undefined) {
+		task.resultText = stripTaskWrapper(flattenToolResult(event.output));
+	}
+}
+
+/** A task call never joins the assistant's block flow — it closes any open
+ * assistant accumulation and renders as its own turn, mirroring how a file
+ * or status event is folded, so its card can show every status (a plain
+ * `ToolGroup` rich-render only ever shows once a call is complete). */
+function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
+	state.current = null;
+	const existing = state.tasksByCallId.get(event.id);
+	const task = existing ?? createTaskInvocation(event);
+	updateTaskInvocation(task, event);
+	if (!existing) {
+		state.tasksByCallId.set(event.id, task);
+		state.turns.push({ kind: "task", id, task });
 	}
 }
 
@@ -151,12 +208,23 @@ function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
 }
 
 function foldTool(state: FoldState, id: number, event: ToolEvent): void {
+	// A completed/failed follow-up for an already-started task never carries
+	// `input` again, so a call already known to be a task is routed there
+	// unconditionally — only a brand-new call needs the input-shape check.
+	if (state.tasksByCallId.has(event.id)) {
+		foldTaskTool(state, id, event);
+		return;
+	}
 	// A later update (completed/failed) mutates the block created at `started`
 	// in place — even if a boundary has since closed that assistant turn — so
 	// it never spawns a spurious empty bubble.
 	const existing = state.toolsByCallId.get(event.id);
 	if (existing) {
 		applyToolResult(existing, event);
+		return;
+	}
+	if (isTaskToolInput(event.input)) {
+		foldTaskTool(state, id, event);
 		return;
 	}
 	const turn = openAssistant(state, id);
@@ -215,6 +283,7 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 export function foldEventsToTurns(events: StreamEvent[]): BridgeTurn[] {
 	const state: FoldState = {
 		current: null,
+		tasksByCallId: new Map(),
 		toolsByCallId: new Map(),
 		turns: [],
 	};

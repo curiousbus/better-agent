@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { renderToolResult, TOOL_RESULT_RENDERERS } from "./tool-renderers";
+import {
+	isTaskToolInput,
+	renderToolResult,
+	TOOL_RESULT_RENDERERS,
+} from "./tool-renderers";
 
 const TWEET_FIXTURE = {
 	authorScreenName: "jack",
@@ -43,6 +47,28 @@ it("returns null for malformed JSON", () => {
 
 it("returns null when the shape doesn't match the schema", () => {
 	expect(tweetTool().parse({ unrelated: "shape" })).toBeNull();
+});
+
+it("isTaskToolInput detects opencode's subagent_type shape", () => {
+	expect(
+		isTaskToolInput({
+			description: "Explore project structure",
+			prompt: "Explore the project at ...",
+			subagent_type: "explore",
+		})
+	).toBe(true);
+});
+
+it("isTaskToolInput detects a description+prompt pair with no subagent_type", () => {
+	expect(
+		isTaskToolInput({ description: "Run tests", prompt: "Run the suite" })
+	).toBe(true);
+});
+
+it("isTaskToolInput is false for an ordinary tool's input", () => {
+	expect(isTaskToolInput({ cmd: "ls" })).toBe(false);
+	expect(isTaskToolInput(undefined)).toBe(false);
+	expect(isTaskToolInput(null)).toBe(false);
 });
 
 it("renderToolResult returns null for an unregistered tool name", () => {

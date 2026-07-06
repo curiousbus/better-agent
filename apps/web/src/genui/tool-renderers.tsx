@@ -14,6 +14,36 @@ import {
  * this many items, plus a "+N more" line — the chat pane isn't a timeline. */
 export const MAX_RENDERED_ITEMS = 20;
 
+interface TaskToolInputShape {
+	description?: unknown;
+	prompt?: unknown;
+	subagent_type?: unknown;
+}
+
+function hasSubagentType(input: TaskToolInputShape): boolean {
+	return typeof input.subagent_type === "string" && input.subagent_type !== "";
+}
+
+function hasDescriptionAndPrompt(input: TaskToolInputShape): boolean {
+	return (
+		typeof input.description === "string" && typeof input.prompt === "string"
+	);
+}
+
+/** A subagent "Task" tool call is identified by its INPUT shape, not its
+ * tool name: opencode names each call after its own dynamic `description`
+ * (e.g. "Explore project structure"), so a fixed-name registry entry like
+ * the ones below can never key it. Claude's built-in Task tool and
+ * opencode's task-spawning tool both pass a `subagent_type`, or at least a
+ * `description` + `prompt` pair — either is enough to identify it. */
+export function isTaskToolInput(input: unknown): boolean {
+	if (typeof input !== "object" || input === null) {
+		return false;
+	}
+	const record = input as TaskToolInputShape;
+	return hasSubagentType(record) || hasDescriptionAndPrompt(record);
+}
+
 interface ToolResultRenderer {
 	/** Parses a raw tool-result value (see unwrapToolResult) into render-ready
 	 * data, or null when it doesn't match this tool's expected shape. */

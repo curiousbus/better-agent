@@ -5,6 +5,7 @@ import {
 } from "@better-agent/ui/components/chat/chat-row";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
+import { TaskCard } from "./task-card";
 
 /** The trailing open assistant turn streams a caret — but only while the
  * session is still live; an ended session shows a settled, complete bubble. */
@@ -67,6 +68,8 @@ export function BridgeChatRow({
 			return <ErrorLine event={turn.event} />;
 		case "file":
 			return <FileLine event={turn.event} />;
+		case "task":
+			return <TaskCard task={turn.task} />;
 		default:
 			return (
 				<ApprovalLine
