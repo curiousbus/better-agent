@@ -78,12 +78,25 @@ it("renders the model menu from the agent's reported models and dispatches setMo
 	});
 });
 
-it("hides the model menu entirely when the agent reports no models", async () => {
+it("shows the current model as a disabled affordance when the agent reports no list", async () => {
 	const { container } = await renderReady({ model: "opus" });
 
-	expect(
-		within(container).queryByRole("combobox", { name: "Model" })
-	).toBeNull();
+	// The model control is ALWAYS present (never fully hidden); with only a
+	// current model and no switchable list it's a read-only label showing it.
+	const trigger = within(container).getByRole("combobox", {
+		name: "Model",
+	}) as HTMLButtonElement;
+	expect(trigger.disabled).toBe(true);
+	expect(trigger.textContent).toContain("opus");
+});
+
+it("always shows a disabled Model affordance even when the agent reports nothing", async () => {
+	const { container } = await renderReady({});
+
+	const trigger = within(container).getByRole("combobox", {
+		name: "Model",
+	}) as HTMLButtonElement;
+	expect(trigger.disabled).toBe(true);
 });
 
 it("dispatches a setPermissionMode control command when a mode is picked", async () => {

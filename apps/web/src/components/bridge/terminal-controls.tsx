@@ -6,16 +6,59 @@ import {
 	SelectValue,
 } from "@better-agent/ui/components/select";
 
-// The composer's bottom-bar control menus (Phase 5, relocated out of the
-// header per the owner's feedback): a model menu and a permission-mode menu,
-// each populated from what the running agent actually reports and hidden when
-// it reports nothing. Deliberately quiet — small, borderless, secondary
-// triggers that sit in the toolbar's left cluster next to Send/Stop, matching
-// a modern chat composer rather than a hardcoded control strip.
+// The composer's bottom-right control menus (relocated out of the header per
+// the owner's feedback): a model menu and a permission-mode menu, sitting next
+// to Send/Stop. Deliberately quiet — small, borderless, secondary triggers that
+// match a modern chat composer rather than a hardcoded control strip. The MODEL
+// control is ALWAYS present (never fully hidden) so the owner can always see
+// what the agent is on, reflecting whatever the agent reports: the full list
+// when it exposes `models`, just the current model when it reports only
+// `model`, and a disabled "Model" affordance when it reports neither. The
+// permission-mode menu stays capability-gated.
+
+/** Shown as the model control's tooltip when the agent hasn't reported any
+ * model yet — so the always-present affordance explains its disabled state
+ * rather than looking broken. */
+const NO_MODEL_REPORTED_TITLE = "This agent doesn't report a model list yet.";
 
 interface PickerOption {
 	label: string;
 	value: string;
+}
+
+interface ModelControlState {
+	/** A read-only label to render in the trigger — the current model when the
+	 * agent reports no switchable list (a disabled `Select` never mounts its
+	 * items, so `SelectValue` can't resolve the label on its own). */
+	displayLabel?: string;
+	/** Whether the agent exposed a switchable list — drives whether the menu is
+	 * interactive (a real dropdown) or a read-only label. */
+	hasList: boolean;
+	options: PickerOption[];
+	title?: string;
+}
+
+/** Resolves what the always-present model control should show from whatever the
+ * agent reported: the full switchable list, else just the current model as a
+ * read-only label, else an empty "Model" affordance with an explanatory tip. */
+function resolveModelControl(
+	model: string | undefined,
+	models: string[] | undefined
+): ModelControlState {
+	if (models && models.length > 0) {
+		return {
+			hasList: true,
+			options: models.map((id) => ({ label: id, value: id })),
+		};
+	}
+	if (model) {
+		return {
+			displayLabel: model,
+			hasList: false,
+			options: [{ label: model, value: model }],
+		};
+	}
+	return { hasList: false, options: [], title: NO_MODEL_REPORTED_TITLE };
 }
 
 /** Human labels for the SDK's `PermissionMode` values (mirrors
@@ -45,9 +88,15 @@ function firstStringValue(next: string | string[] | null): string | undefined {
 
 interface ControlSelectProps {
 	disabled: boolean;
+	/** Explicit trigger text, overriding `SelectValue`'s own resolution — needed
+	 * for a disabled menu whose items never mount (see `ModelControlState`). */
+	displayLabel?: string;
 	label: string;
 	onChange: (value: string) => void;
 	options: readonly PickerOption[];
+	/** Native tooltip on the trigger — used to explain the model control's
+	 * disabled state when the agent reports no model list. */
+	title?: string;
 	value?: string;
 }
 
@@ -56,9 +105,11 @@ interface ControlSelectProps {
  * max-lines-per-function gate. */
 function ControlSelect({
 	disabled,
+	displayLabel,
 	label,
 	onChange,
 	options,
+	title,
 	value,
 }: ControlSelectProps) {
 	return (
@@ -76,8 +127,11 @@ function ControlSelect({
 				aria-label={label}
 				className={CONTROL_TRIGGER_CLASS}
 				size="sm"
+				title={title}
 			>
-				<SelectValue placeholder={label} />
+				<SelectValue placeholder={label}>
+					{displayLabel ?? undefined}
+				</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
 				{options.map((option) => (
@@ -98,7 +152,9 @@ export interface ComposerControlsProps {
 	 * in the menu. */
 	model?: string;
 	/** The model ids the agent reports it can switch between (`session_ready`'s
-	 * `models`). The menu lists exactly these and is hidden when empty/absent. */
+	 * `models`). When present the menu lists exactly these; when empty/absent the
+	 * always-present model control falls back to the current model or a disabled
+	 * affordance (see `resolveModelControl`). */
 	models?: string[];
 	onSetModel: (model: string) => void;
 	onSetPermissionMode: (mode: string) => void;
@@ -110,11 +166,12 @@ export interface ComposerControlsProps {
 }
 
 /**
- * The composer toolbar's left-cluster menus: a model menu (from the agent's
- * reported `models`) and a permission-mode menu (from the agent's accepted
- * `permissionModes`). Each renders nothing when its source list is empty, so a
- * session only ever shows a menu it can actually act on — no hardcoded model
- * list, no control for a concept the agent doesn't have.
+ * The composer toolbar's bottom-right menus: an always-present model control
+ * (a switchable dropdown when the agent reports `models`, the current model as
+ * a read-only label when it reports only `model`, and a disabled "Model"
+ * affordance otherwise) and a capability-gated permission-mode menu (rendered
+ * only when the agent accepts any `permissionModes`). The model control is
+ * never fully hidden, so the owner can always see what the agent is on.
  */
 export function ComposerControls({
 	disabled,
@@ -125,22 +182,22 @@ export function ComposerControls({
 	permissionMode,
 	permissionModes,
 }: ComposerControlsProps) {
-	const modelOptions = (models ?? []).map((id) => ({ label: id, value: id }));
+	const modelControl = resolveModelControl(model, models);
 	const permissionOptions = permissionModes.map((mode) => ({
 		label: PERMISSION_MODE_LABELS[mode] ?? mode,
 		value: mode,
 	}));
 	return (
 		<>
-			{modelOptions.length > 0 && (
-				<ControlSelect
-					disabled={disabled}
-					label="Model"
-					onChange={onSetModel}
-					options={modelOptions}
-					value={model}
-				/>
-			)}
+			<ControlSelect
+				disabled={disabled || !modelControl.hasList}
+				displayLabel={modelControl.displayLabel}
+				label="Model"
+				onChange={onSetModel}
+				options={modelControl.options}
+				title={modelControl.title}
+				value={model}
+			/>
 			{permissionOptions.length > 0 && (
 				<ControlSelect
 					disabled={disabled}

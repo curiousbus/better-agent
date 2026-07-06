@@ -57,7 +57,9 @@ it("renders session_ready as the status header, not a chat row", async () => {
 	const view = within(container);
 
 	await waitFor(() => {
-		expect(view.getByText("claude-opus-4-6")).toBeDefined();
+		// Reported model now also shows as the composer's read-only model label,
+		// so it appears in more than one place — assert presence, not uniqueness.
+		expect(view.getAllByText("claude-opus-4-6").length).toBeGreaterThan(0);
 	});
 	expect(view.getByText("acceptEdits")).toBeDefined();
 	expect(view.getByText("3 tools · 2 commands · 1 skills")).toBeDefined();
@@ -176,7 +178,9 @@ it("feeds the composer's '/' picker from session_ready's slashCommands/skills", 
 	const view = within(container);
 
 	await waitFor(() => {
-		expect(view.getByText("claude-opus-4-6")).toBeDefined();
+		// Reported model now also shows as the composer's read-only model label,
+		// so it appears in more than one place — assert presence, not uniqueness.
+		expect(view.getAllByText("claude-opus-4-6").length).toBeGreaterThan(0);
 	});
 	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
 	fireEvent.change(textarea, { target: { value: "/" } });

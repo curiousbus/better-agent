@@ -66,9 +66,9 @@ it("hides Past conversations for a pi session (no session-list capability)", asy
 	).toBeNull();
 });
 
-it("hides the model menu for a pi session that reports no models", async () => {
-	// pi's wired RPC surface doesn't expose a model list, so the composer's
-	// model menu stays hidden — the picker lists exactly what the agent reports.
+it("shows a disabled Model affordance for a pi session that reports no models", async () => {
+	// pi's wired RPC surface doesn't expose a model list, but the model control
+	// is ALWAYS present — here as a disabled affordance rather than a dropdown.
 	const fake = makeControllableTransport();
 	const { container } = render(
 		<Terminal session={PI_SESSION} transport={fake.transport} />
@@ -78,9 +78,10 @@ it("hides the model menu for a pi session that reports no models", async () => {
 		fake.current()?.onOpen();
 	});
 
-	expect(
-		within(container).queryByRole("combobox", { name: "Model" })
-	).toBeNull();
+	const trigger = within(container).getByRole("combobox", {
+		name: "Model",
+	}) as HTMLButtonElement;
+	expect(trigger.disabled).toBe(true);
 });
 
 it("restricts the permission-mode dropdown to pi's default/plan set", async () => {
@@ -132,7 +133,7 @@ it("keeps the claude session's turn-usage chip rendering (usageMode is stream)",
 	});
 });
 
-it("hides Past conversations, the model picker, and the permission-mode dropdown for a conservative codex session", async () => {
+it("hides Past conversations and the permission-mode dropdown but keeps a disabled Model affordance for a conservative codex session", async () => {
 	const fake = makeControllableTransport();
 	const { container } = render(
 		<Terminal session={CODEX_SESSION} transport={fake.transport} />
@@ -144,8 +145,13 @@ it("hides Past conversations, the model picker, and the permission-mode dropdown
 
 	const view = within(container);
 	expect(view.queryByRole("button", { name: "Past conversations" })).toBeNull();
-	expect(view.queryByRole("combobox", { name: "Model" })).toBeNull();
 	expect(view.queryByRole("combobox", { name: "Permission mode" })).toBeNull();
+	// The model control is always present — disabled here since codex reports no
+	// switchable list.
+	const model = view.getByRole("combobox", {
+		name: "Model",
+	}) as HTMLButtonElement;
+	expect(model.disabled).toBe(true);
 	// No standalone Interrupt control anymore — Stop only appears in-flight.
 	expect(view.queryByRole("button", { name: "Interrupt" })).toBeNull();
 });

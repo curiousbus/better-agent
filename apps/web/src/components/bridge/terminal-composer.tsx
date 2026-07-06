@@ -77,9 +77,46 @@ interface ComposerToolbarProps {
 	sendDisabled: boolean;
 }
 
-/** The composer's bottom bar: the agent-reported control menus on the left, and
- * Send — or Stop, while a turn is interruptibly in flight — on the right. Split
- * out of `TerminalComposer` to keep it under the max-lines-per-function gate. */
+/** Send — or Stop, while a turn is interruptibly in flight. */
+function SendOrStopButton({
+	canStop,
+	onInterrupt,
+	sendDisabled,
+}: {
+	canStop: boolean;
+	onInterrupt: () => void;
+	sendDisabled: boolean;
+}) {
+	if (canStop) {
+		return (
+			<Button
+				aria-label="Stop"
+				onClick={onInterrupt}
+				size="icon-sm"
+				type="button"
+				variant="destructive"
+			>
+				<SquareIcon className="size-3.5" />
+			</Button>
+		);
+	}
+	return (
+		<Button
+			aria-label="Send"
+			disabled={sendDisabled}
+			size="icon-sm"
+			type="submit"
+		>
+			<ArrowUpIcon className="size-4" />
+		</Button>
+	);
+}
+
+/** The composer's bottom bar: everything sits bottom-RIGHT next to each other —
+ * the agent-reported control menus ([model] [permission]) then Send/Stop — with
+ * an empty spacer on the left so the toolbar's `justify-between` pushes the
+ * cluster to the right. Split out of `TerminalComposer` to keep it under the
+ * max-lines-per-function gate. */
 function ComposerToolbar({
 	canStop,
 	controlsDisabled,
@@ -94,6 +131,7 @@ function ComposerToolbar({
 }: ComposerToolbarProps) {
 	return (
 		<PromptInputToolbar>
+			<div aria-hidden="true" />
 			<PromptInputTools>
 				<ComposerControls
 					disabled={controlsDisabled}
@@ -104,27 +142,12 @@ function ComposerToolbar({
 					permissionMode={permissionMode}
 					permissionModes={permissionModes}
 				/>
+				<SendOrStopButton
+					canStop={canStop}
+					onInterrupt={onInterrupt}
+					sendDisabled={sendDisabled}
+				/>
 			</PromptInputTools>
-			{canStop ? (
-				<Button
-					aria-label="Stop"
-					onClick={onInterrupt}
-					size="icon-sm"
-					type="button"
-					variant="destructive"
-				>
-					<SquareIcon className="size-3.5" />
-				</Button>
-			) : (
-				<Button
-					aria-label="Send"
-					disabled={sendDisabled}
-					size="icon-sm"
-					type="submit"
-				>
-					<ArrowUpIcon className="size-4" />
-				</Button>
-			)}
 		</PromptInputToolbar>
 	);
 }
@@ -182,11 +205,11 @@ function ComposerBox({
 
 /**
  * Bottom input box for a bridge terminal, styled to match the normal chat
- * composer (centered, rounded card). The toolbar's left cluster carries the
- * agent's own control menus (model / permission mode — see `ComposerControls`),
- * and its right side is Send, swapping to Stop while an interruptible turn is
- * in flight. Posts via `onSend` and clears; the guard keeps a send from firing
- * while disabled or in flight.
+ * composer (centered, rounded card). The toolbar's bottom-right cluster carries
+ * the agent's own control menus ([model] [permission mode] — see
+ * `ComposerControls`) followed by Send, which swaps to Stop while an
+ * interruptible turn is in flight. Posts via `onSend` and clears; the guard
+ * keeps a send from firing while disabled or in flight.
  *
  * Typing "/" at the start of an empty box opens a command/skill picker (see
  * `use-slash-picker.ts`) fed by the session's own reported capabilities.
