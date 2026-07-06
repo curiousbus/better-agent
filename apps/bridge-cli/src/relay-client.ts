@@ -4,6 +4,7 @@
 // `forwardEvents`, an injected `sleep`) so they're fully testable without a
 // real network or a real timer — see relay-client.test.ts.
 
+import type { AgentStartConfig } from "./adapters/types";
 import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
 import { type PollLoopOptions, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
@@ -22,7 +23,7 @@ export interface RelayTransport {
 	startSession(input: {
 		agentKind: string;
 		label?: string;
-	}): Promise<{ sessionId: string }>;
+	}): Promise<{ config: AgentStartConfig | null; sessionId: string }>;
 }
 
 export type Sleep = (ms: number) => Promise<void>;
@@ -153,17 +154,20 @@ export async function forwardEvents<T>(
 }
 
 export interface RunBridgeSessionOptions {
-	agentKind: string;
 	forwardOptions?: ForwardEventsOptions;
 	handle: CommandSink & {
 		events: AsyncIterable<unknown>;
 		stop(): void;
 	};
-	label?: string;
 	/** Fired once the session is registered, before the loops start — lets the
 	 * CLI print the session id so the operator sees it connected. */
 	onStart?: (sessionId: string) => void;
 	pollOptions?: Omit<PollLoopOptions, "signal">;
+	/** The already-registered session id — registered BEFORE the adapter starts
+	 * so the server can return the token's persisted startup `config` (Phase 4)
+	 * in time for `adapter.start` to apply it. The caller owns the
+	 * `startSession` round-trip. */
+	sessionId: string;
 	signal: AbortSignal;
 	transport: RelayTransport;
 }
@@ -181,10 +185,7 @@ export async function runBridgeSession(
 	options: RunBridgeSessionOptions
 ): Promise<{ sessionId: string }> {
 	try {
-		const { sessionId } = await options.transport.startSession({
-			agentKind: options.agentKind,
-			label: options.label,
-		});
+		const { sessionId } = options;
 		options.onStart?.(sessionId);
 		const afterIdRef: AfterIdRef = { current: 0 };
 		const pollController = new AbortController();

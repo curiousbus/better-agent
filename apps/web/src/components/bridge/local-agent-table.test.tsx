@@ -23,6 +23,7 @@ function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 		agentKind: "claude-code",
 		token: "bt_alpha",
 		last4: "1234",
+		config: null,
 		createdAt: new Date("2026-07-04T12:00:00Z"),
 		revokedAt: null,
 		...overrides,

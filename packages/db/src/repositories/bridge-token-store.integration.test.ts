@@ -150,3 +150,32 @@ it("create rejects a duplicate token hash", async () => {
 		store.create({ ...createInput(userId), tokenHash: input.tokenHash })
 	).rejects.toThrow();
 });
+
+it("updateConfig persists the config and getById returns it; null for other users", async () => {
+	const store = createBridgeTokenStore(db);
+	const userId = await seedUser("alice@x.com");
+	const created = await store.create(createInput(userId, "laptop"));
+
+	const updated = await store.updateConfig(created.id, userId, {
+		appendSystemPrompt: "Be concise.",
+		maxTurns: 7,
+	});
+
+	expect(updated?.config).toEqual({
+		appendSystemPrompt: "Be concise.",
+		maxTurns: 7,
+	});
+	const refetched = await store.getById(created.id, userId);
+	expect(refetched?.config).toEqual({
+		appendSystemPrompt: "Be concise.",
+		maxTurns: 7,
+	});
+	// A different user's updateConfig is a no-op (returns null), leaving the
+	// row untouched.
+	const bob = await seedUser("bob@x.com");
+	expect(await store.updateConfig(created.id, bob, {})).toBeNull();
+	expect((await store.getById(created.id, userId))?.config).toEqual({
+		appendSystemPrompt: "Be concise.",
+		maxTurns: 7,
+	});
+});

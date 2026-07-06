@@ -105,10 +105,22 @@ export interface AgentHandle {
 
 /** Options that shape how `Adapter.start` begins a session. */
 export interface StartOptions {
+	/** Persisted startup config fetched from the server at session start
+	 * (Phase 4): `appendSystemPrompt` (claude's SDK option), `maxTurns`, … Adapters
+	 * apply only the fields they support; unknown fields are ignored. */
+	config?: AgentStartConfig;
 	/** A prior conversation id to resume, from `--resume` (see args.ts). Only
 	 * claude-code's adapter honors this; every other adapter's `start` simply
 	 * doesn't declare the parameter, so it's a no-op for them by construction. */
 	resume?: string;
+}
+
+/** Startup config the bridge CLI forwards to an adapter (a subset of the
+ * server's `BridgeTokenConfig`, redeclared locally so the CLI doesn't take a
+ * runtime dep on `@better-agent/agent`). */
+export interface AgentStartConfig {
+	appendSystemPrompt?: string;
+	maxTurns?: number;
 }
 
 /** Spawns and wires up one local coding agent in `dir`. */

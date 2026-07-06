@@ -1,0 +1,1 @@
+ALTER TABLE "bridge_tokens" ADD COLUMN "config" jsonb;

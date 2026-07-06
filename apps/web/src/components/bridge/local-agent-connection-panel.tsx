@@ -1,8 +1,12 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
+import { Button } from "@better-agent/ui/components/button";
+import { SettingsIcon } from "lucide-react";
+import { useState } from "react";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { localAgentDisplayName } from "./local-agent-format";
 import { bridgeCliCommand } from "./local-agent-join";
 import { AGENT_KIND_LABEL, AgentKindIcon } from "./local-agent-kind-icon";
+import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
 
 const CODE_CLASS =
 	"block w-full overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-2 py-1.5 font-mono text-xs";
@@ -17,6 +21,7 @@ function CopyableCode({ label, value }: { label: string; value: string }) {
 }
 
 function PanelHeader({ token }: { token: BridgeTokenRow }) {
+	const [settingsOpen, setSettingsOpen] = useState(false);
 	return (
 		<div className="flex min-w-0 items-center gap-2">
 			<AgentKindIcon
@@ -33,6 +38,23 @@ function PanelHeader({ token }: { token: BridgeTokenRow }) {
 			<span className="shrink-0 text-muted-foreground text-xs">
 				{AGENT_KIND_LABEL[token.agentKind]}
 			</span>
+			<div className="ml-auto">
+				<Button
+					aria-label="Settings"
+					onClick={() => setSettingsOpen(true)}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<SettingsIcon className="size-4" />
+				</Button>
+				{settingsOpen && (
+					<LocalAgentSettingsDialog
+						onOpenChange={setSettingsOpen}
+						open={settingsOpen}
+						token={token}
+					/>
+				)}
+			</div>
 		</div>
 	);
 }

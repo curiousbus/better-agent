@@ -110,6 +110,27 @@ export const bridgeRouter = {
 			return { ok: true };
 		}),
 
+	// Phase 4: persist a local agent's startup config (appendSystemPrompt,
+	// maxTurns, …). The CLI fetches it via startSession and applies it at launch.
+	updateTokenConfig: userProcedure
+		.input(
+			z.object({
+				id: z.uuid(),
+				config: z.object({
+					appendSystemPrompt: z.string().optional(),
+					maxTurns: z.number().int().positive().optional(),
+				}),
+			})
+		)
+		.handler(async ({ input, context }) => {
+			const updated = await context.services.stores.bridgeToken.updateConfig(
+				input.id,
+				context.authedUser.id,
+				input.config
+			);
+			return updated ? { ok: true } : { ok: false };
+		}),
+
 	// --- bridge-token (local CLI) endpoints ---
 	startSession: bridgeProcedure
 		.input(
@@ -126,7 +147,13 @@ export const bridgeRouter = {
 				agentKind: input.agentKind,
 				label: input.label,
 			});
-			return { sessionId: session.id };
+			// Return the token's persisted startup config so the CLI can apply it
+			// (appendSystemPrompt, maxTurns, …) when launching the agent.
+			const token = await context.services.stores.bridgeToken.getById(
+				tokenId,
+				userId
+			);
+			return { sessionId: session.id, config: token?.config ?? null };
 		}),
 
 	pushEvents: bridgeProcedure

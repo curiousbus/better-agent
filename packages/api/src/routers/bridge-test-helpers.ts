@@ -46,6 +46,7 @@ function newTokenRow(input: CreateTokenInput): BridgeTokenRow {
 		agentKind: input.agentKind,
 		token: input.token,
 		last4: input.last4 ?? null,
+		config: input.config ?? null,
 		createdAt: new Date(),
 		revokedAt: null,
 	};
@@ -105,7 +106,26 @@ function memoryBridgeTokenStore(
 			}
 			return Promise.resolve();
 		},
+		updateConfig: (id, userId, config) =>
+			memoryUpdateConfig(rows, id, userId, config),
 	};
+}
+
+/** In-memory updateConfig, split out so `memoryBridgeTokenStore` stays under
+ * the max-lines-per-function gate. */
+function memoryUpdateConfig(
+	rows: Map<string, BridgeTokenRow>,
+	id: string,
+	userId: string,
+	config: BridgeTokenRow["config"]
+): Promise<BridgeTokenRow | null> {
+	const row = rows.get(id);
+	if (!row || row.userId !== userId) {
+		return Promise.resolve(null);
+	}
+	const updated: BridgeTokenRow = { ...row, config };
+	rows.set(id, updated);
+	return Promise.resolve(updated);
 }
 
 function memoryBridgeSessionStore(

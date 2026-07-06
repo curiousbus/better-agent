@@ -1,4 +1,5 @@
 import type { AgentConfig, AgentInput } from "./agent/types";
+import type { BridgeAgentKind } from "./bridge-token-ports";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
@@ -180,38 +181,17 @@ export interface ComposioAccountStore {
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
 
-export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
 export type BridgeSessionStatus = "active" | "ended";
 
-/** Owner-facing bridge token: raw `token` + bound `agentKind`, never the hash. */
-export interface BridgeTokenRow {
-	agentKind: BridgeAgentKind;
-	createdAt: Date;
-	id: string;
-	last4: string | null;
-	name: string | null;
-	revokedAt: Date | null;
-	token: string | null;
-	userId: string;
-}
-
-export interface BridgeTokenStore {
-	create(input: {
-		userId: string;
-		name?: string;
-		agentKind: BridgeAgentKind;
-		token: string;
-		tokenHash: string;
-		last4?: string;
-	}): Promise<BridgeTokenRow>;
-	deleteAgent(id: string, userId: string): Promise<void>;
-	/** Looked up on every bridge request; null when the hash is unknown. */
-	findByHash(
-		tokenHash: string
-	): Promise<{ id: string; userId: string; revokedAt: Date | null } | null>;
-	getById(id: string, userId: string): Promise<BridgeTokenRow | null>;
-	listByUser(userId: string): Promise<BridgeTokenRow[]>;
-}
+// Bridge-token port types live in bridge-token-ports.ts (split out to keep this
+// file under the 300-line limit) and are re-exported here so the public
+// `@better-agent/agent/ports` surface is unchanged.
+export type {
+	BridgeAgentKind,
+	BridgeTokenConfig,
+	BridgeTokenRow,
+	BridgeTokenStore,
+} from "./bridge-token-ports";
 
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;

@@ -17,7 +17,17 @@ async function main(): Promise<void> {
 	process.stdout.write(
 		`Starting ${args.agentKind} in ${args.dir} → ${args.serverUrl}\n`
 	);
-	const handle = await adapter.start(args.dir, { resume: args.resume });
+	// Register the session BEFORE starting the adapter so the server can hand
+	// back the token's persisted startup config (Phase 4) in time for
+	// `adapter.start` to apply it (appendSystemPrompt, maxTurns, …).
+	const { sessionId, config } = await transport.startSession({
+		agentKind: args.agentKind,
+		label: args.label,
+	});
+	const handle = await adapter.start(args.dir, {
+		resume: args.resume,
+		config: config ?? undefined,
+	});
 	const controller = new AbortController();
 
 	const stop = () => {
@@ -27,11 +37,10 @@ async function main(): Promise<void> {
 	process.once("SIGINT", stop);
 	process.once("SIGTERM", stop);
 
-	const { sessionId } = await runBridgeSession({
-		agentKind: args.agentKind,
-		label: args.label,
+	const { sessionId: endedSessionId } = await runBridgeSession({
 		transport,
 		handle,
+		sessionId,
 		signal: controller.signal,
 		onStart: (id) =>
 			process.stdout.write(
@@ -51,7 +60,7 @@ async function main(): Promise<void> {
 		},
 	});
 
-	process.stdout.write(`Bridge session ended: ${sessionId}\n`);
+	process.stdout.write(`Bridge session ended: ${endedSessionId}\n`);
 }
 
 main().catch((error: unknown) => {

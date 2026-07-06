@@ -108,7 +108,9 @@ function fakeTransport(
 	pollCommands: RelayTransport["pollCommands"]
 ): RelayTransport {
 	return {
-		startSession: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
+		startSession: vi
+			.fn()
+			.mockResolvedValue({ sessionId: "sess_1", config: null }),
 		pushEvents: vi.fn().mockResolvedValue(undefined),
 		pollCommands,
 	};
@@ -125,8 +127,7 @@ async function startsSessionPushesEventsAndPollsUnderOneSessionId(): Promise<voi
 	};
 
 	const result = await runBridgeSession({
-		agentKind: "claude-code",
-		label: "my project",
+		sessionId: "sess_1",
 		transport,
 		handle: {
 			answerApproval: vi.fn(),
@@ -139,42 +140,12 @@ async function startsSessionPushesEventsAndPollsUnderOneSessionId(): Promise<voi
 	});
 
 	expect(result).toEqual({ sessionId: "sess_1" });
-	expect(transport.startSession).toHaveBeenCalledExactlyOnceWith({
-		agentKind: "claude-code",
-		label: "my project",
-	});
 	expect(transport.pushEvents).toHaveBeenCalledWith({
 		sessionId: "sess_1",
 		events: ["e1", "e2"],
 	});
 	// The agent process must be released once the session winds down,
 	// whether that's a clean finish or a failure below.
-	expect(stop).toHaveBeenCalledTimes(1);
-}
-
-async function stopsTheAgentEvenWhenStartingTheSessionFailsOutright(): Promise<void> {
-	const controller = new AbortController();
-	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
-	transport.startSession = vi
-		.fn()
-		.mockRejectedValue(new Error("server unreachable"));
-	const stop = vi.fn();
-
-	await expect(
-		runBridgeSession({
-			agentKind: "claude-code",
-			label: "my project",
-			transport,
-			handle: {
-				answerApproval: vi.fn(),
-				events: arrayEvents([]),
-				send: vi.fn(),
-				stop,
-			},
-			signal: controller.signal,
-		})
-	).rejects.toThrow("server unreachable");
-
 	expect(stop).toHaveBeenCalledTimes(1);
 }
 
@@ -201,7 +172,7 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 	const neverSleep: Sleep = () => new Promise(() => undefined);
 
 	await runBridgeSession({
-		agentKind: "claude-code",
+		sessionId: "sess_1",
 		transport,
 		handle: {
 			answerApproval: vi.fn(),
@@ -238,7 +209,7 @@ async function aControlStopCommandStopsTheAgentAndEndsTheSession(): Promise<void
 	const transport = fakeTransport(pollCommands);
 
 	const result = await runBridgeSession({
-		agentKind: "claude-code",
+		sessionId: "sess_1",
 		transport,
 		handle: { answerApproval: vi.fn(), events, send: vi.fn(), stop },
 		signal: controller.signal,
@@ -264,11 +235,6 @@ describe("runBridgeSession", () => {
 	it(
 		"starts a session, pushes events, and polls under one sessionId",
 		startsSessionPushesEventsAndPollsUnderOneSessionId
-	);
-
-	it(
-		"stops the agent even when starting the session fails outright",
-		stopsTheAgentEvenWhenStartingTheSessionFailsOutright
 	);
 
 	it(

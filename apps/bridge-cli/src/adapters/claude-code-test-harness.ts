@@ -16,6 +16,9 @@ export interface QueryHarness {
 	canUseTool: CanUseTool;
 	endOutput(): void;
 	interrupt: ReturnType<typeof vi.fn>;
+	/** The full `options` object passed to `query()` — lets a test assert on
+	 * startup config (systemPrompt preset+append, maxTurns, …). */
+	options: Record<string, unknown> | undefined;
 	prompt: AsyncIterable<SDKUserMessage>;
 	setModel: ReturnType<typeof vi.fn>;
 	setPermissionMode: ReturnType<typeof vi.fn>;
@@ -39,6 +42,7 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 	vi.mocked(query).mockImplementation((params) => {
 		harness.prompt = params.prompt as AsyncIterable<SDKUserMessage>;
 		harness.canUseTool = params.options?.canUseTool as CanUseTool;
+		harness.options = params.options as Record<string, unknown> | undefined;
 		harness.yieldMessage = (message: unknown) => output.push(message);
 		harness.endOutput = () => output.close();
 		harness.interrupt = interrupt;

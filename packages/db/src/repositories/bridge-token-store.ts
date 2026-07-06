@@ -19,6 +19,7 @@ function toRow(row: typeof schema.bridgeTokens.$inferSelect): BridgeTokenRow {
 		agentKind: row.agentKind,
 		token: row.token ?? null,
 		last4: row.last4 ?? null,
+		config: (row.config ?? null) as BridgeTokenRow["config"],
 		createdAt: row.createdAt,
 		revokedAt: row.revokedAt ?? null,
 	};
@@ -89,12 +90,36 @@ async function getTokenById(
 	return row ? toRow(row) : null;
 }
 
+/** Replaces the token's persisted startup config (Phase 4), owner-scoped —
+ * returns null (no row touched) for a non-owner. Extracted to a module-level
+ * helper so `createBridgeTokenStore` stays under the max-lines-per-function
+ * gate, mirroring `getTokenById`. */
+async function updateTokenConfig(
+	db: Db,
+	id: string,
+	userId: string,
+	config: BridgeTokenRow["config"]
+): Promise<BridgeTokenRow | null> {
+	const rows = await db
+		.update(schema.bridgeTokens)
+		.set({ config })
+		.where(
+			and(
+				eq(schema.bridgeTokens.id, id),
+				eq(schema.bridgeTokens.userId, userId)
+			)
+		)
+		.returning();
+	const updated = rows[0];
+	return updated ? toRow(updated) : null;
+}
+
 export function createBridgeTokenStore(db: Db): BridgeTokenStore {
 	return {
-		async create({ userId, name, agentKind, token, tokenHash, last4 }) {
+		async create({ userId, name, agentKind, token, tokenHash, last4, config }) {
 			const rows = await db
 				.insert(schema.bridgeTokens)
-				.values({ userId, name, agentKind, token, tokenHash, last4 })
+				.values({ userId, name, agentKind, token, tokenHash, last4, config })
 				.returning();
 			const row = rows[0];
 			if (!row) {
@@ -127,6 +152,9 @@ export function createBridgeTokenStore(db: Db): BridgeTokenStore {
 		},
 		deleteAgent(id, userId) {
 			return deleteAgentAndSessions(db, id, userId);
+		},
+		updateConfig(id, userId, config) {
+			return updateTokenConfig(db, id, userId, config);
 		},
 	};
 }

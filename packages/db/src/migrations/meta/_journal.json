@@ -232,6 +232,13 @@
       "when": 1783311134801,
       "tag": "0032_red_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1783347083221,
+      "tag": "0033_careful_sabra",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import type {
 	BridgeAgentKind,
 	BridgeSessionStatus,
+	BridgeTokenConfig,
 } from "@better-agent/agent/ports";
 import {
 	bigint,
@@ -35,6 +36,9 @@ export const bridgeTokens = pgTable(
 		// hash-only (created before re-view support) and have no raw token.
 		token: text("token"),
 		last4: text("last4"),
+		// Persisted startup config (Phase 4): appendSystemPrompt, maxTurns, …
+		// Nullable: legacy rows predate the column.
+		config: jsonb("config").$type<BridgeTokenConfig>(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
