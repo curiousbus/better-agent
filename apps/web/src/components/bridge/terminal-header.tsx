@@ -8,7 +8,6 @@ import type {
 import { AgentKindIcon } from "./local-agent-kind-icon";
 import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
-import { SkillsCommandsPopover } from "./skills-commands-popover";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
 
@@ -53,16 +52,16 @@ interface TerminalHeaderActionsProps {
 	listSessions: () => void;
 	onEnd?: () => void;
 	sessionList: SessionListDetail | null;
-	sessionReady: SessionReadyDetail | null;
 	status: TerminalConnectionStatus;
 }
 
-/** The header's right-hand action cluster: past conversations, skills &
- * commands, and the End button — each gated on `caps` (End also hidden once the
- * session has ended, or when no `onEnd` is wired, e.g. in tests). The model /
- * permission-mode / interrupt controls now live in the composer's bottom bar
- * (see terminal-composer.tsx), not here. Split out purely to keep
- * `TerminalHeader` under the repo's max-lines-per-function gate. */
+/** The header's right-hand action cluster: past conversations and the End
+ * button — each gated on `caps` (End also hidden once the session has ended, or
+ * when no `onEnd` is wired, e.g. in tests). Skills & commands are discoverable
+ * by typing "/" in the composer (no redundant header button); the model /
+ * permission-mode / interrupt controls live in the composer's bottom bar (see
+ * terminal-composer.tsx). Split out purely to keep `TerminalHeader` under the
+ * repo's max-lines-per-function gate. */
 function TerminalHeaderActions({
 	canSend,
 	caps,
@@ -70,7 +69,6 @@ function TerminalHeaderActions({
 	listSessions,
 	onEnd,
 	sessionList,
-	sessionReady,
 	status,
 }: TerminalHeaderActionsProps) {
 	const showEnd = status !== "ended" && onEnd !== undefined;
@@ -83,13 +81,6 @@ function TerminalHeaderActions({
 					sessionList={sessionList}
 				/>
 			)}
-			<SkillsCommandsPopover
-				disabled={!canSend}
-				skills={caps.skills ? sessionReady?.skills : undefined}
-				slashCommands={
-					caps.slashCommands ? sessionReady?.slashCommands : undefined
-				}
-			/>
 			{showEnd && (
 				<Button disabled={ending} onClick={onEnd} size="xs" variant="outline">
 					End session
@@ -102,6 +93,7 @@ function TerminalHeaderActions({
 export interface TerminalHeaderProps extends TerminalHeaderActionsProps {
 	agentKind: BridgeSessionRow["agentKind"];
 	sessionId: string;
+	sessionReady: SessionReadyDetail | null;
 }
 
 /** The single header for a Local Agent session: the prominent session id, the
@@ -123,11 +115,7 @@ export function TerminalHeader({
 					<SessionIdLabel agentKind={agentKind} sessionId={sessionId} />
 					<TerminalStatus status={status} />
 				</div>
-				<TerminalHeaderActions
-					{...actions}
-					sessionReady={sessionReady}
-					status={status}
-				/>
+				<TerminalHeaderActions {...actions} status={status} />
 			</div>
 			<SessionStatusHeader detail={sessionReady} />
 		</div>
