@@ -97,7 +97,7 @@ it("echoes the user's own line into the feed immediately, before the CLI replies
 	});
 });
 
-it("keeps a shimmering working skeleton up for the whole turn, gone on completion", async () => {
+it("shows the working skeleton while awaiting a reply, cleared once the agent outputs — even with NO turn_usage event", async () => {
 	const fake = makeControllableTransport();
 	fake.sendInput.mockReturnValue(new Promise(() => undefined));
 	const { container } = render(
@@ -112,26 +112,49 @@ it("keeps a shimmering working skeleton up for the whole turn, gone on completio
 	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
 	fireEvent.change(textarea, { target: { value: "hi" } });
 	fireEvent.click(view.getByRole("button", { name: "Send" }));
-	// A skeleton placeholder — not the words "Thinking…/Working…" — signals work.
+	// A skeleton — not the words "Thinking…/Working…" — signals work while the
+	// last event is the user's own message (awaiting the reply).
 	await waitFor(() => {
 		expect(view.getByTestId("working-skeleton")).toBeDefined();
 	});
 	expect(view.queryByText("Working…")).toBeNull();
 
-	// First token streams in: the skeleton must PERSIST (previously the text
-	// indicator cleared here, making a long tool run look frozen).
+	// The agent produces output → the streaming text IS the signal, so the
+	// skeleton clears. There is deliberately NO turn_usage here (opencode/pi
+	// never emit one); the old logic left the skeleton stuck on forever.
 	await act(() => {
 		fake
 			.current()
 			?.onEvent({ id: 1, data: { kind: "output", text: "hello back" } });
 	});
+	await waitFor(() => {
+		expect(view.queryByTestId("working-skeleton")).toBeNull();
+	});
+});
+
+it("shows the working skeleton while a tool is still running, cleared when it completes", async () => {
+	const fake = makeControllableTransport();
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	await waitForConnect(fake);
+	await act(() => {
+		fake.current()?.onOpen();
+	});
+	const view = within(container);
+
+	await act(() => {
+		fake.current()?.onEvent({
+			id: 1,
+			data: { kind: "tool", id: "t1", name: "Bash", status: "started" },
+		});
+	});
 	expect(view.getByTestId("working-skeleton")).toBeDefined();
 
-	// The turn completes (claude's turn_usage) → the skeleton finally clears.
 	await act(() => {
 		fake.current()?.onEvent({
 			id: 2,
-			data: { kind: "status", status: "turn_usage", detail: { numTurns: 1 } },
+			data: { kind: "tool", id: "t1", name: "Bash", status: "completed" },
 		});
 	});
 	await waitFor(() => {

@@ -4,11 +4,9 @@ import type { BridgeSessionRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { type AgentCapabilities, capabilities } from "./agent-capabilities";
 import type { StreamEvent } from "./bridge-events";
-import {
-	type SessionReadyDetail,
-	TURN_END_STATUS,
-	TURN_USAGE_STATUS,
-	type TurnUsageDetail,
+import type {
+	SessionReadyDetail,
+	TurnUsageDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
@@ -132,26 +130,31 @@ function TerminalBody(props: TerminalBodyProps) {
 	);
 }
 
-/** True for the WHOLE in-flight turn: from the user's latest message until a
- * turn-completion status (claude → `turn_usage`, pi/opencode → `turn_end`).
- * Scanning tail-first, a completion before any user message means the last turn
- * already finished; a user message first means we're mid-turn. This — not
- * `awaitingFirstToken` — gates the persistent working indicator, so a long tool
- * run no longer looks frozen after the first token. */
+/** Whether to show the "working" skeleton — derived from the LAST renderable
+ * event, tail-first, so it can never get stuck:
+ *   - assistant `output` (streaming reply)     → false (the text IS the signal)
+ *   - a `message`                              → true only if it's the USER's
+ *     (we're waiting for the agent's reply); an assistant message → false
+ *   - a `tool` still `started` (no result yet) → true (agent working silently)
+ *     — a completed/failed tool → false
+ * Status events (turn_usage/turn_end, session_ready, …) are skipped so the
+ * scan lands on the real conversational tail. Crucially this does NOT depend on
+ * a turn-completion event: opencode/pi/codex never emit `turn_usage`/`turn_end`,
+ * so the old "show until completion" logic left the skeleton on forever. */
 function deriveTurnInFlight(events: StreamEvent[], ended: boolean): boolean {
 	if (ended) {
 		return false;
 	}
 	for (let i = events.length - 1; i >= 0; i--) {
 		const event = events[i].event;
-		if (
-			event.kind === "status" &&
-			(event.status === TURN_USAGE_STATUS || event.status === TURN_END_STATUS)
-		) {
+		if (event.kind === "output") {
 			return false;
 		}
-		if (event.kind === "message" && event.role === "user") {
-			return true;
+		if (event.kind === "message") {
+			return event.role === "user";
+		}
+		if (event.kind === "tool") {
+			return event.status === "started";
 		}
 	}
 	return false;
