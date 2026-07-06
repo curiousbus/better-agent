@@ -2,27 +2,23 @@ import {
 	generateToken,
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
-import { ORPCError } from "@orpc/server";
 import { log } from "evlog";
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
 import { maybePersistAgentSessionId } from "./bridge-agent-session-id";
+import {
+	assertEventsWithinSizeLimit,
+	assertInputWithinSizeLimit,
+} from "./bridge-size-limits";
+import { usageByAgentKind } from "./bridge-usage";
 
 const TOKEN_PREFIX = "bt_";
 const LAST4 = 4;
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 /** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
 const MAX_PUSH_BATCH = 50;
-/** Max serialized size (bytes) of a single pushed event before it's rejected.
- * Mirrored in `apps/bridge-cli/src/truncate-event.ts`'s `MAX_EVENT_BYTES` —
- * the CLI truncates event fields down to (comfortably) under this same cap
- * before ever sending an event here, so real oversized batches shouldn't
- * happen in practice. Keep the two values in sync. */
-const MAX_EVENT_BYTES = 32_768;
-/** Max size (characters) of sendInput's `data` before it's rejected. */
-const MAX_INPUT_CHARS = 8192;
 /** Appended to a session's `commands↓` by `endSession`, so the CLI's poll
  * loop (see `apps/bridge-cli/src/commands.ts`'s `parseCommandText`) tells the
  * local agent process to stop instead of the DB flip alone leaving it running
@@ -32,41 +28,6 @@ const STOP_CONTROL_COMMAND = { type: "control", action: "stop" } as const;
 const DEFAULT_HISTORY_LIMIT = 500;
 /** Hard cap on `history`'s `limit` input, to bound one query's result size. */
 const MAX_HISTORY_LIMIT = 500;
-
-/** Serialized size of `value` in UTF-8 bytes, as JSON. */
-function byteSizeOf(value: unknown): number {
-	return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
-}
-
-/** Serialized size of `value` in characters: raw length for a string,
- * JSON length otherwise. */
-function charSizeOf(value: unknown): number {
-	if (typeof value === "string") {
-		return value.length;
-	}
-	return (JSON.stringify(value) ?? "").length;
-}
-
-/** Rejects the whole call with BAD_REQUEST naming the first oversized event,
- * rather than silently truncating — real line-truncation belongs in the
- * CLI's adapters, which know how to shrink an event without corrupting it. */
-function assertEventsWithinSizeLimit(events: readonly unknown[]): void {
-	for (const [index, event] of events.entries()) {
-		if (byteSizeOf(event) > MAX_EVENT_BYTES) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: `Event at index ${index} exceeds ${MAX_EVENT_BYTES} bytes`,
-			});
-		}
-	}
-}
-
-function assertInputWithinSizeLimit(data: unknown): void {
-	if (charSizeOf(data) > MAX_INPUT_CHARS) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: `sendInput data exceeds ${MAX_INPUT_CHARS} characters`,
-		});
-	}
-}
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
@@ -203,6 +164,11 @@ export const bridgeRouter = {
 				context.authedBridgeToken.userId,
 				input.sessionId
 			);
+			// The CLI polls this every couple seconds for as long as it's connected,
+			// so it doubles as a liveness heartbeat: touch lastSeenAt here too, not
+			// only on pushEvents — otherwise a connected-but-quiet agent (no output)
+			// goes "idle" after the threshold while its stream is still Live.
+			await context.services.stores.bridgeSession.touch(input.sessionId);
 			return context.services.relayStore.read(
 				input.sessionId,
 				"commands",
@@ -265,6 +231,10 @@ export const bridgeRouter = {
 	listSessions: userProcedure.handler(({ context }) =>
 		context.services.stores.bridgeSession.listByUser(context.authedUser.id)
 	),
+
+	// Local Agent usage broken down by agent kind, over the same rolling window
+	// as the chat usage summary (owner-scoped). See ./bridge-usage.ts.
+	usageByAgentKind,
 
 	endSession: userProcedure
 		.input(sessionIdInput)

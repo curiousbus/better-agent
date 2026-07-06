@@ -1,5 +1,6 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
+import type { BridgeUsageStore } from "@better-agent/agent/bridge/usage-ports";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
@@ -80,6 +81,7 @@ export interface AgentServices {
 		bridgeToken: BridgeTokenStore;
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
+		bridgeUsage: BridgeUsageStore;
 	};
 	tokenService: TokenService;
 }

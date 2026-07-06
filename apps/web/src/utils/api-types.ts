@@ -32,3 +32,7 @@ export type BridgeTokenRow = Awaited<
 export type BridgeSessionRow = Awaited<
 	ReturnType<Client["bridge"]["listSessions"]>
 >[number];
+
+export type LocalAgentUsageRow = Awaited<
+	ReturnType<Client["bridge"]["usageByAgentKind"]>
+>["byKind"][number];

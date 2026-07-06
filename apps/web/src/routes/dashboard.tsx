@@ -2,12 +2,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ActivityTimeline } from "@/components/dashboard/activity-timeline";
 import {
 	DEFAULT_WINDOW,
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { LocalAgentUsage } from "@/components/dashboard/local-agent-usage";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { TokenChart } from "@/components/dashboard/token-chart";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
@@ -65,7 +65,7 @@ function DashboardBody({
 	);
 }
 
-function DashboardPage() {
+export function DashboardPage() {
 	const [windowDays, setWindowDays] = useState<WindowDays>(DEFAULT_WINDOW);
 	const { isPending, isError, error, daily, totals, isEmpty } =
 		useUsageData(windowDays);
@@ -87,7 +87,7 @@ function DashboardPage() {
 				isPending={isPending}
 				totals={totals}
 			/>
-			<ActivityTimeline />
+			<LocalAgentUsage windowDays={windowDays} />
 		</div>
 	);
 }

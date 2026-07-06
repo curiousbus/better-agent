@@ -21,6 +21,7 @@ import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachm
 import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
 import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-session-store";
 import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
+import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
@@ -162,6 +163,7 @@ function buildStores(parts: {
 	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
+	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	deps: ReturnType<typeof buildProviderDeps>;
@@ -190,6 +192,7 @@ function buildStores(parts: {
 		bridgeToken: parts.bridgeTokenStore,
 		bridgeSession: parts.bridgeSessionStore,
 		bridgeMessage: parts.bridgeMessageStore,
+		bridgeUsage: parts.bridgeUsageStore,
 		...authStores,
 	};
 }
@@ -202,6 +205,7 @@ function assembleServices(parts: {
 	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
+	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
 	cancellation: CancellationRegistry;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
@@ -280,6 +284,7 @@ export function buildServices(
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),
 		bridgeMessageStore: createBridgeMessageStore(db),
+		bridgeUsageStore: createBridgeUsageStore(db),
 		authzBinding,
 		mcpBinding,
 	});
